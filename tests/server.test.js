@@ -362,3 +362,22 @@ test('erros de configuração aparecem com a causa; os demais erros internos con
   const a = await run(new ConfigError('Falta a variável SESSION_SECRET')); assert.equal(a.status, 500); assert.match(a.error, /SESSION_SECRET/);
   const b = await run(new Error('chave-secreta-xyz quebrou')); assert.equal(b.status, 500); assert.doesNotMatch(b.error, /xyz/);
 });
+
+test('chave da conta de serviço: aceita JSON normal, com quebras de linha coladas no meio, sem "}" final e em base64; recusa lixo', () => {
+  const { SheetsClient } = require('../lib/google');
+  const kp = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const pem = kp.privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const obj = { type: 'service_account', client_email: 'robo@proj.iam.gserviceaccount.com', private_key: pem, token_uri: 'https://oauth2.googleapis.com/token' };
+  const ok = raw => new SheetsClient({ sheetId: 'x', serviceAccount: raw }).sa;
+  const normal = JSON.stringify(obj, null, 2);
+  assert.equal(ok(normal).client_email, obj.client_email);
+  const quebrado = normal.replace(/("private_key": ")([^"]+)(")/, (m, a, b, c) => a + b.replace(/(.{37})/g, '$1\n  ') + c);   /* chave longa quebrada em qualquer ponto */
+  assert.throws(() => JSON.parse(quebrado));
+  const r = ok(quebrado); assert.equal(r.client_email, obj.client_email); assert.ok(crypto.createPrivateKey(r.private_key));
+  assert.ok(ok(normal.replace(/\}\s*$/, '')).private_key.includes('BEGIN PRIVATE KEY'), 'sem o } final');
+  assert.ok(ok('"' + normal.replace(/"/g, '\\"') + '"'), 'com aspas ao redor');
+  assert.equal(ok(Buffer.from(normal).toString('base64')).client_email, obj.client_email);
+  assert.throws(() => ok('isto não é uma chave'), /JSON válido/);
+  const cortada = normal.replace(/(BEGIN PRIVATE KEY-----\\n)[\s\S]{40}[\s\S]*?(\\n-----END)/, '$1MIIEv$2');
+  assert.throws(() => ok(cortada), /corrompida|incompleta/);
+});
