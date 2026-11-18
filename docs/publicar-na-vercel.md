@@ -51,11 +51,7 @@ O arquivo `private/data.js` tem vendas, auditoria e estratégia dos clientes. Em
    **Não crie** `AUTH_DEV_EMAIL` nem `DB_DRIVER`. O login de desenvolvimento só existe no seu computador.
 4. Clique em **Deploy**.
 
-**Qual branch vira produção.** A Vercel publica a branch `main` como produção. O código atual está na branch `claude/agency-internal-management-site-12a3ih`. Escolha uma:
-- **A (recomendada):** no GitHub, abra um pull request dessa branch para a `main` e faça o merge. A Vercel publica sozinha.
-- **B (para testar já):** na Vercel → projeto → **Settings** → **Git** → **Production Branch** → digite `claude/agency-internal-management-site-12a3ih` e faça um novo deploy.
-
-Sem uma das duas, o site sai como *Preview*, com um endereço comprido que o Google não reconhece no passo 4.
+**Qual branch vira produção.** O `app7` tem uma única branch (`claude/agency-internal-management-site-12a3ih`) e ela é a branch padrão do repositório. A Vercel usa a branch padrão como produção, então **não precisa de pull request nem de merge**: o primeiro deploy já sai como produção. Se um dia você criar uma `main`, ajuste em **Settings** → **Git** → **Production Branch**.
 
 ## 4. Liberar o endereço no Google
 
