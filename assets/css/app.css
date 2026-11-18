@@ -335,3 +335,41 @@ label.check input { width: 16px; height: 16px; margin-top: 1px; accent-color: va
 .client-card .health-row { padding: 2px 0; }
 @media (max-width: 900px) { .panel-cols[style*="repeat(3"] { grid-template-columns: minmax(0, 1fr) !important; } }
 @media (max-width: 560px) { .qrow { grid-template-columns: 1fr; } }
+
+/* ---------- ideias, horários livres e aprovação ---------- */
+.idea-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px; }
+.idea-form .grow { flex: 1 1 220px; min-width: 0; }
+.idea-form input[type="text"] { width: 100%; }
+.idea-form .btn { align-self: flex-end; }
+.idea-note { font-size: 12px; color: var(--text-2); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.kslot, .mslot { display: block; width: 100%; text-align: left; background: transparent; border: 1px dashed var(--muted); color: var(--text-2); border-radius: 8px; font-weight: 600; cursor: pointer; }
+.kslot { padding: 8px 10px; font-size: 12px; }
+.mslot { padding: 2px 6px; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kslot:hover, .mslot:hover { border-color: var(--violet); color: var(--violet-d); background: var(--box); }
+.kslot span { color: var(--violet-d); }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--violet-d); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font-size: inherit; }
+.aprov { background: var(--box); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.aprov-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 8px 0; border-top: 1px solid var(--line); }
+.aprov-row:first-of-type { border-top: 0; }
+.aprov-row > i { width: 16px; height: 16px; margin-top: 2px; border-radius: 50%; border: 2px solid var(--line); display: inline-grid; place-items: center; font-style: normal; font-size: 10px; }
+.aprov-row > i.ok { background: var(--green); border-color: var(--green); color: #fff; }
+.aprov-row small { color: var(--muted); font-weight: 500; }
+.aprov-act { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.aprov-act input { flex: 1 1 160px; min-width: 0; min-height: 32px; font-size: 12.5px; }
+.thread { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 12.5px; }
+.thread li { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
+.thread li.change { border-left: 3px solid var(--amber); }
+.thread li.muted { background: none; border: 0; color: var(--muted); padding: 0; }
+.thread li p { margin: 2px 0 0; color: var(--text-2); }
+.thread small { color: var(--muted); }
+.aprov details summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.aprov .inline-add { display: flex; gap: 6px; flex-wrap: wrap; }
+.aprov .inline-add input { flex: 1 1 180px; min-width: 0; min-height: 32px; font-size: 12.5px; }
+.aprov .inline-add select { min-height: 32px; font-size: 12.5px; }
+.slot-list { display: grid; gap: 6px; margin-top: 8px; }
+.slot-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.slot-row select, .slot-row input { min-height: 32px; font-size: 12.5px; }
+.slot-row input[type="time"] { width: 104px; }
+@media (max-width: 560px) { .aprov-row { grid-template-columns: 22px minmax(0, 1fr); } .aprov-row .btn { grid-column: 2; justify-self: start; } }
+
+.kslot.holiday, .mslot.holiday { border-color: var(--amber); color: var(--amber); }

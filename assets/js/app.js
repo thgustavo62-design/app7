@@ -31,6 +31,7 @@
   };
   const KB_KEY = "nova7-kanban-v1", GOAL_KEY = "nova7-metas-v1", PREF_KEY = "nova7-prefs-v1", CHECK_KEY = "nova7-checagem-v1";
   const PB = window.N7_PLAYBOOK;
+  const F = window.N7Flow;
   let checks = store.get(CHECK_KEY, {});
   let overrides = store.get(KB_KEY, {});
   const prefs = Object.assign({ kview: "status", kbrand: "all", kfmt: "all", ins: "all" }, store.get(PREF_KEY, {}));
@@ -51,8 +52,10 @@
   const STEP_NAMES = { roteiro: "Roteiro", gravar: "Gravar / captar", editar: "Editar / design", aprovar: "Aprovar", agendar: "Agendar" };
   const DONE_BY = { prop: 0, plan: 0, prod: 2, apr: 3, agd: 5, pub: 5 };
 
+  const plan = () => D.PLAN.concat(F.getCustom());
+  const brandOfCode = code => (plan().find(x => x.code === code) || {}).b;
   function posts() {
-    return D.PLAN.map(p => {
+    return plan().map(p => {
       const o = overrides[p.code] || {};
       const status = o.status || (p.status === "fin" ? "agd" : p.status);
       const date = o.date || p.date;
@@ -114,7 +117,8 @@
     fb: '<path d="M15 3h-3a4 4 0 0 0-4 4v3H6v4h2v7h4v-7h3l1-4h-4V7a1 1 0 0 1 1-1h2z"/>',
     cart: '<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l3 12h11l2-8H6"/>',
     ext: '<path d="M14 3h7v7M10 14 21 3M21 14v7H3V3h7"/>',
-    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>'
   };
   const ico = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]}</svg>`;
   const banner = (icon, title, sub, right = "") => `<div class="panel-banner"><span class="tile">${ico(icon)}</span><div><h3>${title}</h3>${sub ? `<small>${sub}</small>` : ""}</div>${right ? `<div class="right">${right}</div>` : ""}</div>`;
@@ -126,6 +130,7 @@
     insights: { title: "Insights", render: renderInsights },
     calendario: { title: "Calendário Kanban", render: renderKanban },
     alertas: { title: "Alertas", render: renderAlertas },
+    fluxo: { title: "Fluxo e horários", render: renderFluxo },
     playbook: { title: "Playbook", render: renderPlaybook }
   };
   D.CLIENTS.forEach(c => { ROUTES[c.id] = { title: c.name, render: () => renderClient(c) }; });
@@ -142,6 +147,7 @@
       ${D.CLIENTS.map(c => `<a class="nav-item" href="#${c.id}"><i class="nav-dot" style="background:var(${c.color})"></i><span>${esc(c.name)}</span>${late(c.id) ? `<span class="nav-count" title="pautas atrasadas">${late(c.id)}</span>` : ""}</a>`).join("")}
       <div class="nav-group">Operação</div>
       <a class="nav-item" href="#calendario">${ico("cal")}<span>Calendário Kanban</span></a>
+      <a class="nav-item" href="#fluxo">${ico("sliders")}<span>Fluxo e horários</span></a>
       <a class="nav-item" href="#alertas">${ico("bell")}<span>Alertas</span><span class="nav-count">${p0} P0</span></a>
       <a class="nav-item" href="#playbook">${ico("file")}<span>Playbook</span></a>`;
   }
@@ -451,10 +457,10 @@
   function renderKanban(v) {
     v.innerHTML = `
       <div class="page-head"><div><div class="eyebrow">Planejamento e produção · Nov–Dez 2026</div><h1>Calendário Kanban</h1>
-        <p>Arraste os cartões para mudar o status ou a data de publicação. Clique num cartão para ver as etapas (roteiro, gravação, edição, aprovação, agendamento) e editar. As mudanças ficam salvas neste navegador até a integração com a planilha.</p></div>
+        <p>Arraste os cartões para mudar o status ou a data de publicação. Clique num cartão para ver as etapas, registrar aprovações e editar. Na visão Ideias, guarde pautas ainda sem data e agende as aprovadas nos horários fixos do cliente. As mudanças ficam salvas neste navegador até a integração com a planilha.</p></div>
         <div class="toolbar"><button type="button" class="btn sm" id="k-export">Copiar alterações</button><button type="button" class="btn sm" id="k-reset">Desfazer alterações</button></div></div>
       <div class="toolbar">
-        <div class="seg" id="k-view" role="group" aria-label="Visualização">${[["status", "Por status"], ["semana", "Semana"], ["mes", "Mês"]].map(([a, n]) => `<button type="button" data-v="${a}" aria-pressed="${prefs.kview === a}">${n}</button>`).join("")}</div>
+        <div class="seg" id="k-view" role="group" aria-label="Visualização">${[["status", "Por status"], ["semana", "Semana"], ["mes", "Mês"], ["ideias", "Ideias"]].map(([a, n]) => `<button type="button" data-v="${a}" aria-pressed="${prefs.kview === a}">${n}</button>`).join("")}</div>
         <div class="seg" id="k-brand" role="group" aria-label="Marca">${[["all", "Todas"], ...D.CLIENTS.map(c => [c.key, c.short])].map(([a, n]) => `<button type="button" data-v="${a}" aria-pressed="${prefs.kbrand === a}">${n}</button>`).join("")}</div>
         <select id="k-fmt" aria-label="Formato"><option value="all">Todos os formatos</option><option value="Reels">Reels</option><option value="Carrossel">Carrossel</option></select>
         <input type="search" id="k-q" placeholder="Buscar título ou código" aria-label="Buscar">
@@ -485,17 +491,42 @@
     const q = ($("#k-q")?.value || "").trim().toLowerCase();
     return posts().filter(p => (prefs.kbrand === "all" || p.b === prefs.kbrand) && (prefs.kfmt === "all" || p.format === prefs.kfmt) && (!q || p.title.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)));
   }
+  function approvalTag(p) {
+    if (!["prod", "apr", "agd"].includes(p.status)) return "";
+    const st = F.approvalState(p.code, p.b); if (!st.needs.length) return "";
+    const falta = st.pending.map(k => F.KIND_NAME[k].toLowerCase()).join(" e ");
+    return `<span class="badge ${st.complete ? "st-pub" : "st-apr"}" title="${st.complete ? "Aprovações completas" : "Falta a aprovação " + falta}">aprov. ${st.done.length}/${st.needs.length}</span>`;
+  }
   function card(p) {
     const d = toDate(p.date);
     return `<button type="button" class="kcard" data-drag data-code="${p.code}" style="--dot:var(${CL[p.b].color})">
       <span class="kcard-top">${brandBadge(p.b)}${fmtBadge(p.format)}<span class="code">${p.code}</span></span>
       <strong>${esc(p.title)}</strong>
-      <span class="kcard-foot"><span class="${p.late ? "late" : ""}">${ico("cal").replace("<svg", '<svg width="12" height="12"')} ${DOW[d.getDay()]} ${dm(p.date)}${p.late ? " · atrasada" : ""}</span>${scoreTag(p.code)}${p.edited ? `<span title="alterado neste navegador">editado</span>` : ""}</span></button>`;
+      <span class="kcard-foot"><span class="${p.late ? "late" : ""}">${ico("cal").replace("<svg", '<svg width="12" height="12"')} ${DOW[d.getDay()]} ${dm(p.date)}${p.time ? " " + p.time : ""}${p.late ? " · atrasada" : ""}</span>${approvalTag(p)}${scoreTag(p.code)}${p.edited ? `<span title="alterado neste navegador">editado</span>` : ""}</span></button>`;
   }
+  /* horários fixos livres do cliente escolhido, para a semana e o mês */
+  function takenFn() {
+    const m = new Map();
+    posts().forEach(p => { const k = p.b + "|" + p.date; if (!m.has(k)) m.set(k, new Set()); m.get(k).add(p.format); });
+    return (b, ds, fmt) => { const set = m.get(b + "|" + ds); return !!set && (fmt === "Qualquer" || set.has(fmt)); };
+  }
+  function freeInView(from, to) {
+    if (prefs.kbrand === "all") return {};
+    const start = from < TODAY ? TODAY : from; if (to < start) return {};
+    const out = {};
+    F.freeSlots({ brand: prefs.kbrand, from: start, to, taken: takenFn() })
+      .filter(s => prefs.kfmt === "all" || s.format === "Qualquer" || s.format === prefs.kfmt)
+      .forEach(s => { (out[s.date] = out[s.date] || []).push(s); });
+    return out;
+  }
+  const slotBtn = (s, compact) => `<button type="button" class="${compact ? "mslot" : "kslot"}${s.holiday ? " holiday" : ""}" data-slot="${s.date}|${s.time}|${s.format}" title="${s.holiday ? "Data de atenção: " + s.holiday + ". " : ""}Horário livre: clique para agendar uma ideia aprovada">${compact ? "◌ " : "<span>◌</span> "}${s.time} ${s.format === "Qualquer" ? "livre" : s.format}${compact ? "" : " · horário livre"}</button>`;
+  function bindSlots(board) { $$("[data-slot]", board).forEach(el => el.addEventListener("click", () => { const [d, t, f] = el.dataset.slot.split("|"); openSlot(prefs.kbrand, d, t, f); })); }
+
   function drawBoard() {
     const ps = filtered(), board = $("#k-board"), nav = $("#k-nav");
+    if (prefs.kview === "ideias") return drawIdeas(board, nav);
     const late = ps.filter(p => p.late).length;
-    $("#k-summary").innerHTML = `<span><b class="tnum">${ps.length}</b> pautas</span>${COLS.map(s => `<span>${STATUS[s].name} <b class="tnum">${ps.filter(p => p.status === s).length}</b></span>`).join("")}<span style="color:var(--red)">Atrasadas <b class="tnum">${late}</b></span>`;
+    $("#k-summary").innerHTML = `<span><b class="tnum">${ps.length}</b> pautas</span>${COLS.map(s => `<span>${STATUS[s].name} <b class="tnum">${ps.filter(p => p.status === s).length}</b></span>`).join("")}<span style="color:var(--red)">Atrasadas <b class="tnum">${late}</b></span>${["semana", "mes"].includes(prefs.kview) && prefs.kbrand === "all" ? `<span class="src">Escolha uma marca para ver os horários livres.</span>` : ""}`;
     nav.innerHTML = "";
     if (prefs.kview === "status") {
       board.innerHTML = `<div class="kanban">${COLS.map(s => {
@@ -507,9 +538,10 @@
       const days = [...Array(7)].map((_, i) => addDays(kWeek, i));
       nav.innerHTML = `<button type="button" class="btn sm" data-w="-1" aria-label="Semana anterior">‹</button><button type="button" class="btn sm" data-w="0">Hoje</button><button type="button" class="btn sm" data-w="1" aria-label="Próxima semana">›</button><b style="font-size:12.5px">${dm(toIso(days[0]))} a ${dm(toIso(days[6]))}</b>`;
       $$("[data-w]", nav).forEach(b => b.onclick = () => { const n = +b.dataset.w; kWeek = n ? addDays(kWeek, 7 * n) : monday(TODAY); drawBoard(); });
+      const free = freeInView(days[0], days[6]);
       board.innerHTML = `<div class="kanban">${days.map(d => {
-        const iso = toIso(d), items = ps.filter(p => p.date === iso);
-        return `<div class="kcol ${iso === TODAY_ISO ? "today" : ""}" data-date="${iso}"><div class="kcol-head"><span>${DOW[d.getDay()]} ${dm(iso)}${iso === TODAY_ISO ? " · hoje" : ""}</span><b>${items.length}</b></div><div class="kcards">${items.map(card).join("") || `<div class="kempty">Sem publicações</div>`}</div></div>`;
+        const iso = toIso(d), items = ps.filter(p => p.date === iso), fs = free[iso] || [];
+        return `<div class="kcol ${iso === TODAY_ISO ? "today" : ""}" data-date="${iso}"><div class="kcol-head"><span>${DOW[d.getDay()]} ${dm(iso)}${iso === TODAY_ISO ? " · hoje" : ""}</span><b>${items.length}</b></div><div class="kcards">${items.map(card).join("") || (fs.length ? "" : `<div class="kempty">Sem publicações</div>`)}${fs.map(x => slotBtn(x)).join("")}</div></div>`;
       }).join("")}</div>`;
     } else {
       const y = kMonth.getFullYear(), m = kMonth.getMonth();
@@ -517,13 +549,15 @@
       $$("[data-m]", nav).forEach(b => b.onclick = () => { const n = +b.dataset.m; kMonth = n ? new Date(y, m + n, 1) : new Date(TODAY.getFullYear(), TODAY.getMonth(), 1); drawBoard(); });
       const start = monday(new Date(y, m, 1)), cells = [];
       for (let i = 0; i < 42; i++) { const d = addDays(start, i); if (i >= 35 && d.getMonth() !== m) break; cells.push(d); }
+      const free = freeInView(cells[0], cells[cells.length - 1]);
       board.innerHTML = `<div class="month">${["seg", "ter", "qua", "qui", "sex", "sáb", "dom"].map(d => `<div class="dow">${d}</div>`).join("")}${cells.map(d => {
-        const iso = toIso(d), items = ps.filter(p => p.date === iso), out = d.getMonth() !== m;
-        return `<div class="mday ${out ? "out" + (items.length ? "" : " blank") : ""} ${iso === TODAY_ISO ? "today" : ""}" data-date="${iso}"><div class="d"><span>${DOW[d.getDay()]} ${d.getDate()}</span>${items.length ? `<span>${items.length}</span>` : ""}</div>${items.map(p => `<button type="button" class="mchip ${p.status === "pub" ? "pub" : ""}" data-drag data-code="${p.code}" style="--dot:var(${CL[p.b].color})" title="${esc(p.code + " · " + p.title + " · " + STATUS[p.status].name)}">${p.late ? "⚠ " : ""}${esc(p.title)}</button>`).join("")}</div>`;
+        const iso = toIso(d), items = ps.filter(p => p.date === iso), out = d.getMonth() !== m, fs = free[iso] || [];
+        return `<div class="mday ${out ? "out" + (items.length ? "" : " blank") : ""} ${iso === TODAY_ISO ? "today" : ""}" data-date="${iso}"><div class="d"><span>${DOW[d.getDay()]} ${d.getDate()}</span>${items.length ? `<span>${items.length}</span>` : ""}</div>${items.map(p => `<button type="button" class="mchip ${p.status === "pub" ? "pub" : ""}" data-drag data-code="${p.code}" style="--dot:var(${CL[p.b].color})" title="${esc(p.code + " · " + p.title + " · " + STATUS[p.status].name)}">${p.late ? "⚠ " : ""}${esc(p.title)}</button>`).join("")}${fs.map(x => slotBtn(x, true)).join("")}</div>`;
       }).join("")}</div>`;
     }
     bindDrag(board);
     bindOpen(board);
+    bindSlots(board);
   }
   /* Arrastar com eventos de ponteiro: mouse arrasta direto; no toque,
      segurar ~0,45 s inicia o arraste (assim a rolagem continua livre). */
@@ -554,17 +588,19 @@
           }
           ghost.style.left = ev.clientX - ghost.dataset.dx + "px"; ghost.style.top = ev.clientY - ghost.dataset.dy + "px";
           const under = document.elementFromPoint(ev.clientX, ev.clientY);
-          const z = under && under.closest("[data-status],[data-date]");
+          const z = under && under.closest("[data-status],[data-date],[data-stage]");
           if (z !== zone) { zone && zone.classList.remove("over"); zone = z; zone && zone.classList.add("over"); }
           const kb = board.querySelector(".kanban");
           if (kb) { const r = kb.getBoundingClientRect(); if (ev.clientX > r.right - 40) kb.scrollLeft += 12; else if (ev.clientX < r.left + 40) kb.scrollLeft -= 12; }
         };
         const up = () => {
-          const code = el.dataset.code, z = zone, was = active;
+          const code = el.dataset.code || el.dataset.idea, isIdea = !!el.dataset.idea, z = zone, was = active;
           cleanup();
           if (!was) return;
           suppressClick = true; setTimeout(() => { suppressClick = false; }, 50);
           if (!z) return;
+          if (isIdea !== !!z.dataset.stage) return;
+          if (z.dataset.stage) return moveIdea(code, z.dataset.stage);
           if (z.dataset.status) update(code, { status: z.dataset.status }, `${code} movida para ${STATUS[z.dataset.status].name}`);
           else update(code, { date: z.dataset.date }, `${code} remarcada para ${dm(z.dataset.date)}`);
         };
@@ -580,7 +616,12 @@
     });
   }
   function update(code, patch, msg) {
-    const orig = D.PLAN.find(p => p.code === code);
+    const cur = posts().find(p => p.code === code);
+    if (cur && patch.status && patch.status !== cur.status) {
+      const g = F.gate(patch.status, F.approvalState(code, cur.b));
+      if (!g.ok) { toast(`${code}: ${g.msg} Registre na pauta.`); if (!$("#drawer").open) openDrawer(code, { focus: "aprov" }); return false; }
+    }
+    const orig = plan().find(p => p.code === code);
     const o = Object.assign({}, overrides[code], patch);
     const origStatus = orig.status === "fin" ? "agd" : orig.status;
     if (o.status === origStatus) delete o.status;
@@ -590,32 +631,61 @@
     if (current === "calendario") drawBoard(); else route();
     renderNav(); markNav();
     if (msg) toast(msg);
+    return true;
   }
   const markNav = () => $$("#nav .nav-item").forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + current));
 
   /* ---------- gaveta de detalhe ---------- */
+  let flowDirty = false;
+  const fmtAt = iso => { const d = new Date(iso); return `${dm(toIso(d))} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+  const refreshUnder = () => { if (current === "calendario") drawBoard(); else route(); renderNav(); markNav(); };
+  const WEEKDAYS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+  const slotLabel = s => `${DOW[toDate(s.date).getDay()]} ${dm(s.date)} · ${s.time} · ${s.format === "Qualquer" ? "qualquer formato" : s.format}${s.holiday ? " · atenção: " + s.holiday : ""}`;
+  const docFor = (b, format) => { const docs = CL[b].docs, want = format === "Reels" ? "Roteiros de Reels" : "Roteiros de carrosséis"; return (docs.find(d => d[0] === want) || docs[0])[1]; };
   function bindOpen(root) {
     $$("[data-open],[data-code]", root).forEach(el => el.addEventListener("click", () => openDrawer(el.dataset.open || el.dataset.code)));
   }
-  function openDrawer(code) {
+  function showDialog(dlg) { if (!dlg.open) { if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", ""); } }
+
+  function approvalSection(p) {
+    const st = F.approvalState(p.code, p.b), flow = F.getFlow(), rec = st.rec, pol = F.POLICIES[st.policy];
+    if (!st.needs.length) return `<div class="aprov" id="aprov"><span class="col-title">Aprovação</span><p class="src">Este cliente está sem etapa de aprovação. Para exigir aprovação, mude a política em Fluxo e horários.</p></div>`;
+    const row = kind => {
+      if (!st.needs.includes(kind)) return "";
+      const a = rec[kind], role = kind === "internal" ? F.INTERNAL_ROLE[p.b] : "quem aprova no cliente";
+      if (a) return `<div class="aprov-row done"><i class="ok" aria-hidden="true">✓</i><div><b>${F.KIND_NAME[kind]}</b> <small>${role}</small><div class="src">Aprovada por ${esc(a.by)} em ${fmtAt(a.at)}</div></div><button type="button" class="btn sm" data-act="revoke" data-kind="${kind}">Reabrir</button></div>`;
+      return `<div class="aprov-row"><i aria-hidden="true"></i><div><b>${F.KIND_NAME[kind]}</b> <small>${role}</small>
+        <div class="aprov-act"><input type="text" id="ap-by-${kind}" aria-label="Nome de quem aprova (${F.KIND_NAME[kind].toLowerCase()})" placeholder="${kind === "internal" ? "Seu nome" : "Nome do aprovador no cliente"}" value="${kind === "internal" ? esc(flow.user) : ""}"><button type="button" class="btn sm primary" data-act="approve" data-kind="${kind}">Aprovar</button><button type="button" class="btn sm" data-act="changes" data-kind="${kind}">Pedir ajustes</button></div></div></div>`;
+    };
+    return `<div class="aprov" id="aprov"><div class="toolbar" style="justify-content:space-between"><span class="col-title">Aprovação · ${pol.name}</span><span class="badge ${st.complete ? "st-pub" : "st-apr"}">${st.complete ? "completa" : "pendente: " + st.pending.map(k => F.KIND_NAME[k].toLowerCase()).join(" e ")}</span></div>
+      ${row("internal")}${row("client")}
+      <ul class="thread" aria-label="Comentários">${rec.comments.map(c => `<li class="${c.change ? "change" : ""}"><b>${esc(c.by)}</b> <small>${F.KIND_NAME[c.kind].toLowerCase()} · ${fmtAt(c.at)}${c.change ? " · pediu ajustes" : ""}</small><p>${esc(c.text)}</p></li>`).join("") || `<li class="muted">Nenhum comentário ainda.</li>`}</ul>
+      <div class="inline-add"><select id="ap-kind" aria-label="Quem comenta"><option value="internal">Interno</option><option value="client">Do cliente</option></select><input type="text" id="ap-comment" aria-label="Comentário" placeholder="Comentário, ou o motivo do pedido de ajustes" maxlength="400"><button type="button" class="btn sm" data-act="comment">Comentar</button></div>
+      <details><summary>Histórico (${rec.history.length})</summary><ul class="thread">${rec.history.slice().reverse().map(h => `<li><small>${fmtAt(h.at)}</small> ${esc(h.text)}</li>`).join("") || `<li class="muted">Sem registros.</li>`}</ul></details>
+      <p class="src">O registro é feito por quem usa o site. A aprovação direta pelo cliente, por link, precisa de um servidor.</p></div>`;
+  }
+
+  function openDrawer(code, opts = {}) {
     const p = posts().find(x => x.code === code); if (!p) return;
+    const draft = opts.draft || {};
     const done = DONE_BY[p.status];
     const steps = Object.entries(p.steps);
     const dlg = $("#drawer");
     dlg.innerHTML = `<div class="drawer-head"><span class="client-avatar" style="background:var(${CL[p.b].color})">${CL[p.b].short[0]}</span><div><small style="color:var(--banner-muted)">${p.code} · ${esc(CL[p.b].name)} · ${p.format}</small><h2>${esc(p.title)}</h2></div><button type="button" class="x" id="d-close">Fechar</button></div>
       <div class="drawer-body">
-        <div class="toolbar">${stBadge(p)}${fmtBadge(p.format)}${p.edited ? `<span class="badge">editado neste navegador</span>` : ""}</div>
+        <div class="toolbar">${stBadge(p)}${fmtBadge(p.format)}${p.fromIdea ? `<span class="badge">criada no quadro de ideias</span>` : ""}${p.edited ? `<span class="badge">editado neste navegador</span>` : ""}</div>
         ${p.note ? `<p class="notice">${esc(p.note)}</p>` : ""}
         <div class="form-row">
-          <div><label class="lbl" for="d-status">Status</label><select id="d-status">${COLS.map(s => `<option value="${s}" ${s === p.status ? "selected" : ""}>${STATUS[s].name}</option>`).join("")}</select></div>
-          <div><label class="lbl" for="d-date">Publicar em</label><input type="date" id="d-date" value="${p.date}"></div>
+          <div><label class="lbl" for="d-status">Status</label><select id="d-status">${COLS.map(s => `<option value="${s}" ${s === (draft.status || p.status) ? "selected" : ""}>${STATUS[s].name}</option>`).join("")}</select></div>
+          <div><label class="lbl" for="d-date">Publicar em${p.time ? " · " + p.time : ""}</label><input type="date" id="d-date" value="${draft.date || p.date}"></div>
         </div>
         <div><span class="col-title">Etapas de produção</span>
           <ul class="steps" style="margin-top:10px">${steps.map(([k2, d], i) => { const isDone = i < done || p.status === "pub"; const isLate = !isDone && d && toDate(d) < TODAY; return `<li class="${isDone ? "done" : isLate ? "late" : ""}"><i></i><span>${STEP_NAMES[k2]}${isLate ? " · atrasada" : ""}</span><span class="tnum">${d ? DOW[toDate(d).getDay()] + " " + dm(d) : "não se aplica"}</span></li>`; }).join("")}
-          <li class="${p.status === "pub" ? "done" : p.late ? "late" : ""}"><i></i><span><b>Publicar</b></span><span class="tnum"><b>${DOW[toDate(p.date).getDay()]} ${dm(p.date)}</b></span></li></ul></div>
+          <li class="${p.status === "pub" ? "done" : p.late ? "late" : ""}"><i></i><span><b>Publicar</b></span><span class="tnum"><b>${DOW[toDate(p.date).getDay()]} ${dm(p.date)}${p.time ? " " + p.time : ""}</b></span></li></ul></div>
+        ${approvalSection(p)}
         ${qualityForm(p)}
         <div class="doc-list"><a href="${p.doc}" target="_blank" rel="noopener">Abrir roteiro ${p.format === "Reels" ? "de Reels" : "de carrosséis"}<span>Google Docs</span></a><a href="${D.CENTRAL}" target="_blank" rel="noopener">Central editorial<span>planilha</span></a></div>
-        <div class="toolbar"><button type="button" class="btn primary" id="d-save">Salvar</button>${p.edited ? `<button type="button" class="btn" id="d-revert">Voltar ao plano original</button>` : ""}</div>
+        <div class="toolbar"><button type="button" class="btn primary" id="d-save">Salvar</button>${p.edited ? `<button type="button" class="btn" id="d-revert">Voltar ao plano original</button>` : ""}${p.fromIdea ? `<button type="button" class="btn" id="d-remove">Remover pauta e devolver a ideia</button>` : ""}</div>
       </div>`;
     const close = () => dlg.close();
     $("#d-close").onclick = close;
@@ -625,16 +695,192 @@
       const ck = {}; $$("[data-chk]", dlg).forEach(i => { if (i.checked) ck[i.dataset.chk] = true; });
       return { dims, checks: ck };
     };
-    const paintQ = () => { const q = readQ(); const tmp = checks[p.code]; checks[p.code] = q; $("#q-result").innerHTML = qualityResult(p.code); if (tmp) checks[p.code] = tmp; else delete checks[p.code]; };
-    $$("[data-dim],[data-chk]", dlg).forEach(el => el.addEventListener("change", paintQ));
-    $("#d-save").onclick = () => {
+    const persistQ = () => {
       const q = readQ();
       if (Object.keys(q.dims).length || Object.keys(q.checks).length) checks[p.code] = q; else delete checks[p.code];
       store.set(CHECK_KEY, checks);
-      const date = $("#d-date").value || p.date; update(p.code, { status: $("#d-status").value, date }, `${p.code} salva`); close();
     };
-    const rv = $("#d-revert"); if (rv) rv.onclick = () => { delete overrides[p.code]; store.set(KB_KEY, overrides); close(); if (current === "calendario") drawBoard(); else route(); renderNav(); markNav(); toast(`${p.code} voltou ao plano original`); };
-    if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+    const paintQ = () => { const q = readQ(); const tmp = checks[p.code]; checks[p.code] = q; $("#q-result").innerHTML = qualityResult(p.code); if (tmp) checks[p.code] = tmp; else delete checks[p.code]; };
+    $$("[data-dim],[data-chk]", dlg).forEach(el => el.addEventListener("change", paintQ));
+
+    /* aprovações: gravam na hora e redesenham a gaveta mantendo o que foi digitado */
+    $$("[data-act]", dlg).forEach(b => b.addEventListener("click", () => {
+      const kind = b.dataset.kind, act = b.dataset.act, flow = F.getFlow();
+      const by = kind ? ($(`#ap-by-${kind}`, dlg)?.value || "").trim() : "", text = $("#ap-comment", dlg)?.value || "";
+      let r;
+      if (act === "approve") r = F.approve(p.code, kind, by);
+      else if (act === "revoke") r = F.revoke(p.code, kind, flow.user);
+      else if (act === "changes") r = F.requestChanges(p.code, kind, by, text);
+      else r = F.comment(p.code, $("#ap-kind", dlg).value, flow.user, text);
+      if (!r.ok) { toast(r.msg); return; }
+      if (act === "approve" && kind === "internal" && by && by !== flow.user) { flow.user = by; F.saveFlow(flow); }
+      persistQ();
+      const keep = { status: $("#d-status").value, date: $("#d-date").value };
+      if (act === "changes" && ["apr", "agd"].includes(p.status)) { update(p.code, { status: "prod" }); keep.status = "prod"; }
+      flowDirty = true;
+      toast({ approve: "Aprovação registrada", revoke: "Aprovação reaberta", changes: "Ajustes pedidos; a pauta voltou para Em produção", comment: "Comentário registrado" }[act]);
+      openDrawer(p.code, { draft: keep, focus: "aprov" });
+    }));
+
+    $("#d-save").onclick = () => {
+      persistQ();
+      const date = $("#d-date").value || p.date;
+      if (update(p.code, { status: $("#d-status").value, date }, `${p.code} salva`) === false) { $("#aprov")?.scrollIntoView({ block: "center" }); return; }
+      close();
+    };
+    const rv = $("#d-revert"); if (rv) rv.onclick = () => { delete overrides[p.code]; store.set(KB_KEY, overrides); close(); refreshUnder(); toast(`${p.code} voltou ao plano original`); };
+    const rm = $("#d-remove");
+    if (rm) { let armed = false; rm.onclick = () => {
+      if (!armed) { armed = true; rm.textContent = "Confirmar: remover pauta"; setTimeout(() => { armed = false; rm.textContent = "Remover pauta e devolver a ideia"; }, 4000); return; }
+      F.removeCustom(p.code); delete overrides[p.code]; store.set(KB_KEY, overrides); close(); refreshUnder(); toast(`${p.code} removida; a ideia voltou para Aprovada`);
+    }; }
+    showDialog(dlg);
+    if (opts.focus) $("#" + opts.focus, dlg)?.scrollIntoView({ block: "start" });
+  }
+
+  /* ====================================================================
+     IDEIAS E HORÁRIOS LIVRES
+     ==================================================================== */
+  const ideaCard = i => `<button type="button" class="kcard" data-drag data-idea="${i.id}" style="--dot:var(${CL[i.b].color})">
+      <span class="kcard-top">${brandBadge(i.b)}${fmtBadge(i.format)}</span><strong>${esc(i.title)}</strong>
+      ${i.note ? `<span class="idea-note">${esc(i.note)}</span>` : ""}
+      <span class="kcard-foot"><span>${esc(i.src || "")}</span></span></button>`;
+  function drawIdeas(board, nav) {
+    nav.innerHTML = "";
+    const q = ($("#k-q")?.value || "").trim().toLowerCase();
+    const ideas = F.getIdeas().filter(i => (prefs.kbrand === "all" || i.b === prefs.kbrand) && (prefs.kfmt === "all" || i.format === prefs.kfmt) && (!q || i.title.toLowerCase().includes(q)));
+    const promoted = ideas.filter(i => i.stage === "agendada"), def = prefs.kbrand !== "all" ? prefs.kbrand : "M";
+    $("#k-summary").innerHTML = `<span><b class="tnum">${ideas.length - promoted.length}</b> ideias no quadro</span>${F.STAGES.map(([k2, n]) => `<span>${n} <b class="tnum">${ideas.filter(i => i.stage === k2).length}</b></span>`).join("")}<span>Viraram pauta <b class="tnum">${promoted.length}</b></span>`;
+    board.innerHTML = `
+      <form class="idea-form" id="i-form" autocomplete="off">
+        <div><label class="lbl" for="i-brand">Cliente</label><select id="i-brand">${D.CLIENTS.map(c => `<option value="${c.key}" ${c.key === def ? "selected" : ""}>${esc(c.short)}</option>`).join("")}</select></div>
+        <div><label class="lbl" for="i-format">Formato</label><select id="i-format">${F.FORMATS.map(f => `<option>${f}</option>`).join("")}</select></div>
+        <div class="grow"><label class="lbl" for="i-title">Nova ideia</label><input type="text" id="i-title" placeholder="Ex.: 3 erros ao guardar medicamentos no verão" maxlength="140"></div>
+        <div class="grow"><label class="lbl" for="i-note">Observação (opcional)</label><input type="text" id="i-note" placeholder="Por que vale a pena, restrições, quem revisa" maxlength="300"></div>
+        <button type="submit" class="btn primary">Adicionar</button>
+      </form>
+      <div class="kanban">${F.STAGES.map(([k2, n, h]) => { const items = ideas.filter(i => i.stage === k2); return `<div class="kcol" data-stage="${k2}"><div class="kcol-head"><span>${n}<br><small>${h}</small></span><b>${items.length}</b></div><div class="kcards">${items.map(ideaCard).join("") || `<div class="kempty">${k2 === "nova" ? "Escreva uma ideia acima" : "Solte uma ideia aqui"}</div>`}</div></div>`; }).join("")}</div>
+      ${promoted.length ? `<p class="src" style="margin-top:12px"><b>Já viraram pauta:</b> ${promoted.map(i => `<button type="button" class="linkbtn" data-open="${i.promoted}">${i.promoted}</button>`).join(" · ")}</p>` : ""}
+      <p class="src" style="margin-top:8px">Arraste uma ideia entre as colunas. Só ideias <b>Aprovadas</b> podem ser agendadas; o horário vem dos horários fixos do cliente (veja em Fluxo e horários).</p>`;
+    $("#i-form").onsubmit = e => {
+      e.preventDefault();
+      const r = F.addIdea({ b: $("#i-brand").value, format: $("#i-format").value, title: $("#i-title").value, note: $("#i-note").value });
+      if (!r.ok) { toast(r.msg); $("#i-title").focus(); return; }
+      toast("Ideia adicionada"); drawBoard(); $("#i-title")?.focus();
+    };
+    bindDrag(board); bindOpen(board);
+    $$("[data-idea]", board).forEach(el => el.addEventListener("click", () => openIdea(el.dataset.idea)));
+  }
+  function moveIdea(id, stage) {
+    const i = F.getIdeas().find(x => x.id === id); if (!i || i.stage === stage) return;
+    F.updateIdea(id, { stage });
+    toast(`Ideia movida para ${F.STAGES.find(s => s[0] === stage)[1]}`); drawBoard();
+  }
+  function scheduleIdea(id, pick) {
+    const i = F.getIdeas().find(x => x.id === id);
+    const r = F.promote(id, pick, docFor(i.b, i.format), TODAY_ISO);
+    if (!r.ok) { toast(r.msg); return false; }
+    toast(`${r.pauta.code} criada para ${slotLabel({ date: pick.date, time: pick.time, format: i.format })}`);
+    renderNav(); markNav(); drawBoard(); return true;
+  }
+  function openIdea(id) {
+    const i = F.getIdeas().find(x => x.id === id); if (!i) return;
+    const dlg = $("#drawer"), flow = F.getFlow();
+    const free = i.stage === "aprovada" ? F.freeSlots({ brand: i.b, format: i.format, from: addDays(TODAY, 1), count: 10, taken: takenFn(), flow }).sort((a, b) => !!a.holiday - !!b.holiday).slice(0, 6) : [];
+    const hasSlots = (flow.slots[i.b] || []).some(s => s.format === "Qualquer" || s.format === i.format);
+    const sched = i.stage !== "aprovada"
+      ? `<p class="notice info">Aprove a ideia (etapa <b>Aprovada</b>) para escolher um horário de publicação.</p>`
+      : !hasSlots ? `<p class="notice">${esc(CL[i.b].name)} não tem horário fixo para ${i.format}. Defina em <b>Fluxo e horários</b> e volte aqui.</p>`
+        : `<div class="qbox"><span class="col-title">Agendar como pauta</span><label class="lbl" for="ie-slot">Próximos horários livres de ${esc(CL[i.b].short)} (${i.format})</label>
+           <select id="ie-slot">${free.map(s => `<option value="${s.date}|${s.time}">${esc(slotLabel(s))}</option>`).join("")}</select>
+           <div class="toolbar"><button type="button" class="btn primary" id="ie-go">Agendar como pauta</button></div>
+           <p class="src">A pauta nasce em "A planejar", com as datas de roteiro, gravação, edição, aprovação e agendamento no padrão da Central.</p></div>`;
+    dlg.innerHTML = `<div class="drawer-head"><span class="client-avatar" style="background:var(${CL[i.b].color})">${CL[i.b].short[0]}</span><div><small style="color:var(--banner-muted)">Ideia · ${esc(CL[i.b].name)}</small><h2>${esc(i.title)}</h2></div><button type="button" class="x" id="d-close">Fechar</button></div>
+      <div class="drawer-body">
+        <div class="form-row"><div><label class="lbl" for="ie-brand">Cliente</label><select id="ie-brand">${D.CLIENTS.map(c => `<option value="${c.key}" ${c.key === i.b ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></div>
+          <div><label class="lbl" for="ie-format">Formato</label><select id="ie-format">${F.FORMATS.map(f => `<option ${f === i.format ? "selected" : ""}>${f}</option>`).join("")}</select></div></div>
+        <div><label class="lbl" for="ie-title">Título</label><input type="text" id="ie-title" value="${esc(i.title)}" maxlength="140" style="width:100%"></div>
+        <div><label class="lbl" for="ie-note">Observação</label><textarea id="ie-note" rows="3" style="width:100%" maxlength="300">${esc(i.note || "")}</textarea></div>
+        <div><label class="lbl" for="ie-stage">Etapa</label><select id="ie-stage">${F.STAGES.map(([k2, n]) => `<option value="${k2}" ${k2 === i.stage ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+        <p class="src">Origem: ${esc(i.src || "—")} · criada em ${dm(i.at)}</p>
+        ${sched}
+        <div class="toolbar"><button type="button" class="btn primary" id="ie-save">Salvar</button><button type="button" class="btn" id="ie-del">Excluir ideia</button></div>
+      </div>`;
+    const close = () => dlg.close();
+    $("#d-close").onclick = close; dlg.onclick = e => { if (e.target === dlg) close(); };
+    const patch = () => ({ b: $("#ie-brand").value, format: $("#ie-format").value, title: $("#ie-title").value, note: $("#ie-note").value, stage: $("#ie-stage").value });
+    const commit = () => { const r = F.updateIdea(id, patch()); if (!r.ok && r.msg) toast(r.msg); return r.ok; };
+    ["ie-brand", "ie-format", "ie-stage"].forEach(f => $("#" + f).addEventListener("change", () => { if (commit()) { drawBoard(); openIdea(id); } }));
+    ["ie-title", "ie-note"].forEach(f => $("#" + f).addEventListener("change", commit));
+    $("#ie-save").onclick = () => { if (commit()) { close(); drawBoard(); toast("Ideia salva"); } };
+    let armed = false;
+    $("#ie-del").onclick = e => {
+      if (!armed) { armed = true; e.target.textContent = "Confirmar exclusão"; setTimeout(() => { armed = false; e.target.textContent = "Excluir ideia"; }, 4000); return; }
+      F.removeIdea(id); close(); drawBoard(); toast("Ideia excluída");
+    };
+    const go = $("#ie-go");
+    if (go) go.onclick = () => {
+      if (!commit()) return;
+      const [d, t] = $("#ie-slot").value.split("|"); if (!d) { toast("Não há horário livre à vista."); return; }
+      if (scheduleIdea(id, { date: d, time: t })) close();
+    };
+    showDialog(dlg);
+  }
+  function openSlot(brand, date, time, format) {
+    const dlg = $("#drawer"), ideas = F.getIdeas().filter(i => i.b === brand && i.stage === "aprovada" && (format === "Qualquer" || i.format === format));
+    dlg.innerHTML = `<div class="drawer-head"><span class="client-avatar" style="background:var(${CL[brand].color})">${CL[brand].short[0]}</span><div><small style="color:var(--banner-muted)">Horário livre · ${esc(CL[brand].name)}</small><h2>${esc(slotLabel({ date, time, format }))}</h2></div><button type="button" class="x" id="d-close">Fechar</button></div>
+      <div class="drawer-body">
+        ${ideas.length ? `<span class="col-title">Ideias aprovadas que cabem aqui</span><div class="post-list">${ideas.map(i => `<div class="post-row" style="grid-template-columns:78px 1fr auto">${fmtBadge(i.format)}<span class="t">${esc(i.title)}<small>${esc(i.src || "")}</small></span><button type="button" class="btn sm primary" data-pick="${i.id}">Agendar aqui</button></div>`).join("")}</div>`
+        : `<p class="notice info">Não há ideia <b>aprovada</b> de ${esc(CL[brand].short)} para ${format === "Qualquer" ? "este horário" : format}. Aprove uma no quadro de ideias para agendá-la aqui.</p><div class="toolbar"><button type="button" class="btn primary" id="sl-ideas">Abrir quadro de ideias</button></div>`}
+      </div>`;
+    const close = () => dlg.close();
+    $("#d-close").onclick = close; dlg.onclick = e => { if (e.target === dlg) close(); };
+    $$("[data-pick]", dlg).forEach(b => b.addEventListener("click", () => { if (scheduleIdea(b.dataset.pick, { date, time })) close(); }));
+    const go = $("#sl-ideas"); if (go) go.onclick = () => { prefs.kview = "ideias"; prefs.kbrand = brand; savePrefs(); close(); route(); };
+    showDialog(dlg);
+  }
+
+  /* ====================================================================
+     FLUXO E HORÁRIOS
+     ==================================================================== */
+  function fluxoPanel(c, flow, taken) {
+    const k2 = c.key, pol = flow.policy[k2], slots = flow.slots[k2] || [];
+    const next = F.freeSlots({ brand: k2, from: addDays(TODAY, 1), count: 4, taken, flow });
+    return `<div class="panel">${banner("sliders", esc(c.name), esc(c.segment))}
+      <div class="panel-body">
+        <div><label class="lbl" for="pol-${k2}">Aprovação antes de a peça ficar pronta</label>
+          <select id="pol-${k2}" data-pol="${k2}">${Object.entries(F.POLICIES).map(([id, p2]) => `<option value="${id}" ${id === pol ? "selected" : ""}>${p2.name}</option>`).join("")}</select>
+          <p class="src" style="margin-top:6px">${F.POLICIES[pol].text}${pol !== "none" ? ` Revisão interna: ${F.INTERNAL_ROLE[k2]}.` : ""}</p></div>
+        <div><span class="col-title">Horários fixos de publicação</span>
+          <div class="slot-list">${slots.map((s, i) => `<div class="slot-row">
+            <select id="s-${k2}-${i}-d" data-slot="${k2}|${i}|dow" aria-label="Dia da semana">${[1, 2, 3, 4, 5, 6, 0].map(d => `<option value="${d}" ${d === s.dow ? "selected" : ""}>${WEEKDAYS[d]}</option>`).join("")}</select>
+            <input type="time" id="s-${k2}-${i}-t" data-slot="${k2}|${i}|time" value="${s.time}" aria-label="Horário">
+            <select id="s-${k2}-${i}-f" data-slot="${k2}|${i}|format" aria-label="Formato">${F.SLOT_FORMATS.map(f => `<option ${f === s.format ? "selected" : ""}>${f}</option>`).join("")}</select>
+            <button type="button" class="btn sm" data-del="${k2}|${i}" aria-label="Remover horário">Remover</button></div>`).join("") || `<p class="src">Nenhum horário definido: as ideias deste cliente não terão onde ser agendadas.</p>`}</div>
+          <div class="toolbar" style="margin-top:8px"><button type="button" class="btn sm" data-add="${k2}">Adicionar horário</button><button type="button" class="btn sm" data-reset="${k2}">Restaurar sugeridos</button></div></div>
+        <div class="metric-box"><h4>Próximos horários livres</h4>${next.length ? next.map(s => `<div class="mrow"><span>${DOW[toDate(s.date).getDay()]} ${dm(s.date)} · ${s.time}${s.holiday ? " · " + s.holiday : ""}</span><b>${s.format}</b></div>`).join("") : `<p class="src">Nenhum horário livre à vista.</p>`}</div>
+      </div></div>`;
+  }
+  function renderFluxo(v) {
+    const flow = F.getFlow(), taken = takenFn();
+    v.innerHTML = `
+      <div class="page-head"><div><div class="eyebrow">Operação</div><h1>Fluxo e horários</h1>
+        <p>Defina, para cada cliente, quem precisa aprovar uma peça antes de ela ficar pronta e em quais dias e horários a agência publica. Os horários livres aparecem no calendário e servem para agendar as ideias aprovadas.</p></div></div>
+      <div class="panel">${banner("target", "Quem está usando", "o nome entra nos registros de aprovação")}
+        <div class="panel-body"><div class="form-row"><div><label class="lbl" for="f-user">Seu nome</label><input type="text" id="f-user" value="${esc(flow.user)}" placeholder="Ex.: Gustavo" maxlength="60"></div></div></div></div>
+      <div class="grid g2">${D.CLIENTS.map(c => fluxoPanel(c, flow, taken)).join("")}</div>
+      <p class="notice info">Os horários iniciais foram sugeridos pelos dias em que o plano Nov–Dez de cada cliente já publica; os horários do dia são palpites. Confirme com cada cliente. Tudo fica salvo neste navegador.</p>`;
+    const redraw = () => renderFluxo(v);
+    $("#f-user").addEventListener("change", e => { const f = F.getFlow(); f.user = e.target.value.trim(); F.saveFlow(f); toast("Nome salvo"); });
+    $$("[data-pol]", v).forEach(sel => sel.addEventListener("change", () => { const f = F.getFlow(); f.policy[sel.dataset.pol] = sel.value; F.saveFlow(f); toast("Política salva"); redraw(); }));
+    $$("[data-slot]", v).forEach(el => el.addEventListener("change", () => {
+      const [k2, i, field] = el.dataset.slot.split("|"), f = F.getFlow(), s = (f.slots[k2] || [])[+i]; if (!s) return;
+      if (field === "dow") s.dow = Number(el.value); else if (field === "time") { if (!el.value) return; s.time = el.value; } else s.format = el.value;
+      F.saveFlow(f); toast("Horário salvo"); redraw();
+    }));
+    $$("[data-del]", v).forEach(b => b.addEventListener("click", () => { const [k2, i] = b.dataset.del.split("|"), f = F.getFlow(); f.slots[k2].splice(+i, 1); F.saveFlow(f); redraw(); }));
+    $$("[data-add]", v).forEach(b => b.addEventListener("click", () => { const f = F.getFlow(); (f.slots[b.dataset.add] = f.slots[b.dataset.add] || []).push({ dow: 1, time: "12:00", format: "Qualquer" }); F.saveFlow(f); redraw(); }));
+    $$("[data-reset]", v).forEach(b => b.addEventListener("click", () => { const f = F.getFlow(); f.slots[b.dataset.reset] = F.defaultSlots(b.dataset.reset); F.saveFlow(f); toast("Horários sugeridos restaurados"); redraw(); }));
   }
 
   /* ---------- checagem pré-publicação ---------- */
@@ -642,12 +888,12 @@
   const toneCls = t => t === "green" ? "st-pub" : t === "amber" ? "st-apr" : "late";
   function scoreTag(code) {
     const s = checkScore(code); if (s == null) return "";
-    const list = PB.checks[sectorOf(code.startsWith("CF") ? "C" : code.startsWith("N7") ? "N" : code.charAt(2))];
+    const list = PB.checks[sectorOf(brandOfCode(code))];
     const ok = list.every((_, i) => checks[code].checks && checks[code].checks[i]);
     return `<span class="badge ${toneCls(ok ? verdictOf(s).tone : "amber")}" title="Nota da checagem pré-publicação">nota ${s}${ok ? "" : " · conformidade pendente"}</span>`;
   }
   function qualityResult(code) {
-    const p = D.PLAN.find(x => x.code === code), list = PB.checks[sectorOf(p.b)];
+    const p = plan().find(x => x.code === code), list = PB.checks[sectorOf(p.b)];
     const c = checks[code] || {}, s = checkScore(code);
     const done = list.filter((_, i) => c.checks && c.checks[i]).length;
     if (s == null) return `<span class="src">Avalie os ${PB.rubric.length} critérios para ver a nota. Conformidade: ${done} de ${list.length}.</span>`;
@@ -756,6 +1002,7 @@
   document.addEventListener("keydown", e => { if (e.key === "Escape") $(".shell").classList.remove("nav-open"); });
   addEventListener("scroll", () => $(".topbar").classList.toggle("scrolled", scrollY > 4), { passive: true });
   addEventListener("hashchange", route);
+  $("#drawer").addEventListener("close", () => { if (flowDirty) { flowDirty = false; refreshUnder(); } });
   let rt; const redraw = () => { clearTimeout(rt); rt = setTimeout(() => { if (current !== "calendario") { const y = scrollY; route(); scrollTo(0, y); } }, 160); };
   let lastW = innerWidth; addEventListener("resize", () => { if (Math.abs(innerWidth - lastW) > 40) { lastW = innerWidth; redraw(); } });
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
