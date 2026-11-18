@@ -143,17 +143,50 @@
     }; }
   }
 
+  /* ---------- fontes de dados (o que alimenta o sistema sozinho) ---------- */
+  const fmtAt = iso => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); };
+  function sourcesTab(v) {
+    const body = v.querySelector("#cfg-body");
+    const later = (name, what, need) => `<tr><td><b>${name}</b><div class="src">${what}</div></td><td><span class="badge">em breve</span></td><td>${need}</td></tr>`;
+    body.innerHTML = `
+      <div class="panel">${C.banner("cal", "Calendário · Central editorial", "lido direto da planilha, com cache de 5 minutos", `<button type="button" class="btn sm primary" id="src-read">Ler agora</button>`)}
+        <div class="panel-body" id="src-cal"><p class="src">Lendo a planilha…</p></div></div>
+      <div class="panel">${C.banner("list", "Outras fontes", "o que ainda será ligado")}
+        <div class="table-wrap"><table><thead><tr><th>Fonte</th><th>Situação</th><th>O que precisa</th></tr></thead><tbody>
+          ${later("Meta: Instagram, Facebook e anúncios", "preenche sozinho os números da semana", "app da Meta e acesso ao Business Manager dos clientes")}
+          ${later("Vendas das farmácias", "lê o relatório que você joga numa pasta do Drive", "exportação em Excel ou CSV do sistema das lojas")}
+          ${later("Segunda-feira automática", "monta a semana, avisa o que falta e gera o PowerPoint", "as duas fontes acima")}
+        </tbody></table></div></div>`;
+    const draw = (r, plan) => {
+      const el = $("#src-cal", v); if (!el) return;
+      if (!r) return void (el.innerHTML = `<p class="login-err">Não foi possível consultar. Tente de novo.</p>`);
+      const live = r.source === "central";
+      el.innerHTML = `<div class="toolbar"><span class="badge ${live ? "st-pub" : "p1"}">${live ? "ao vivo" : "usando a cópia de 18/11"}</span><span class="src">${r.at ? "consultado em " + C.esc(fmtAt(r.at)) : ""}</span></div>
+        ${live ? `<div class="kpis k3"><div class="kpi"><small>Pautas lidas da Central</small><strong>${r.rows}</strong><em>${plan} no calendário do site</em></div><div class="kpi"><small>Novas em relação à cópia</small><strong>${r.added}</strong><em>${r.removed ? r.removed + " saíram da planilha" : "nenhuma saiu"}</em></div><div class="kpi"><small>Linhas puladas</small><strong>${r.skipped}</strong><em>${r.skipped ? "veja abaixo" : "tudo importado"}</em></div></div>` : `<p class="notice">${r.error ? "<b>A Central não pôde ser lida:</b> " + C.esc(r.error) : "<b>Leitura ao vivo desligada:</b> " + C.esc(r.reason || "sem motivo informado")}. O calendário continua funcionando com a cópia embutida.</p>`}
+        ${live && r.kept ? `<p class="notice">A planilha trouxe poucas pautas (${r.rows}); por segurança o site manteve ${r.kept} da cópia antiga.</p>` : ""}
+        ${r.skippedList && r.skippedList.length ? `<table><thead><tr><th>Linha</th><th>Código</th><th>Motivo</th></tr></thead><tbody>${r.skippedList.map(s => `<tr><td class="num">${s.line}</td><td>${C.esc(s.code || "—")}</td><td>${C.esc(s.why)}</td></tr>`).join("")}</tbody></table>` : ""}
+        <p class="src">Aba lida: PRODUÇÃO CENTRAL. Quem mexe no status ou na data aqui no site continua valendo por cima do que está na planilha.</p>`;
+    };
+    const load = async fresh => {
+      const b = $("#src-read", v); if (b) { b.disabled = true; b.textContent = "Lendo…"; }
+      const r = await fetch("/api/central" + (fresh ? "?refresh=1" : ""), { headers: { "X-N7": "1" } }).then(x => x.ok ? x.json() : null).catch(() => null);
+      draw(r && r.report, r && r.plan); if (b) { b.disabled = false; b.textContent = "Ler agora"; }
+    };
+    $("#src-read", v).onclick = () => load(true);
+    load(false);
+  }
+
   function render(view, sub, ctx) {
     C = ctx;
-    const tab = sub === "clientes" ? "clientes" : "usuarios";
+    const tab = ["clientes", "fontes"].includes(sub) ? sub : "usuarios";
     view.dataset.sub = tab;
     if (ui.edit && ((ui.edit.kind === "client") !== (tab === "clientes"))) ui.edit = null;
     view.innerHTML = `
       <div class="page-head"><div><div class="eyebrow">Sistema · só administradores</div><h1>Configurações</h1>
         <p>Cadastre os clientes com os serviços que a Nova7 presta a cada um (o painel muda conforme o serviço) e dê acesso à equipe e aos usuários dos clientes.</p></div></div>
-      <nav class="subtabs" aria-label="Configurações"><a href="#config/usuarios" ${tab === "usuarios" ? 'aria-current="page"' : ""}>Usuários</a><a href="#config/clientes" ${tab === "clientes" ? 'aria-current="page"' : ""}>Clientes e serviços</a></nav>
+      <nav class="subtabs" aria-label="Configurações"><a href="#config/usuarios" ${tab === "usuarios" ? 'aria-current="page"' : ""}>Usuários</a><a href="#config/clientes" ${tab === "clientes" ? 'aria-current="page"' : ""}>Clientes e serviços</a><a href="#config/fontes" ${tab === "fontes" ? 'aria-current="page"' : ""}>Fontes de dados</a></nav>
       <div id="cfg-body" class="view" style="gap:16px"></div>`;
-    if (tab === "clientes") clientsTab(view); else usersTab(view);
+    if (tab === "clientes") clientsTab(view); else if (tab === "fontes") sourcesTab(view); else usersTab(view);
   }
 
   root.N7Settings = { render, _slug: slug, _newKey: newKey };

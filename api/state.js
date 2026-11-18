@@ -1,9 +1,8 @@
 /* GET /api/state: estado do site (alterações, ideias, aprovações, políticas, horários, metas, semanas) e o cadastro de
    empresas, já recortados para o que este usuário pode ver. Administradores recebem também a lista de usuários. */
 const { getRepo } = require('../lib/db');
-const { loadState, loadRegistry } = require('../lib/model');
+const { loadState, loadRegistry, planMap } = require('../lib/model');
 const { scopeState } = require('../lib/scope');
-const { planBrands } = require('../lib/dataset');
 const { send, currentUser, handle } = require('../lib/http');
 
 module.exports = handle(async (req, res) => {
@@ -13,6 +12,6 @@ module.exports = handle(async (req, res) => {
   if (user.trocar) return send(res, 403, { error: 'trocar_senha' });
   const repo = getRepo();
   const full = await loadState(repo), registry = await loadRegistry(repo, user);
-  const brands = planBrands(); full.custom.forEach(p => brands.set(p.code, p.b));
+  const brands = await planMap(repo); full.custom.forEach(p => brands.set(p.code, p.b));
   send(res, 200, { user, state: scopeState(full, user, code => brands.get(code)), registry, now: new Date().toISOString() });
 });

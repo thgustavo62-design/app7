@@ -616,11 +616,17 @@
   /* ====================================================================
      CALENDÁRIO KANBAN
      ==================================================================== */
+  /* de onde veio o calendário: lido ao vivo da Central editorial ou a cópia embutida */
+  function planSourceNote() {
+    const s = D.PLAN_SOURCE; if (!s) return "";
+    if (s.source === "central") { const d = new Date(s.at); return `<span class="badge st-pub" title="O plano é lido da aba PRODUÇÃO CENTRAL da Central editorial">Central ao vivo · ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}</span>`; }
+    return `<span class="badge p1" title="${esc(s.error || s.reason || "")}">cópia de 18/11 (Central não lida)</span>`;
+  }
   let kWeek = monday(TODAY), kMonth = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
   function renderKanban(v) {
     v.innerHTML = `
       <div class="page-head"><div><div class="eyebrow">Planejamento e produção · Nov–Dez 2026</div><h1>Calendário Kanban</h1>
-        <p>Arraste os cartões para mudar o status ou a data de publicação. Clique num cartão para ver as etapas, registrar aprovações e editar. Na visão Ideias, guarde pautas ainda sem data e agende as aprovadas nos horários fixos do cliente. As mudanças ficam salvas neste navegador até a integração com a planilha.</p></div>
+        <p>Arraste os cartões para mudar o status ou a data de publicação. Clique num cartão para ver as etapas, registrar aprovações e editar. Na visão Ideias, guarde pautas ainda sem data e agende as aprovadas nos horários fixos do cliente. As mudanças feitas aqui ficam salvas na planilha-banco. ${planSourceNote()}</p></div>
         <div class="toolbar"><button type="button" class="btn sm" id="k-export">Copiar alterações</button><button type="button" class="btn sm" id="k-reset">Desfazer alterações</button></div></div>
       <div class="toolbar">
         <div class="seg" id="k-view" role="group" aria-label="Visualização">${[["status", "Por status"], ["semana", "Semana"], ["mes", "Mês"], ["ideias", "Ideias"]].map(([a, n]) => `<button type="button" data-v="${a}" aria-pressed="${prefs.kview === a}">${n}</button>`).join("")}</div>
