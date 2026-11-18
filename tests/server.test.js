@@ -355,3 +355,10 @@ test('rotas: cliente recebe só a própria empresa em /api/data e /api/state, e 
     const d2 = await call('/api/data', adm); assert.ok(!d2.text.includes('"key":"F"'), 'empresa desativada não é entregue');
   } finally { srv.close(); db._resetMemory(); }
 });
+
+test('erros de configuração aparecem com a causa; os demais erros internos continuam genéricos', async () => {
+  const { handle } = require('../lib/http'), { ConfigError } = require('../lib/config');
+  const run = async err => { let out = {}; const res = { setHeader() {}, end(b) { out = JSON.parse(b); }, statusCode: 0 }; await handle(async () => { throw err; })({}, res); return { status: res.statusCode, ...out }; };
+  const a = await run(new ConfigError('Falta a variável SESSION_SECRET')); assert.equal(a.status, 500); assert.match(a.error, /SESSION_SECRET/);
+  const b = await run(new Error('chave-secreta-xyz quebrou')); assert.equal(b.status, 500); assert.doesNotMatch(b.error, /xyz/);
+});

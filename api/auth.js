@@ -1,5 +1,5 @@
 /* /api/auth?action=me | login | dev | logout */
-const { cfg } = require('../lib/config');
+const { cfg, ConfigError } = require('../lib/config');
 const session = require('../lib/session');
 const { verifyIdToken } = require('../lib/googleid');
 const { getRepo } = require('../lib/db');
@@ -15,7 +15,7 @@ function startSession(res, user, c) {
 
 module.exports = handle(async (req, res) => {
   const c = cfg(), action = query(req).action;
-  if (!c.sessionSecret) { const e = new Error('SESSION_SECRET não configurado'); e.status = 500; throw e; }
+  if (!c.sessionSecret) throw new ConfigError('Falta a variável SESSION_SECRET na Vercel (Settings > Environment Variables). Depois de criá-la, faça um novo deploy.');
 
   if (action === 'me' && req.method === 'GET') {
     const s = currentUser(req);
