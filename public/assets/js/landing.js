@@ -2,7 +2,7 @@
    Para trocar os dados de contato, edite só o objeto CONTACT abaixo. */
 (function () {
   const CONTACT = {
-    whatsapp: "",                         /* só números com DDI e DDD, ex.: 5527999999999 */
+    whatsapp: "5527997010954",            /* só números com DDI e DDD, ex.: 5527999999999 */
     email: "",                            /* ex.: contato@nova7.com.br */
     instagram: "nova7.produtora",
     message: "Olá! Vim pelo site da Nova7 e quero conversar sobre o marketing da minha empresa."

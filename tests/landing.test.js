@@ -44,3 +44,8 @@ test('roteamento: o app fica em /app (sem indexação) e a raiz é pública; rob
   const robots = read('robots.txt'); assert.match(robots, /Disallow: \/app/); assert.match(robots, /Disallow: \/api\//);
   const m = JSON.parse(read('manifest.webmanifest')); assert.equal(m.start_url.split('?')[0], '/app'); assert.ok(m.shortcuts.every(s => s.url.startsWith('/app')));
 });
+
+test('landing: WhatsApp configurado com DDI 55 e DDD 27, e o mesmo número no dado estruturado', () => {
+  const js = read('assets/js/landing.js'); assert.match(js, /whatsapp: "5527997010954"/);
+  assert.equal(JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]).telephone, '+5527997010954');
+});
