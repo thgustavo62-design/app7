@@ -307,3 +307,31 @@ dialog.drawer::backdrop { background: rgba(10, 10, 20, .45); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 [data-drag] { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 .ghost { opacity: .95; }
+
+/* ---------- nota de saúde e checagem (playbook) ---------- */
+.health-row { display: flex; gap: 12px; align-items: center; }
+.health-row b { font-size: 13px; }
+.health-num { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-family: var(--f-head); font-weight: 700; font-size: 16px; flex: none; font-variant-numeric: tabular-nums; }
+.health-row.big .health-num { width: 58px; height: 58px; font-size: 22px; border-radius: 16px; }
+.tone-green { background: var(--green-bg); color: var(--green); }
+.tone-amber { background: var(--amber-bg); color: var(--amber); }
+.tone-red { background: var(--red-bg); color: var(--red); }
+ul.plain, ol.plain { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; color: var(--text-2); }
+ul.plain.check { list-style: none; padding-left: 0; }
+ul.plain.check li { padding-left: 22px; position: relative; }
+ul.plain.check li::before { content: ""; position: absolute; left: 0; top: 3px; width: 13px; height: 13px; border: 2px solid var(--violet); border-radius: 4px; }
+.steps-list { margin: 0; padding-left: 20px; display: grid; gap: 10px; }
+.steps-list li b { display: block; }
+.steps-list li span { color: var(--text-2); font-size: 12.5px; }
+.qbox { background: var(--box); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.qgrid { display: grid; gap: 8px; }
+.qrow { display: grid; grid-template-columns: 1fr 128px; gap: 10px; align-items: center; }
+.qrow small { color: var(--muted); font-weight: 500; }
+.qrow small.hint { display: block; font-size: 11px; }
+.qrow select { min-height: 32px; font-size: 12.5px; }
+.qchecks { display: grid; gap: 6px; }
+label.check { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: var(--text-2); cursor: pointer; }
+label.check input { width: 16px; height: 16px; margin-top: 1px; accent-color: var(--violet-d); flex: none; }
+.client-card .health-row { padding: 2px 0; }
+@media (max-width: 900px) { .panel-cols[style*="repeat(3"] { grid-template-columns: minmax(0, 1fr) !important; } }
+@media (max-width: 560px) { .qrow { grid-template-columns: 1fr; } }

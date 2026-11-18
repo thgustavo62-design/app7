@@ -29,7 +29,9 @@
     get(key, fb) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fb; } catch (e) { return fb; } },
     set(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); return true; } catch (e) { return false; } }
   };
-  const KB_KEY = "nova7-kanban-v1", GOAL_KEY = "nova7-metas-v1", PREF_KEY = "nova7-prefs-v1";
+  const KB_KEY = "nova7-kanban-v1", GOAL_KEY = "nova7-metas-v1", PREF_KEY = "nova7-prefs-v1", CHECK_KEY = "nova7-checagem-v1";
+  const PB = window.N7_PLAYBOOK;
+  let checks = store.get(CHECK_KEY, {});
   let overrides = store.get(KB_KEY, {});
   const prefs = Object.assign({ kview: "status", kbrand: "all", kfmt: "all", ins: "all" }, store.get(PREF_KEY, {}));
   const savePrefs = () => store.set(PREF_KEY, prefs);
@@ -59,6 +61,41 @@
   }
   const brandBadge = b => `<span class="badge brand" style="--dot:var(${CL[b].color})">${esc(CL[b].short)}</span>`;
   const fmtBadge = f => `<span class="badge fmt-${f.toLowerCase()}">${esc(f)}</span>`;
+  /* ---------- nota de saúde do cliente (método do playbook) ---------- */
+  const clamp = v => Math.max(0, Math.min(100, v));
+  const sectorOf = b => b === "C" ? "agro" : b === "N" ? "agencia" : "saude";
+  function health(c, all) {
+    const ps = all.filter(p => p.b === c.key), W = D.WEEKLY[c.key];
+    const due = ps.filter(p => toDate(p.date) <= TODAY);
+    const d14 = addDays(TODAY, 14), d7 = addDays(TODAY, 7);
+    const next = ps.filter(p => { const d = toDate(p.date); return d > TODAY && d <= d14; });
+    const ready = s => ["prod", "apr", "agd", "pub"].includes(s);
+    let pipe = next.length ? next.filter(p => ready(p.status)).length / next.length * 100 : 100;
+    if (next.some(p => toDate(p.date) <= d7) && !next.some(p => toDate(p.date) <= d7 && ["apr", "agd", "pub"].includes(p.status))) pipe -= 25;
+    const al = D.ALERTS.filter(a => a.b === c.key);
+    const n = p => al.filter(a => a.p === p).length;
+    const fair = D.FAIR.find(f => f.key === c.key);
+    const rate = i => W.igInt[i] / W.igViews[i] * 1000;
+    const vals = {
+      pub: due.length ? due.filter(p => p.status === "pub").length / due.length * 100 : 100,
+      pipe: clamp(pipe),
+      res: W ? (clamp(70 + pct(W.igViews[1], W.igViews[2]) * 1.5) + (fair ? clamp(70 + fair.pct * 1.5) : clamp(70 + pct(W.igViews[1], W.igViews[2]) * 1.5))) / 2 : null,
+      eng: W ? clamp(70 + pct(rate(1), rate(2)) * .5) : null,
+      comp: clamp(100 - 25 * n("P0") - 10 * n("P1") - 4 * n("P2"))
+    };
+    const dims = PB.health.map(h => Object.assign({}, h, { value: vals[h.id] }));
+    const used = dims.filter(d => d.value != null);
+    const score = Math.round(used.reduce((a, d) => a + d.value * d.weight, 0) / used.reduce((a, d) => a + d.weight, 0));
+    const light = PB.lights.find(l => score >= l.min);
+    const weakest = used.slice().sort((a, b) => a.value - b.value)[0];
+    return { score, light, dims, weakest, due: due.length, dueDone: due.filter(p => p.status === "pub").length, next: next.length };
+  }
+  const healthChip = h => `<span class="badge ${h.light.tone === "green" ? "st-pub" : h.light.tone === "amber" ? "st-apr" : "late"}" title="Nota de saúde">${h.score} · ${h.light.name}</span>`;
+  function checkScore(code) {
+    const c = checks[code]; if (!c || !c.dims) return null;
+    const ids = PB.rubric.filter(r => c.dims[r.id] != null); if (ids.length < PB.rubric.length) return null;
+    return Math.round(PB.rubric.reduce((a, r) => a + Number(c.dims[r.id]) * r.weight, 0) / 100);
+  }
   const stBadge = p => p.late ? `<span class="badge late">Atrasada · ${STATUS[p.status].name}</span>` : `<span class="badge ${STATUS[p.status].cls}">${STATUS[p.status].name}</span>`;
 
   /* ---------- ícones ---------- */
@@ -88,7 +125,8 @@
     painel: { title: "Painel", render: renderPainel },
     insights: { title: "Insights", render: renderInsights },
     calendario: { title: "Calendário Kanban", render: renderKanban },
-    alertas: { title: "Alertas", render: renderAlertas }
+    alertas: { title: "Alertas", render: renderAlertas },
+    playbook: { title: "Playbook", render: renderPlaybook }
   };
   D.CLIENTS.forEach(c => { ROUTES[c.id] = { title: c.name, render: () => renderClient(c) }; });
 
@@ -104,7 +142,8 @@
       ${D.CLIENTS.map(c => `<a class="nav-item" href="#${c.id}"><i class="nav-dot" style="background:var(${c.color})"></i><span>${esc(c.name)}</span>${late(c.id) ? `<span class="nav-count" title="pautas atrasadas">${late(c.id)}</span>` : ""}</a>`).join("")}
       <div class="nav-group">Operação</div>
       <a class="nav-item" href="#calendario">${ico("cal")}<span>Calendário Kanban</span></a>
-      <a class="nav-item" href="#alertas">${ico("bell")}<span>Alertas</span><span class="nav-count">${p0} P0</span></a>`;
+      <a class="nav-item" href="#alertas">${ico("bell")}<span>Alertas</span><span class="nav-count">${p0} P0</span></a>
+      <a class="nav-item" href="#playbook">${ico("file")}<span>Playbook</span></a>`;
   }
   function route() {
     const id = (location.hash || "#painel").slice(1);
@@ -171,9 +210,11 @@
     const mine = ps.filter(p => p.b === c.key), pub = mine.filter(p => p.status === "pub").length, late = mine.filter(p => p.late).length;
     const W = D.WEEKLY[c.key];
     const next = mine.filter(p => p.status !== "pub" && toDate(p.date) >= TODAY).sort((a, b) => a.date.localeCompare(b.date))[0];
+    const h = health(c, ps);
     return `<div class="panel client-card" tabindex="0" role="link" data-go="${c.id}">
       <div class="panel-body">
         <div style="display:flex;gap:10px;align-items:center"><span class="client-avatar" style="background:var(${c.color})">${c.short[0]}</span><div style="min-width:0"><h3 style="font-size:14px">${esc(c.name)}</h3><div class="src">${esc(c.handle)}</div></div></div>
+        <div class="health-row"><span class="health-num tone-${h.light.tone}">${h.score}</span><div><b>${h.light.name}</b><div class="src">mais fraca: ${h.weakest.name} (${Math.round(h.weakest.value)})</div></div></div>
         <div class="metric-box"><h4>Semana 02–08/11</h4>
           <div class="mrow"><span>Vendas</span><b class="${W ? "" : "na"}">${W ? brl(W.sales[2]) : "sem dado"}</b></div>
           <div class="mrow"><span>Views IG</span><b class="${W ? "" : "na"}">${W ? int(W.igViews[2]) : "sem dado"}</b></div>
@@ -289,10 +330,28 @@
   /* ====================================================================
      CLIENTE
      ==================================================================== */
+  function sectorPanel(c) {
+    const sec = sectorOf(c.key);
+    if (sec === "agencia") {
+      return `<div class="panel">${banner("file", "Regras para o perfil da agência", "portfólio e cases")}
+        <div class="panel-body"><ul class="plain">${PB.checks.agencia.map(t => `<li>${esc(t)}</li>`).join("")}</ul>
+        <span class="col-title">Brasil</span>${PB.brasil.map(([a, b]) => `<div class="mrow" style="display:block"><b style="display:block;text-align:left">${a}</b>${esc(b)}</div>`).join("")}</div></div>`;
+    }
+    const s = PB.sectors[sec];
+    return `<div class="panel">${banner("file", `Notas do setor · ${s.name}`, "o que costuma funcionar e o que evitar")}
+      <div class="panel-body"><p>${esc(s.funnel)}</p>
+        <div class="grid g2" style="gap:14px">
+          <div><span class="col-title">Canais que mais pesam</span><ol class="plain num">${s.channels.map(t => `<li>${esc(t)}</li>`).join("")}</ol></div>
+          <div><span class="col-title">Formatos</span><ul class="plain">${s.formats.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>
+          <div><span class="col-title">Calendário sazonal</span><ul class="plain">${s.seasons.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>
+          <div><span class="col-title" style="color:var(--red)">Erros comuns</span><ul class="plain">${s.pitfalls.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>
+        </div></div></div>`;
+  }
   function renderClient(c, v) {
     v = v || $("#view");
     const ps = posts().filter(p => p.b === c.key);
     const W = D.WEEKLY[c.key];
+    const hl = health(c, posts());
     const counts = Object.fromEntries(COLS.map(s => [s, ps.filter(p => p.status === s).length]));
     const late = ps.filter(p => p.late).sort((a, b) => a.date.localeCompare(b.date));
     const next = ps.filter(p => p.status !== "pub" && toDate(p.date) >= TODAY).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
@@ -320,6 +379,16 @@
             <div><span class="col-title">Facebook</span>${[["Visualizações", "fbViews"], ["Interações", "fbInt"], ["Cliques no link", "fbClicks"], ["Visitas", "fbVisits"], ["Novos seguidores", "fbFollows"]].map(([n, m]) => `<div class="mrow"><span>${n}</span><b>${int(W[m][2])} ${delta(pct(W[m][1], W[m][2]))}</b></div>`).join("")}</div>
           </div></div>
       </div>` : `<p class="notice"><b>Sem métricas no Drive.</b> Para acompanhar resultados de ${esc(c.name)}, exporte da Meta Business Suite as visualizações, interações, cliques e visitas de 14/08 a 14/11 e salve na pasta do cliente. ${c.key === "C" ? "Para a Campo Forte, as métricas que importam são mensagens de produtores, pedidos de avaliação, visitas realizadas e propostas aceitas." : "Para a Nova7, acompanhe também pedidos de orçamento e cases autorizados."}</p>`}
+
+      <div class="grid g2">
+        <div class="panel">${banner("target", "Nota de saúde do cliente", "0 a 100 · recalculada com o Kanban e os alertas", healthChip(hl))}
+          <div class="panel-body">
+            <div class="health-row big"><span class="health-num tone-${hl.light.tone}">${hl.score}</span><div><b>${hl.light.name}</b><div class="src">${hl.light.action}</div></div></div>
+            ${hl.dims.map(d => `<div class="goal" style="grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) 44px"><div class="n">${d.name}<small>peso ${d.weight}% · ${d.how}</small></div><div class="bar"><i style="width:${d.value ?? 0}%;background:${d.value == null ? "transparent" : d.value >= 80 ? "var(--green)" : d.value >= 60 ? "var(--amber)" : "var(--red)"}"></i></div><b class="tnum" style="text-align:right">${d.value == null ? "—" : Math.round(d.value)}</b></div>`).join("")}
+            <p class="src">${hl.dueDone} de ${hl.due} pautas com data vencida estão publicadas na Central. Dimensões sem dado ficam fora da conta. Método adaptado do <a href="${PB.source}" target="_blank" rel="noopener">Digital Marketing Pro</a>; detalhes em <a href="#playbook">Playbook</a>.</p>
+          </div></div>
+        ${sectorPanel(c)}
+      </div>
 
       <div class="grid g2">
         <div class="panel">${banner("list", "Andamento do plano", `${ps.length} pautas de novembro e dezembro`, `<a class="pill-light" href="#calendario" data-brand="${c.key}">Abrir no Kanban</a>`)}
@@ -421,7 +490,7 @@
     return `<button type="button" class="kcard" data-drag data-code="${p.code}" style="--dot:var(${CL[p.b].color})">
       <span class="kcard-top">${brandBadge(p.b)}${fmtBadge(p.format)}<span class="code">${p.code}</span></span>
       <strong>${esc(p.title)}</strong>
-      <span class="kcard-foot"><span class="${p.late ? "late" : ""}">${ico("cal").replace("<svg", '<svg width="12" height="12"')} ${DOW[d.getDay()]} ${dm(p.date)}${p.late ? " · atrasada" : ""}</span>${p.edited ? `<span title="alterado neste navegador">editado</span>` : ""}</span></button>`;
+      <span class="kcard-foot"><span class="${p.late ? "late" : ""}">${ico("cal").replace("<svg", '<svg width="12" height="12"')} ${DOW[d.getDay()]} ${dm(p.date)}${p.late ? " · atrasada" : ""}</span>${scoreTag(p.code)}${p.edited ? `<span title="alterado neste navegador">editado</span>` : ""}</span></button>`;
   }
   function drawBoard() {
     const ps = filtered(), board = $("#k-board"), nav = $("#k-nav");
@@ -544,15 +613,118 @@
         <div><span class="col-title">Etapas de produção</span>
           <ul class="steps" style="margin-top:10px">${steps.map(([k2, d], i) => { const isDone = i < done || p.status === "pub"; const isLate = !isDone && d && toDate(d) < TODAY; return `<li class="${isDone ? "done" : isLate ? "late" : ""}"><i></i><span>${STEP_NAMES[k2]}${isLate ? " · atrasada" : ""}</span><span class="tnum">${d ? DOW[toDate(d).getDay()] + " " + dm(d) : "não se aplica"}</span></li>`; }).join("")}
           <li class="${p.status === "pub" ? "done" : p.late ? "late" : ""}"><i></i><span><b>Publicar</b></span><span class="tnum"><b>${DOW[toDate(p.date).getDay()]} ${dm(p.date)}</b></span></li></ul></div>
+        ${qualityForm(p)}
         <div class="doc-list"><a href="${p.doc}" target="_blank" rel="noopener">Abrir roteiro ${p.format === "Reels" ? "de Reels" : "de carrosséis"}<span>Google Docs</span></a><a href="${D.CENTRAL}" target="_blank" rel="noopener">Central editorial<span>planilha</span></a></div>
         <div class="toolbar"><button type="button" class="btn primary" id="d-save">Salvar</button>${p.edited ? `<button type="button" class="btn" id="d-revert">Voltar ao plano original</button>` : ""}</div>
       </div>`;
     const close = () => dlg.close();
     $("#d-close").onclick = close;
     dlg.onclick = e => { if (e.target === dlg) close(); };
-    $("#d-save").onclick = () => { const date = $("#d-date").value || p.date; update(p.code, { status: $("#d-status").value, date }, `${p.code} salva`); close(); };
+    const readQ = () => {
+      const dims = {}; $$("[data-dim]", dlg).forEach(s => { if (s.value !== "") dims[s.dataset.dim] = Number(s.value); });
+      const ck = {}; $$("[data-chk]", dlg).forEach(i => { if (i.checked) ck[i.dataset.chk] = true; });
+      return { dims, checks: ck };
+    };
+    const paintQ = () => { const q = readQ(); const tmp = checks[p.code]; checks[p.code] = q; $("#q-result").innerHTML = qualityResult(p.code); if (tmp) checks[p.code] = tmp; else delete checks[p.code]; };
+    $$("[data-dim],[data-chk]", dlg).forEach(el => el.addEventListener("change", paintQ));
+    $("#d-save").onclick = () => {
+      const q = readQ();
+      if (Object.keys(q.dims).length || Object.keys(q.checks).length) checks[p.code] = q; else delete checks[p.code];
+      store.set(CHECK_KEY, checks);
+      const date = $("#d-date").value || p.date; update(p.code, { status: $("#d-status").value, date }, `${p.code} salva`); close();
+    };
     const rv = $("#d-revert"); if (rv) rv.onclick = () => { delete overrides[p.code]; store.set(KB_KEY, overrides); close(); if (current === "calendario") drawBoard(); else route(); renderNav(); markNav(); toast(`${p.code} voltou ao plano original`); };
     if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+  }
+
+  /* ---------- checagem pré-publicação ---------- */
+  const verdictOf = s => PB.verdicts.find(v2 => s >= v2.min);
+  const toneCls = t => t === "green" ? "st-pub" : t === "amber" ? "st-apr" : "late";
+  function scoreTag(code) {
+    const s = checkScore(code); if (s == null) return "";
+    const list = PB.checks[sectorOf(code.startsWith("CF") ? "C" : code.startsWith("N7") ? "N" : code.charAt(2))];
+    const ok = list.every((_, i) => checks[code].checks && checks[code].checks[i]);
+    return `<span class="badge ${toneCls(ok ? verdictOf(s).tone : "amber")}" title="Nota da checagem pré-publicação">nota ${s}${ok ? "" : " · conformidade pendente"}</span>`;
+  }
+  function qualityResult(code) {
+    const p = D.PLAN.find(x => x.code === code), list = PB.checks[sectorOf(p.b)];
+    const c = checks[code] || {}, s = checkScore(code);
+    const done = list.filter((_, i) => c.checks && c.checks[i]).length;
+    if (s == null) return `<span class="src">Avalie os ${PB.rubric.length} critérios para ver a nota. Conformidade: ${done} de ${list.length}.</span>`;
+    const v2 = verdictOf(s), ok = done === list.length;
+    return `<span class="health-num tone-${ok ? v2.tone : "amber"}" style="width:46px;height:46px;font-size:17px">${s}</span><div><b>${ok ? v2.name : "Conformidade pendente"}</b><div class="src">${ok ? "Checklist do setor completo." : `Faltam ${list.length - done} itens do checklist do setor antes de publicar.`} 85+ publicar · 70–84 ajustes · 50–69 revisão · abaixo de 50 refazer.</div></div>`;
+  }
+  function qualityForm(p) {
+    const c = checks[p.code] || {}, list = PB.checks[sectorOf(p.b)];
+    const critical = sectorOf(p.b) !== "agencia";
+    return `<div class="qbox"><span class="col-title">Checagem pré-publicação</span>
+      <p class="src">Rubrica de post social com 6 critérios. ${critical ? `Setor regulado: nível de aprovação <b>${sectorOf(p.b) === "saude" ? "crítico" : "alto"}</b>, com revisão técnica obrigatória.` : ""}</p>
+      <div class="qgrid">${PB.rubric.map(r => `<label class="qrow" for="q-${r.id}"><span><b>${r.name}</b> <small>${r.weight}%</small><small class="hint">${r.hint}</small></span>
+        <select id="q-${r.id}" data-dim="${r.id}"><option value="">—</option>${PB.levels.map(([v2, n]) => `<option value="${v2}" ${c.dims && String(c.dims[r.id]) === v2 ? "selected" : ""}>${n}</option>`).join("")}</select></label>`).join("")}</div>
+      <span class="col-title">Conformidade · ${{ saude: "farmácia e saúde", agro: "agro", agencia: "agência" }[sectorOf(p.b)]}</span>
+      <div class="qchecks">${list.map((t, i) => `<label class="check"><input type="checkbox" data-chk="${i}" ${c.checks && c.checks[i] ? "checked" : ""}> ${esc(t)}</label>`).join("")}</div>
+      <div class="health-row" id="q-result">${qualityResult(p.code)}</div></div>`;
+  }
+
+  /* ====================================================================
+     PLAYBOOK
+     ==================================================================== */
+  function renderPlaybook(v) {
+    const all = posts();
+    const hs = D.CLIENTS.map(c => ({ c, h: health(c, all) }));
+    v.innerHTML = `
+      <div class="page-head"><div><div class="eyebrow">Método da agência</div><h1>Playbook</h1>
+        <p>Regras de trabalho da Nova7: como medimos a saúde de cada cliente, como revisamos antes de publicar, quem aprova o quê, a cadência de relatórios e os formatos de cada rede. Adaptado do repositório aberto <a class="lnk" href="${PB.source}" target="_blank" rel="noopener" style="color:var(--violet-d);font-weight:600">Digital Marketing Pro</a> (licença MIT) e dos critérios já definidos no Drive.</p></div></div>
+
+      <div class="panel">${banner("target", "Nota de saúde do cliente", "0 a 100, calculada toda vez que o Kanban ou os alertas mudam")}
+        <div class="table-wrap"><table><thead><tr><th>Cliente</th><th class="num">Nota</th>${PB.health.map(h => `<th class="num">${h.name}<br><small style="text-transform:none;letter-spacing:0">${h.weight}%</small></th>`).join("")}<th>Mais fraca</th></tr></thead><tbody>
+        ${hs.map(({ c, h }) => `<tr><td><a class="lnk" href="#${c.id}">${esc(c.name)}</a></td><td class="num">${healthChip(h)}</td>${h.dims.map(d => `<td class="num">${d.value == null ? "—" : Math.round(d.value)}</td>`).join("")}<td>${h.weakest.name}</td></tr>`).join("")}
+        </tbody></table></div>
+        <div class="panel-cols">
+          <div><span class="col-title">Como cada dimensão é calculada</span>${PB.health.map(h => `<div class="mrow" style="display:block"><b style="display:block;text-align:left">${h.name} · ${h.weight}%</b>${esc(h.how)}</div>`).join("")}</div>
+          <div><span class="col-title">Semáforo</span>${PB.lights.map(l => `<div class="mrow" style="display:block"><span class="badge ${toneCls(l.tone)}">${l.name} · ${l.min === 0 ? "abaixo de 60" : l.min + "+"}</span><div style="margin-top:4px">${esc(l.action)}</div></div>`).join("")}
+            <p class="notice info">Hoje as notas são baixas porque a Central marca poucas pautas como publicadas ou em produção. Ao atualizar os status no Kanban, a nota sobe na hora.</p></div>
+        </div></div>
+
+      <div class="grid g2">
+        <div class="panel">${banner("list", "Checagem pré-publicação", "abre no detalhe de cada pauta do Kanban")}
+          <div class="table-wrap"><table><thead><tr><th>Critério</th><th class="num">Peso</th><th>O que olhar</th></tr></thead><tbody>
+          ${PB.rubric.map(r => `<tr><td><b>${r.name}</b></td><td class="num">${r.weight}%</td><td>${esc(r.hint)}</td></tr>`).join("")}
+          </tbody></table></div>
+          <div class="panel-body"><div class="toolbar">${PB.verdicts.map(x => `<span class="badge ${toneCls(x.tone)}">${x.min === 0 ? "abaixo de 50" : x.min + "+"} · ${x.name}</span>`).join("")}</div>
+          <p class="src">Cada critério recebe Falha (0), Fraco (40), Bom (75) ou Excelente (100). A peça só fica "pronta" com o checklist de conformidade do setor completo.</p></div></div>
+        <div class="panel">${banner("alert", "Quem aprova o quê", "nível de risco de cada ação")}
+          <div class="table-wrap"><table><thead><tr><th>Nível</th><th>Aprovação</th><th>Na Nova7</th></tr></thead><tbody>
+          ${PB.risk.map(r => `<tr><td><span class="badge ${r.tone}">${r.level}</span></td><td><b>${r.who}</b><div class="src">${esc(r.what)}</div></td><td>${esc(r.nova7)}</td></tr>`).join("")}
+          </tbody></table></div></div>
+      </div>
+
+      <div class="grid g3">
+        ${["saude", "agro", "agencia"].map(k2 => `<div class="panel">${banner("file", "Checklist · " + { saude: "Farmácia e saúde", agro: "Agro", agencia: "Perfil da agência" }[k2], { saude: "Minas Farma e Farma e Farma", agro: "Campo Forte", agencia: "Nova7 Produtora" }[k2])}
+          <div class="panel-body"><ul class="plain check">${PB.checks[k2].map(t => `<li>${esc(t)}</li>`).join("")}</ul></div></div>`).join("")}
+      </div>
+
+      <div class="panel">${banner("clock", "Cadência de revisão", "o que olhar em cada ritmo e quando agir")}
+        <div class="table-wrap"><table><thead><tr><th>Quando</th><th>Para quem</th><th>O que revisar</th><th>Quando agir</th></tr></thead><tbody>
+        ${PB.cadence.map(r => `<tr><td><b>${r.when}</b></td><td>${r.who}</td><td>${esc(r.what)}</td><td>${esc(r.rule)}</td></tr>`).join("")}
+        </tbody></table></div></div>
+
+      <div class="grid g2">
+        <div class="panel">${banner("file", "Modelo de relatório mensal", "um documento de decisão, não um despejo de números")}
+          <div class="panel-body"><ol class="steps-list">${PB.report.map(([t, d]) => `<li><b>${t}</b><span>${esc(d)}</span></li>`).join("")}</ol>
+          <p class="notice">Comece pelo aprendizado, explique o porquê e seja honesto quando o resultado for abaixo do esperado.</p></div></div>
+        <div class="panel">${banner("list", "Onboarding de cliente novo", "antes de propor qualquer ação")}
+          <div class="panel-body"><ol class="steps-list">${PB.onboarding.map(([t, d]) => `<li><b>${t}</b><span>${esc(d)}</span></li>`).join("")}</ol></div></div>
+      </div>
+
+      <div class="panel">${banner("ig", "Formatos de Instagram e Facebook", "medidas, regras e o que o algoritmo valoriza")}
+        <div class="table-wrap"><table><thead><tr><th>Rede</th><th>Formato</th><th>Medida</th><th>Regras</th><th>Sinais que pesam</th></tr></thead><tbody>
+        ${PB.specs.map(s => `<tr><td>${s.net}</td><td><span class="badge fmt-${{ Carrossel: "carrossel", Reels: "reels", Post: "post", Stories: "post", "Reels e Stories": "reels" }[s.fmt]}">${s.fmt}</span></td><td class="tnum" style="white-space:nowrap">${s.size}</td><td>${esc(s.rules)}</td><td>${esc(s.signals)}</td></tr>`).join("")}
+        </tbody></table></div>
+        <div class="panel-body"><p class="src">Horários "ideais" genéricos não entram aqui: use os horários com mais visualizações nos insights de cada cliente.</p></div></div>
+
+      <div class="panel">${banner("target", "Notas para o Brasil", "privacidade, tom e canais")}
+        <div class="panel-cols" style="grid-template-columns:repeat(3,minmax(0,1fr))">${PB.brasil.map(([a, b]) => `<div><span class="col-title">${a}</span><p>${esc(b)}</p></div>`).join("")}</div></div>`;
   }
 
   /* ====================================================================
