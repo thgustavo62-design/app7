@@ -149,3 +149,13 @@ O site é um **PWA**: dá para instalar na tela inicial do celular e abre em tel
 ## Calendário ao vivo e fontes de dados
 
 O plano de pautas é **lido da aba PRODUÇÃO CENTRAL** da planilha Central editorial (cache de 5 minutos; empresa, datas, etapas, status e nota vêm de lá). Se a leitura falhar, o site continua com a cópia embutida (`private/data.js`) e mostra o motivo. **Configurações → Fontes de dados** mostra o estado, as contagens e as linhas que não puderam ser importadas, com o botão *Ler agora*. A planilha precisa estar compartilhada com a conta de serviço; para outra planilha, defina `CENTRAL_SHEET_ID`.
+
+## Meta via Windsor.ai (Instagram, Facebook e anúncios)
+
+Os resultados da Meta de todos os clientes vêm do **Windsor.ai** pela API de conectores (`https://connectors.windsor.ai/{conector}`), com a variável `WINDSOR_API_KEY` na Vercel.
+
+1. Em **Configurações → Fontes de dados**, o botão **Descobrir contas** lista os IDs de cada conta (anúncios, Instagram e página do Facebook).
+2. Em **Configurações → Clientes e serviços**, informe os IDs de cada cliente.
+3. **Testar a última semana** mostra o que veio, sem gravar; **Sincronizar agora** grava na aba `Semanas`. O agendador da Vercel faz isso todo dia às 09:00 UTC (variável `CRON_SECRET`), nas duas últimas semanas fechadas.
+
+Regras: o Windsor só troca os campos que vieram com valor (vendas, anotações e o que você digitou ficam); campo que a conta não tem fica **sem dado, nunca zero**; cada métrica é pedida separadamente, então um campo recusado não derruba os demais. Os campos de cada métrica estão em `MAP` no `lib/windsor.js`. **Confira o alcance** na primeira vez contra o Meta: ele é calculado no período inteiro pelo Windsor, e o resultado do anúncio usa por padrão as conversas iniciadas (`WINDSOR_ADS_RESULT_FIELD` troca o campo).

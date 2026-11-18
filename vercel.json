@@ -1,8 +1,9 @@
 {
   "outputDirectory": "public",
   "functions": {
-    "api/*.js": { "maxDuration": 15, "includeFiles": "private/**" }
+    "api/*.js": { "maxDuration": 60, "includeFiles": "private/**" }
   },
+  "crons": [{ "path": "/api/windsor?cron=1", "schedule": "0 9 * * *" }],
   "headers": [
     {
       "source": "/(.*)",

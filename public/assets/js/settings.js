@@ -36,7 +36,7 @@
     const list = C.REG.clients.slice().sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name));
     const ed = ui.edit && ui.edit.kind === "client" ? ui.edit : null;
     const cur = ed && ed.key ? list.find(c => c.key === ed.key) : null;
-    const f = cur || { name: "", short: "", handle: "", segment: "", setor: "outro", color: SVC.COLORS[list.length % SVC.COLORS.length], services: ["redes"], active: true, id: "" };
+    const f = cur || { name: "", short: "", handle: "", segment: "", setor: "outro", color: SVC.COLORS[list.length % SVC.COLORS.length], services: ["redes"], active: true, id: "", meta: {} };
     v.querySelector("#cfg-body").innerHTML = `
       <div class="panel">${C.banner("list", "Clientes e serviços", `${list.filter(c => c.active).length} ativos · o painel de cada cliente segue os serviços marcados`, ed ? "" : `<button type="button" class="btn sm primary" id="c-new">Novo cliente</button>`)}
         <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Serviços</th><th>Setor</th><th>Situação</th><th></th></tr></thead><tbody>
@@ -53,6 +53,10 @@
           <div class="form-row"><div><label class="lbl" for="cf-setor">Setor</label><select id="cf-setor">${Object.entries(SVC.SECTORS).map(([k, n]) => `<option value="${k}" ${k === f.setor ? "selected" : ""}>${n}</option>`).join("")}</select><small class="src">Saúde e agro usam checklist de conformidade nas peças.</small></div>
             <div><label class="lbl" for="cf-id">Endereço no site</label><input type="text" id="cf-id" maxlength="40" value="${C.esc(f.id)}" ${cur ? "readonly" : ""} placeholder="gerado a partir do nome"></div></div>
           <div><span class="lbl">Serviços prestados</span><div class="svc-pick">${SVC.ORDER.map(s => `<label style="--svc:var(${SVC.SERVICES[s].color})"><input type="checkbox" name="svc" value="${s}" ${(f.services || []).includes(s) ? "checked" : ""}><span><b>${SVC.SERVICES[s].name}</b><small>${SVC.SERVICES[s].desc}</small></span></label>`).join("")}</div></div>
+          <div><span class="lbl">Resultados da Meta (via Windsor.ai)</span><p class="src">IDs das contas deste cliente no Windsor. Em Fontes de dados, o botão "Descobrir contas" lista todos. Mais de um ID? Separe por vírgula.</p>
+            <div class="form-row"><div><label class="lbl" for="cf-mads">Conta de anúncios</label><input type="text" id="cf-mads" maxlength="80" placeholder="ex.: 1234567890" value="${C.esc((f.meta || {}).ads || "")}"></div>
+              <div><label class="lbl" for="cf-mig">Instagram</label><input type="text" id="cf-mig" maxlength="80" placeholder="ID da conta do Instagram" value="${C.esc((f.meta || {}).ig || "")}"></div></div>
+            <div style="margin-top:10px"><label class="lbl" for="cf-mfb">Página do Facebook</label><input type="text" id="cf-mfb" maxlength="80" placeholder="ID da página" value="${C.esc((f.meta || {}).fb || "")}"></div></div>
           <div><span class="lbl">Cor</span><div class="color-pick" role="radiogroup" aria-label="Cor">${SVC.COLORS.map((k, i) => `<label><input type="radio" name="cor" value="${k}" ${k === f.color ? "checked" : ""} aria-label="Cor ${i + 1}"><span style="background:var(${k})"></span></label>`).join("")}</div></div>
           ${cur ? `<label class="check"><input type="checkbox" id="cf-active" ${f.active ? "checked" : ""}> Cliente ativo (desmarque para tirá-lo do site, sem apagar o histórico)</label>` : ""}
           <p class="login-err" id="c-err" role="alert" style="display:none"></p>
@@ -72,6 +76,7 @@
       const op = {
         t: "client", chave: cur ? cur.key : newKey(nm.value, C.REG.clients.map(c => c.key)), id: (idEl.value || slug(nm.value)).trim(), nome: nm.value.trim(), curto: $("#cf-short", v).value.trim(),
         perfil: $("#cf-handle", v).value.trim(), segmento: $("#cf-segment", v).value.trim(), setor: $("#cf-setor", v).value, servicos: $$('input[name="svc"]:checked', v).map(i => i.value),
+        meta_ads: $("#cf-mads", v).value.trim(), meta_ig: $("#cf-mig", v).value.trim(), meta_fb: $("#cf-mfb", v).value.trim(),
         cor: ($('input[name="cor"]:checked', v) || {}).value, ativo: cur ? ($("#cf-active", v).checked ? "sim" : "nao") : "sim", v: cur ? cur.v : undefined
       };
       err.style.display = "none"; btn.disabled = true;
@@ -145,18 +150,53 @@
 
   /* ---------- fontes de dados (o que alimenta o sistema sozinho) ---------- */
   const fmtAt = iso => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); };
+  /* ---------- Meta via Windsor.ai ---------- */
+  function windsorPanel(v) {
+    const host = v.querySelector("#src-windsor");
+    const post = (action, extra) => fetch("/api/windsor", { method: "POST", headers: { "Content-Type": "application/json", "X-N7": "1" }, body: JSON.stringify(Object.assign({ action }, extra)) }).then(async r => ({ ok: r.ok, body: await r.json().catch(() => ({})) })).catch(() => ({ ok: false, body: { error: "Sem conexão." } }));
+    const fmt = n => (n == null ? '<span class="na">sem dado</span>' : Number(n).toLocaleString("pt-BR", { maximumFractionDigits: 2 }));
+    const weekTable = w => `<div class="table-wrap"><table><thead><tr><th>Cliente · canal</th><th class="num">Views</th><th class="num">Alcance</th><th class="num">Interações</th><th class="num">Cliques</th><th class="num">Visitas</th><th class="num">Seguidores</th><th class="num">Gasto</th><th class="num">Resultados</th></tr></thead><tbody>
+      ${w.itens.map(i => { const x = i.valores; return `<tr><td><b>${C.esc(i.nome)}</b> · ${C.esc(i.label)}${i.semDado.length ? `<div class="src">sem dado: ${C.esc(i.semDado.join(", "))}</div>` : ""}</td>${i.canal === "ads" ? `<td class="num">—</td><td class="num">${fmt(x.alcance)}</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">${fmt(x.gasto)}</td><td class="num">${fmt(x.resultados)}</td>` : `<td class="num">${fmt(x.views)}</td><td class="num">${fmt(x.alcance)}</td><td class="num">${fmt(x.interacoes)}</td><td class="num">${fmt(x.cliques)}</td><td class="num">${fmt(x.visitas)}</td><td class="num">${fmt(x.seguidores)}</td><td class="num">—</td><td class="num">—</td>`}</tr>`; }).join("") || `<tr><td colspan="9"><div class="empty">Nada retornado.</div></td></tr>`}
+      </tbody></table></div>`;
+    const show = (title, r) => {
+      const out = host.querySelector("#wd-out");
+      if (!r.ok) return void (out.innerHTML = `<p class="notice"><b>${C.esc(title)} falhou:</b> ${C.esc(r.body.error || "erro")}</p>`);
+      const rep = r.body.report || {};
+      out.innerHTML = (rep.aviso ? `<p class="notice">${C.esc(rep.aviso)}</p>` : "") + (rep.weeks || []).map(w => `<h3 class="sub">Semana ${C.esc(w.from)} a ${C.esc(w.to)}${w.gravadas.length ? ` · <span class="badge st-pub">${w.gravadas.length} gravada(s) na planilha</span>` : ""}</h3>${weekTable(w)}${(w.itens[0] && w.itens[0].falhas || []).length ? `<p class="src">Campos que o Windsor recusou: ${C.esc(w.itens.flatMap(i => i.falhas).map(f => f.campo).filter((x, n, a) => a.indexOf(x) === n).join(", "))}.</p>` : ""}`).join("");
+    };
+    const busy = (b, on, txt) => { b.disabled = on; if (txt) b.textContent = txt; };
+    fetch("/api/windsor", { headers: { "X-N7": "1" } }).then(r => r.ok ? r.json() : null).catch(() => null).then(st => {
+      host.innerHTML = `${st ? `<div class="toolbar"><span class="badge ${st.configured ? "st-pub" : "p1"}">${st.configured ? "chave configurada" : "falta WINDSOR_API_KEY"}</span><span class="badge ${st.mapped ? "st-pub" : "p1"}">${st.mapped} de ${st.clients} clientes com conta Meta</span><span class="badge ${st.cron ? "st-pub" : ""}">${st.cron ? "sincroniza todo dia" : "agendamento diário: falta CRON_SECRET"}</span></div>` : `<p class="login-err">Não foi possível consultar.</p>`}
+        <p class="src">O Windsor traz Instagram, Facebook e anúncios de cada cliente. Informe o ID da conta de cada cliente em <a href="#config/clientes">Clientes e serviços</a> (o botão abaixo lista os IDs). Alcance é a conferência mais importante: compare com o Meta na primeira vez.</p>
+        <div class="toolbar"><button type="button" class="btn sm" id="wd-acc">Descobrir contas</button><button type="button" class="btn sm" id="wd-prev">Testar a última semana (sem gravar)</button><button type="button" class="btn sm primary" id="wd-sync">Sincronizar agora (2 semanas)</button></div>
+        <div id="wd-out"></div>`;
+      host.querySelector("#wd-acc").onclick = async e => {
+        const b = e.target; busy(b, true, "Buscando…");
+        const r = await fetch("/api/windsor?accounts=1", { headers: { "X-N7": "1" } }).then(async x => ({ ok: x.ok, body: await x.json().catch(() => ({})) })).catch(() => ({ ok: false, body: {} }));
+        busy(b, false, "Descobrir contas");
+        const out = host.querySelector("#wd-out");
+        if (!r.ok) return void (out.innerHTML = `<p class="notice"><b>Falhou:</b> ${C.esc(r.body.error || "erro")}</p>`);
+        out.innerHTML = Object.values(r.body.accounts).map(a => `<h3 class="sub">${C.esc(a.label)}</h3>${a.ok ? `<div class="table-wrap"><table><thead><tr><th>ID da conta (copie)</th><th>Nome</th></tr></thead><tbody>${a.list.map(x => `<tr><td><code>${C.esc(x.id)}</code></td><td>${C.esc(x.name)}</td></tr>`).join("") || `<tr><td colspan="2"><div class="empty">Nenhuma conta conectada neste canal no Windsor.</div></td></tr>`}</tbody></table></div>` : `<p class="notice">${C.esc(a.error)}</p>`}`).join("");
+      };
+      host.querySelector("#wd-prev").onclick = async e => { const b = e.target; busy(b, true, "Buscando…"); const r = await post("preview", { semanas: 1 }); busy(b, false, "Testar a última semana (sem gravar)"); show("A busca", r); };
+      host.querySelector("#wd-sync").onclick = async e => { const b = e.target; busy(b, true, "Sincronizando…"); const r = await post("sync", { semanas: 2 }); busy(b, false, "Sincronizar agora (2 semanas)"); show("A sincronização", r); if (r.ok) C.toast("Semanas atualizadas na planilha. Abra a tela Semana para conferir."); };
+    });
+  }
+
   function sourcesTab(v) {
     const body = v.querySelector("#cfg-body");
     const later = (name, what, need) => `<tr><td><b>${name}</b><div class="src">${what}</div></td><td><span class="badge">em breve</span></td><td>${need}</td></tr>`;
     body.innerHTML = `
       <div class="panel">${C.banner("cal", "Calendário · Central editorial", "lido direto da planilha, com cache de 5 minutos", `<button type="button" class="btn sm primary" id="src-read">Ler agora</button>`)}
         <div class="panel-body" id="src-cal"><p class="src">Lendo a planilha…</p></div></div>
+      <div class="panel">${C.banner("chart", "Meta · Windsor.ai", "Instagram, Facebook e anúncios de todos os clientes")}
+        <div class="panel-body" id="src-windsor"><p class="src">Consultando…</p></div></div>
       <div class="panel">${C.banner("list", "Outras fontes", "o que ainda será ligado")}
         <div class="table-wrap"><table><thead><tr><th>Fonte</th><th>Situação</th><th>O que precisa</th></tr></thead><tbody>
-          ${later("Meta: Instagram, Facebook e anúncios", "preenche sozinho os números da semana", "app da Meta e acesso ao Business Manager dos clientes")}
           ${later("Vendas das farmácias", "lê o relatório que você joga numa pasta do Drive", "exportação em Excel ou CSV do sistema das lojas")}
           ${later("Segunda-feira automática", "monta a semana, avisa o que falta e gera o PowerPoint", "as duas fontes acima")}
         </tbody></table></div></div>`;
+    windsorPanel(v);
     const draw = (r, plan) => {
       const el = $("#src-cal", v); if (!el) return;
       if (!r) return void (el.innerHTML = `<p class="login-err">Não foi possível consultar. Tente de novo.</p>`);
