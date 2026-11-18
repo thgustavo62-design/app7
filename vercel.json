@@ -1,8 +1,7 @@
 {
   "outputDirectory": "public",
   "functions": {
-    "api/*.js": { "maxDuration": 15 },
-    "api/data.js": { "includeFiles": "private/**" }
+    "api/*.js": { "maxDuration": 15, "includeFiles": "private/**" }
   },
   "headers": [
     {
