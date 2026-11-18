@@ -7,7 +7,7 @@
 
   /* ---------- formatação ---------- */
   const brl = v => v == null ? "sem dado" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-  const brlK = v => v === 0 ? "0" : "R$ " + (v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) + " mil";
+  const brlK = v => v === 0 ? "0" : Math.abs(v) < 1000 ? "R$ " + Math.round(v) : "R$ " + (v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mil";
   const int = v => v == null ? "sem dado" : Math.round(v).toLocaleString("pt-BR");
   const k = v => v >= 1000 ? (v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mil" : String(Math.round(v));
   const pct = (a, b) => a == null || b == null || !a ? null : (b / a - 1) * 100;
@@ -36,8 +36,23 @@
   const savePrefs = () => store.set(PREF_KEY, prefs);
 
   /* ---------- clientes e pautas ---------- */
-  const CL = Object.fromEntries(D.CLIENTS.map(c => [c.key, c]));
-  const byId = Object.fromEntries(D.CLIENTS.map(c => [c.id, c]));
+  /* quem está usando e quais empresas existem (cadastro vem do servidor; os detalhes antigos vêm do conjunto de dados) */
+  const SVC = window.N7Services, AN = window.N7Analysis;
+  const ME = window.N7User || { tipo: "equipe", papel: "admin", empresas: [] };
+  const REG = window.N7Registry || { clients: [], users: [] };
+  const IS_CLIENT = ME.tipo === "cliente", IS_ADMIN = !IS_CLIENT && ME.papel === "admin";
+  const CAN_WRITE = !IS_CLIENT && (ME.papel === "admin" || ME.papel === "editor");
+  const has = (c, s) => SVC.has(c, s);
+  let CLIENTS = [], CL = {}, byId = {};
+  function setupClients() {
+    const legacy = Object.fromEntries(D.CLIENTS.map(c => [c.key, c]));
+    CLIENTS = REG.clients.filter(c => c.active).map(r => Object.assign({ about: "", docs: [], ig: "", club: "", postsProfile: 0 }, legacy[r.key] || {}, r));
+    CL = Object.fromEntries(CLIENTS.map(c => [c.key, c]));
+    byId = Object.fromEntries(CLIENTS.map(c => [c.id, c]));
+    Object.keys(ROUTES).forEach(id => { if (ROUTES[id].client) ROUTES[id] = undefined; });
+    Object.keys(ROUTES).forEach(id => { if (ROUTES[id] === undefined) Reflect.deleteProperty(ROUTES, id); });
+    CLIENTS.forEach(c => { ROUTES[c.id] = { title: c.name, client: true, render: v => renderClient(c, v) }; });
+  }
   const STATUS = {
     prop: { name: "Proposta", hint: "aguarda revisão técnica", cls: "" },
     plan: { name: "A planejar", hint: "roteiro não iniciado", cls: "" },
@@ -53,18 +68,19 @@
   const plan = () => D.PLAN.concat(F.getCustom());
   const brandOfCode = code => (plan().find(x => x.code === code) || {}).b;
   function posts() {
-    return plan().map(p => {
+    return plan().filter(p => CL[p.b]).map(p => {
       const o = overrides[p.code] || {};
       const status = o.status || (p.status === "fin" ? "agd" : p.status);
       const date = o.date || p.date;
       return Object.assign({}, p, { status, date, edited: !!overrides[p.code], late: toDate(date) < TODAY && status !== "pub" });
     });
   }
-  const brandBadge = b => `<span class="badge brand" style="--dot:var(${CL[b].color})">${esc(CL[b].short)}</span>`;
+  const brandBadge = b => !CL[b] ? "" : `<span class="badge brand" style="--dot:var(${CL[b].color})">${esc(CL[b].short)}</span>`;
   const fmtBadge = f => `<span class="badge fmt-${f.toLowerCase()}">${esc(f)}</span>`;
   /* ---------- nota de saúde do cliente (método do playbook) ---------- */
   const clamp = v => Math.max(0, Math.min(100, v));
-  const sectorOf = b => b === "C" ? "agro" : b === "N" ? "agencia" : "saude";
+  const sectorOf = b => { const st = CL[b] && CL[b].setor; return st === "saude" || st === "agro" ? st : "agencia"; };
+  const roleOf = b => F.INTERNAL_ROLE[b] || ({ saude: "farmacêutico responsável", agro: "revisão agronômica" })[CL[b] && CL[b].setor] || "revisão interna";
   function health(c, all) {
     const ps = all.filter(p => p.b === c.key), W = D.WEEKLY[c.key];
     const due = ps.filter(p => toDate(p.date) <= TODAY);
@@ -126,34 +142,52 @@
   const ROUTES = {
     painel: { title: "Painel", render: renderPainel },
     insights: { title: "Insights", render: renderInsights },
+    semana: { title: "Semana", render: v => window.N7Semana.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }) },
     calendario: { title: "Calendário Kanban", render: renderKanban },
     alertas: { title: "Alertas", render: renderAlertas },
     fluxo: { title: "Fluxo e horários", render: renderFluxo },
     playbook: { title: "Playbook", render: renderPlaybook },
-    semana: { title: "Semana", render: v => window.N7Semana.render(v, { ico, banner, kpi, delta, toast }) }
+    config: { title: "Configurações", render: (v, sub) => window.N7Settings.render(v, sub, settingsCtx()) }
   };
-  D.CLIENTS.forEach(c => { ROUTES[c.id] = { title: c.name, render: () => renderClient(c) }; });
+  const anyPostClients = () => CLIENTS.some(c => has(c, "redes") || has(c, "criativos"));
+  /* o que cada tipo de usuário enxerga no menu e nas rotas */
+  const ACCESS = {
+    painel: () => true,
+    insights: () => !IS_CLIENT && !!CL.M && !!CL.F && !!D.FARMA_DAILY && !!D.MINAS_AUG,
+    semana: () => !IS_CLIENT && CLIENTS.length > 0,
+    calendario: () => anyPostClients(),
+    fluxo: () => !IS_CLIENT && anyPostClients(),
+    alertas: () => !IS_CLIENT && D.ALERTS.length > 0,
+    playbook: () => !IS_CLIENT,
+    config: () => IS_ADMIN
+  };
+  const allowedRoute = id => !!ROUTES[id] && (ROUTES[id].client || !ACCESS[id] || ACCESS[id]());
+  async function reloadRegistry() {
+    const r = await fetch("/api/state"); if (!r.ok) throw new Error("Não foi possível recarregar o cadastro.");
+    const b = await r.json(); REG.clients = b.registry.clients; REG.users = b.registry.users || [];
+    setupClients(); route();
+  }
+  const settingsCtx = () => ({ REG, ME, clients: () => CLIENTS, banner, ico, toast, esc, reload: reloadRegistry });
+  setupClients();
 
   function renderNav() {
     const ps = posts();
     const late = id => ps.filter(p => p.b === byId[id].key && p.late).length;
     const p0 = D.ALERTS.filter(a => a.p === "P0").length;
+    const ops = [["calendario", "cal", "Calendário Kanban", ""], ["fluxo", "sliders", "Fluxo e horários", ""], ["alertas", "bell", "Alertas", `<span class="nav-count">${p0} P0</span>`], ["playbook", "file", "Playbook", ""]].filter(([id]) => ACCESS[id]());
     $("#nav").innerHTML = `
       <div class="nav-group">Visão</div>
       <a class="nav-item" href="#painel">${ico("home")}<span>Painel</span></a>
-      <a class="nav-item" href="#insights">${ico("chart")}<span>Insights</span></a>
-      <a class="nav-item" href="#semana">${ico("file")}<span>Semana</span></a>
-      <div class="nav-group">Clientes</div>
-      ${D.CLIENTS.map(c => `<a class="nav-item" href="#${c.id}"><i class="nav-dot" style="background:var(${c.color})"></i><span>${esc(c.name)}</span>${late(c.id) ? `<span class="nav-count" title="pautas atrasadas">${late(c.id)}</span>` : ""}</a>`).join("")}
-      <div class="nav-group">Operação</div>
-      <a class="nav-item" href="#calendario">${ico("cal")}<span>Calendário Kanban</span></a>
-      <a class="nav-item" href="#fluxo">${ico("sliders")}<span>Fluxo e horários</span></a>
-      <a class="nav-item" href="#alertas">${ico("bell")}<span>Alertas</span><span class="nav-count">${p0} P0</span></a>
-      <a class="nav-item" href="#playbook">${ico("file")}<span>Playbook</span></a>`;
+      ${ACCESS.insights() ? `<a class="nav-item" href="#insights">${ico("chart")}<span>Insights</span></a>` : ""}
+      ${ACCESS.semana() ? `<a class="nav-item" href="#semana">${ico("file")}<span>Semana</span></a>` : ""}
+      ${CLIENTS.length ? `<div class="nav-group">${IS_CLIENT ? "Sua empresa" : "Clientes"}</div>
+      ${CLIENTS.map(c => `<a class="nav-item" href="#${c.id}"><i class="nav-dot" style="background:var(${c.color})"></i><span>${esc(c.name)}</span>${late(c.id) && !IS_CLIENT ? `<span class="nav-count" title="pautas atrasadas">${late(c.id)}</span>` : ""}</a>`).join("")}` : ""}
+      ${ops.length ? `<div class="nav-group">Operação</div>${ops.map(([id, ic, name, extra]) => `<a class="nav-item" href="#${id}">${ico(ic)}<span>${name}</span>${extra}</a>`).join("")}` : ""}
+      ${IS_ADMIN ? `<div class="nav-group">Sistema</div><a class="nav-item" href="#config">${ico("sliders")}<span>Configurações</span></a>` : ""}`;
   }
   function route() {
-    const id = (location.hash || "#painel").slice(1);
-    const r = ROUTES[id] ? id : "painel";
+    const [id, sub] = (location.hash || "#painel").slice(1).split("/");
+    const r = allowedRoute(id) ? id : "painel";
     renderNav();
     $$("#nav .nav-item").forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + r));
     $("#crumb").innerHTML = `Central Nova7 › <b>${esc(ROUTES[r].title)}</b>`;
@@ -162,76 +196,157 @@
     C.hideTip();
     const view = $("#view");
     view.innerHTML = "";
-    ROUTES[r].render(view);
+    ROUTES[r].render(view, sub);
     scrollTo(0, 0);
     current = r;
   }
   let current = null;
 
+  /* ---------- números vindos da tela Semana ---------- */
+  const dec = AN.fmt.dec;
+  const allWeeks = () => store.get("weeks", []);
+  const analysisClients = () => CLIENTS.map(c => ({ key: c.key, name: c.name, services: c.services }));
+  const lastClosedIso = () => AN.lastClosed("semana", new Date());
+  const hasAds = n => Object.values(n.ads).some(x => x != null), hasIg = n => Object.values(n.ig).some(x => x != null), hasSales = n => n.vendas != null || n.dias.some(x => x != null);
+  function latestWith(c, test) { return allWeeks().filter(r => r.marca === c.key && r.tipo === "semana" && r.inicio <= lastClosedIso() && test(AN.norm(r))).sort((a, b) => b.inicio.localeCompare(a.inicio))[0] || null; }
+  const analyzeAt = inicio => AN.analyze({ weeks: allWeeks(), gens: store.get("weekGen", []), tipo: "semana", inicio, clients: analysisClients() });
+  const clientAt = (a, c) => a.clients.find(x => x.marca === c.key);
+  const periodTxt = inicio => { const p = AN.period("semana", inicio); return `${dm(p.inicio)}–${dm(p.fim)}`; };
+  const igUrl = c => c.ig || (c.handle && c.handle.startsWith("@") ? `https://www.instagram.com/${c.handle.slice(1)}/` : "");
+  const noteSemana = txt => `<p class="notice"><b>${txt}</b>${CAN_WRITE ? ` Informe os números na tela <a href="#semana">Semana</a>.` : ""}</p>`;
+
+  /* pautas que ainda esperam a aprovação do cliente */
+  const awaitingClient = ps => ps.filter(p => { if (p.status === "pub") return false; const st = F.approvalState(p.code, p.b); return st.needs.includes("client") && !st.rec.client; });
+  const postRow = (p, note) => `<button type="button" class="post-row" data-open="${p.code}" style="background:none;text-align:left">${fmtBadge(p.format)}<span class="t">${esc(p.title)}<small>${esc(CL[p.b].short)} · ${p.code} · ${note}</small></span>${stBadge(p)}</button>`;
+
+  /* indicadores de cada serviço; o painel junta os de todos os serviços do cliente */
+  function svcKpis(c, ps) {
+    const out = {};
+    const pub = ps.filter(p => p.status === "pub").length, late = ps.filter(p => p.late).length, reels = ps.filter(p => p.format === "Reels").length;
+    if (has(c, "redes")) {
+      const hl = health(c, posts()), list = [kpi("Plano Nov–Dez", ps.length ? `${pub} de ${ps.length}` : "sem pautas", ps.length ? `${reels} Reels · ${ps.length - reels} carrosséis · <b style="color:var(--red)">${late}</b> atrasadas` : "crie ideias no Calendário", "list", "amber")];
+      list.push(kpi("Nota de saúde", ps.length ? String(hl.score) : "sem dado", ps.length ? hl.light.name : "precisa de pautas no plano", "target", hl.light.tone === "green" ? "green" : hl.light.tone === "amber" ? "amber" : "red"));
+      const lw = latestWith(c, hasIg);
+      if (lw) { const prev = allWeeks().find(r => r.marca === c.key && r.tipo === "semana" && r.inicio === AN.prevStart("semana", lw.inicio)); list.push(kpi("Instagram · visualizações", int(lw.ig.views), `${prev && prev.ig.views != null && lw.ig.views != null ? delta(pct(prev.ig.views, lw.ig.views)) + " vs anterior" : periodTxt(lw.inicio)}`, "ig", "red")); }
+      out.redes = list;
+    }
+    if (has(c, "varejo")) {
+      const lw = latestWith(c, hasSales), list = [];
+      if (lw) { const cc = clientAt(analyzeAt(lw.inicio), c); list.push(kpi(`Vendas ${periodTxt(lw.inicio)}`, cc.row.vendas == null ? "sem total" : brl(cc.row.vendas), cc.mesmosDias && cc.mesmosDias.pct != null ? `${delta(cc.mesmosDias.pct)} nos mesmos dias da semana` : "sem base de comparação", "money", "green"), kpi("Ticket médio", cc.d.ticket == null ? "sem dado" : brl(cc.d.ticket), cc.row.compras != null ? `${int(cc.row.compras)} compras` : "", "cart")); }
+      else list.push(kpi("Vendas", "sem dado", "informe na tela Semana", "money", "green"));
+      out.varejo = list;
+    }
+    if (has(c, "trafego")) {
+      const lw = latestWith(c, hasAds), list = [];
+      if (lw) { const n = AN.norm(lw), d = AN.derive(n); list.push(kpi(`Meta Ads ${periodTxt(lw.inicio)}`, n.ads.gasto == null ? "sem gasto" : brl(n.ads.gasto), d.adsCusto != null ? `custo por resultado ${brl(d.adsCusto)}` : "sem resultado informado", "target", "amber"), kpi("Frequência", d.adsFreq == null ? "sem dado" : dec(d.adsFreq, 2), d.adsFreq != null && d.adsFreq > 1.5 ? "acima de 1,5: saturação" : "limite saudável: 1,5", "eye", d.adsFreq != null && d.adsFreq > 1.5 ? "red" : "green")); }
+      else list.push(kpi("Meta Ads", "sem dado", "informe na tela Semana", "target", "amber"));
+      out.trafego = list;
+    }
+    if (has(c, "criativos")) {
+      const n = s => ps.filter(p => p.status === s).length;
+      out.criativos = [kpi("Peças em produção", String(n("prod") + n("plan")), `${n("prop")} propostas`, "file"), kpi("Em aprovação", String(n("apr")), `${n("agd")} prontas · ${n("pub")} publicadas`, "list", "amber")];
+      if (!has(c, "redes")) out.criativos.push(kpi("Atrasadas", String(late), late ? "revisar prazos" : "tudo no prazo", "alert", late ? "red" : "green"));
+    }
+    return out;
+  }
+  function pickKpis(groups, max = 4) {
+    const lists = SVC.ORDER.map(s => groups[s]).filter(Boolean), out = [];
+    for (let i = 0; out.length < max && lists.some(l => l[i]); i++) lists.forEach(l => { if (l[i] && out.length < max) out.push(l[i]); });
+    return out;
+  }
+  const svcChips = c => `<span class="svc-chips">${SVC.ORDER.filter(s => has(c, s)).map(s => `<span class="svc-chip" style="--svc:var(${SVC.SERVICES[s].color})">${SVC.SERVICES[s].short}</span>`).join("")}</span>`;
+
   /* ====================================================================
      PAINEL
      ==================================================================== */
   function renderPainel(v) {
-    const ps = posts();
+    if (IS_CLIENT) return renderPainelCliente(v);
+    const ps = posts(), anyPosts = CLIENTS.some(c => has(c, "redes") || has(c, "criativos"));
     const pub = ps.filter(p => p.status === "pub").length, late = ps.filter(p => p.late).length;
     const mon = monday(TODAY), sun = addDays(mon, 6);
     const week = ps.filter(p => { const d = toDate(p.date); return d >= mon && d <= sun; }).sort((a, b) => a.date.localeCompare(b.date));
-    const W = D.WEEKLY, last = 2;
-    const igNow = W.M.igViews[last] + W.F.igViews[last], igPrev = W.M.igViews[1] + W.F.igViews[1];
+    const varejo = CLIENTS.filter(c => has(c, "varejo")), trafego = CLIENTS.filter(c => has(c, "trafego"));
+    const ini = AN.periodsWith(allWeeks().filter(r => r.inicio <= lastClosedIso()), "semana").pop();
+    const an = ini ? analyzeAt(ini) : null;
+    const kp = [kpi("Clientes ativos", String(CLIENTS.length), SVC.ORDER.map(s => [s, CLIENTS.filter(c => has(c, s)).length]).filter(x => x[1]).map(([s, n]) => `${n} ${SVC.SERVICES[s].short.toLowerCase()}`).join(" · ") || "cadastre em Configurações", "list")];
+    if (anyPosts) kp.push(kpi("Pautas publicadas", `${pub} de ${ps.length}`, `plano Nov–Dez · <b class="tnum" style="color:var(--red)">${late}</b> atrasadas`, "cal", "amber"));
+    if (an && an.total) { const ph = an.clients.filter(c => c.farmacia), md = ph.length && ph.every(c => c.mesmosDias) ? (ph.reduce((x, c) => x + c.mesmosDias.atual, 0) / ph.reduce((x, c) => x + c.mesmosDias.anterior, 0) - 1) * 100 : null; kp.push(kpi(`Vendas · lojas ${periodTxt(ini)}`, brl(an.total.vendas), md != null ? `${delta(md)} nos mesmos dias da semana` : "sem base de comparação", "money", "green")); }
+    if (an) { const g = trafego.map(c => clientAt(an, c)).filter(c => c && c.row.ads.gasto != null); if (g.length) kp.push(kpi(`Meta Ads ${periodTxt(ini)}`, brl(g.reduce((x, c) => x + c.row.ads.gasto, 0)), `${g.length} cliente(s) com anúncio informado`, "target", "red")); }
+    if (kp.length < 4 && anyPosts) kp.push(kpi("Aguardando aprovação", String(ps.filter(p => p.status === "apr").length), "pautas na etapa de aprovação", "list", "amber"));
     v.innerHTML = `
-      <div class="page-head"><div><div class="eyebrow">Gestão interna · ${D.CLIENTS.length} contas</div><h1>Painel da agência</h1>
-        <p>Última semana fechada: 02 a 08/11/2026. A semana 09–15/11 aguarda o PDF de vendas e a extração da Meta.</p></div>
-        <div class="toolbar"><a class="btn" href="#insights">${ico("chart")} Ver insights</a><a class="btn primary" href="#calendario">${ico("cal")} Abrir calendário</a></div></div>
-      <div class="kpis">
-        ${kpi("Vendas · duas farmácias", "R$ 159,2 mil", `${delta(14.1)} ter–dom vs semana anterior`, "money", "green")}
-        ${kpi("Ticket médio combinado", "R$ 57,96", "Minas R$ 62,87 · Farma R$ 49,36", "cart")}
-        ${kpi("Visualizações no Instagram", k(igNow), `${delta(pct(igPrev, igNow))} vs 27/10–02/11`, "eye", "red")}
-        ${kpi("Pautas publicadas", `${pub} de ${ps.length}`, `plano Nov–Dez · <b class="tnum" style="color:var(--red)">${late}</b> atrasadas`, "list", "amber")}
-      </div>
+      <div class="page-head"><div><div class="eyebrow">Gestão interna · ${CLIENTS.length} contas</div><h1>Painel da agência</h1>
+        <p>${ini ? `Última semana com números: ${esc(AN.period("semana", ini).label)}.` : "Ainda não há números de semana."} Cada cliente mostra o que importa para os serviços que a Nova7 presta a ele.</p></div>
+        <div class="toolbar">${CAN_WRITE ? `<a class="btn" href="#semana">${ico("file")} Semana</a>` : ""}${anyPosts ? `<a class="btn primary" href="#calendario">${ico("cal")} Abrir calendário</a>` : ""}</div></div>
+      <div class="kpis">${kp.slice(0, 4).join("")}</div>
       <div class="section-title"><h2>Clientes</h2><span>clique para abrir a página do cliente</span></div>
-      <div class="grid g4">${D.CLIENTS.map(c => clientCard(c, ps)).join("")}</div>
+      ${CLIENTS.length ? `<div class="grid g4">${CLIENTS.map(c => clientCard(c, ps)).join("")}</div>` : `<div class="empty">Nenhum cliente ativo. ${IS_ADMIN ? `Cadastre em <a href="#config/clientes">Configurações</a>.` : ""}</div>`}
       <div class="grid g2">
-        <div class="panel">${banner("cal", "Esta semana", `${dm(toIso(mon))} a ${dm(toIso(sun))} · ${week.length} pautas`, `<a class="pill-light" href="#calendario">Kanban</a>`)}
+        ${anyPosts ? `<div class="panel">${banner("cal", "Esta semana", `${dm(toIso(mon))} a ${dm(toIso(sun))} · ${week.length} pautas`, `<a class="pill-light" href="#calendario">Kanban</a>`)}
           <div class="table-wrap"><table><thead><tr><th style="width:84px">Data</th><th style="width:96px">Marca</th><th>Pauta</th><th style="width:150px">Status</th></tr></thead><tbody>
-          ${week.length ? week.map(p => `<tr data-open="${p.code}" style="cursor:pointer"><td class="num">${DOW[toDate(p.date).getDay()]} ${dm(p.date)}</td><td>${brandBadge(p.b)}</td><td><span class="code">${p.code}</span> ${esc(p.title)}</td><td>${stBadge(p)}</td></tr>`).join("") : `<tr><td colspan="4" class="src">Nenhuma pauta nesta semana.</td></tr>`}
-          </tbody></table></div></div>
-        <div class="panel">${banner("alert", "Prioridade imediata", "P0 da auditoria de 10/11", `<a class="pill-light down" href="#alertas">${D.ALERTS.length} alertas</a>`)}
-          <div class="panel-body">${D.ALERTS.filter(a => a.p === "P0").map(alertHtml).join("")}</div></div>
+          ${week.length ? week.map(p => `<tr data-open="${p.code}" style="cursor:pointer"><td class="num">${DOW[toDate(p.date).getDay()]} ${dm(p.date)}</td><td>${brandBadge(p.b)}</td><td><span class="code">${p.code}</span> ${esc(p.title)}</td><td>${stBadge(p)}</td></tr>`).join("") : `<tr><td colspan="4"><div class="empty">Nenhuma pauta nesta semana.</div></td></tr>`}
+          </tbody></table></div></div>` : ""}
+        ${D.ALERTS.length ? `<div class="panel">${banner("alert", "Prioridade imediata", "P0 da auditoria de 10/11", `<a class="pill-light down" href="#alertas">${D.ALERTS.length} alertas</a>`)}
+          <div class="panel-body">${D.ALERTS.filter(a => a.p === "P0").map(alertHtml).join("")}</div></div>` : ""}
       </div>
       <div class="grid g2">
-        <div class="panel">${banner("money", "Vendas líquidas por janela", "Minas Farma e Farma e Farma")}
-          <div class="panel-body"><div class="legend"><span><i class="sw" style="background:var(--c1)"></i>Minas Farma</span><span><i class="sw" style="background:var(--c2)"></i>Farma e Farma</span></div>
-          <div class="chart" id="p-sales" data-label="Vendas por janela"></div>
-          <p class="src">Fonte: Central Nova7 › 10 EVOLUÇÃO HISTÓRICA. Farma sem vendas totais em 19–25/10.</p></div></div>
-        <div class="panel">${banner("clock", "Rotina da agência", "Fluxo semanal definido pela diretoria")}
+        ${varejo.length && ini ? `<div class="panel">${banner("money", "Vendas por semana", varejo.map(c => c.name).join(" e "))}
+          <div class="panel-body"><div class="legend">${varejo.map(c => `<span><i class="sw" style="background:var(${c.color})"></i>${esc(c.name)}</span>`).join("")}</div>
+          <div class="chart" id="p-sales" data-label="Vendas por semana"></div><p class="src">Vendas informadas na tela Semana. Semana sem total aparece como lacuna.</p></div></div>` : ""}
+        ${D.ROUTINE.length ? `<div class="panel">${banner("clock", "Rotina da agência", "Fluxo semanal definido pela diretoria")}
           <div class="panel-body"><div class="week" style="grid-template-columns:1fr">${D.ROUTINE.map(([d, t], i) => `<div class="day ${TODAY.getDay() === i + 1 ? "today" : ""}"><b>${d}${TODAY.getDay() === i + 1 ? " · hoje" : ""}</b><span>${t}</span></div>`).join("")}</div>
-          <p class="notice info">Antes de publicar: edição, revisão farmacêutica ou agronômica, validação do cliente, arquivo final no Drive e confirmação do agendamento.</p></div></div>
+          <p class="notice info">Antes de publicar: edição, revisão farmacêutica ou agronômica, validação do cliente, arquivo final no Drive e confirmação do agendamento.</p></div></div>` : ""}
       </div>`;
-    drawSalesChart($("#p-sales"));
+    const sh = $("#p-sales", v);
+    if (sh) {
+      const sers = varejo.map(c => ({ c, s: AN.series(allWeeks(), "semana", ini, c.key, r => r.vendas, 6) }));
+      if (sers.some(x => x.s.some(p => p.valor != null))) C.bars(sh, { cats: sers[0].s.map(p => dm(p.inicio)), series: sers.map(x => ({ name: x.c.name, color: x.c.color, values: x.s.map(p => p.valor) })), fmt: brlK, tipFmt: brl });
+      else sh.parentElement.innerHTML = `<p class="src">Nenhuma semana com vendas totais informadas.</p>`;
+    }
+    bindOpen(v);
+    $$(".client-card", v).forEach(el => { el.addEventListener("click", () => { location.hash = el.dataset.go; }); el.addEventListener("keydown", e => { if (e.key === "Enter") location.hash = el.dataset.go; }); });
+  }
+
+  /* painel de quem é cliente: só o que está sendo feito e o que espera a aprovação dele */
+  function renderPainelCliente(v) {
+    const ps = posts(), mon = monday(TODAY), sun = addDays(mon, 6);
+    const week = ps.filter(p => { const d = toDate(p.date); return d >= mon && d <= sun; }).sort((a, b) => a.date.localeCompare(b.date));
+    const wait = awaitingClient(ps).sort((a, b) => a.date.localeCompare(b.date));
+    const first = (ME.nome || "").split(" ")[0];
+    v.innerHTML = `
+      <div class="page-head"><div><div class="eyebrow">Área do cliente</div><h1>${first ? `Olá, ${esc(first)}` : "Olá"}</h1>
+        <p>Aqui você acompanha o que a Nova7 está produzindo e aprova as peças antes de irem ao ar.</p></div>
+        <div class="toolbar"><a class="btn primary" href="#calendario">${ico("cal")} Ver calendário</a></div></div>
+      <div class="kpis k3">
+        ${kpi("Aguardando sua aprovação", String(wait.length), wait.length ? "abra a pauta e aprove ou peça ajustes" : "nada pendente com você", "bell", wait.length ? "red" : "green")}
+        ${kpi("Publicadas", `${ps.filter(p => p.status === "pub").length} de ${ps.length}`, "no plano de novembro e dezembro", "list", "green")}
+        ${kpi("Nesta semana", String(week.length), `${dm(toIso(mon))} a ${dm(toIso(sun))}`, "cal")}
+      </div>
+      <div class="grid g4">${CLIENTS.map(c => clientCard(c, ps)).join("")}</div>
+      <div class="grid g2">
+        <div class="panel">${banner("bell", "Aguardando sua aprovação", `${wait.length} pauta(s)`)}<div class="panel-body"><div class="post-list">${wait.length ? wait.slice(0, 12).map(p => postRow(p, `publicar ${DOW[toDate(p.date).getDay()]} ${dm(p.date)}`)).join("") : `<div class="empty">Nenhuma pauta pendente.</div>`}</div></div></div>
+        <div class="panel">${banner("cal", "Esta semana", `${week.length} pauta(s)`)}<div class="panel-body"><div class="post-list">${week.length ? week.map(p => postRow(p, `${DOW[toDate(p.date).getDay()]} ${dm(p.date)}`)).join("") : `<div class="empty">Nenhuma pauta nesta semana.</div>`}</div></div></div>
+      </div>`;
     bindOpen(v);
     $$(".client-card", v).forEach(el => el.addEventListener("click", () => { location.hash = el.dataset.go; }));
-    $$(".client-card", v).forEach(el => el.addEventListener("keydown", e => { if (e.key === "Enter") location.hash = el.dataset.go; }));
   }
+
   function clientCard(c, ps) {
     const mine = ps.filter(p => p.b === c.key), pub = mine.filter(p => p.status === "pub").length, late = mine.filter(p => p.late).length;
-    const W = D.WEEKLY[c.key];
     const next = mine.filter(p => p.status !== "pub" && toDate(p.date) >= TODAY).sort((a, b) => a.date.localeCompare(b.date))[0];
-    const h = health(c, ps);
+    const rows = [], na = txt => `<b class="na">${txt}</b>`;
+    if (!IS_CLIENT && has(c, "varejo")) { const lw = latestWith(c, hasSales); rows.push(`<div class="mrow"><span>Vendas${lw ? " " + periodTxt(lw.inicio) : ""}</span>${lw && lw.vendas != null ? `<b>${brl(lw.vendas)}</b>` : na("sem dado")}</div>`); }
+    if (!IS_CLIENT && has(c, "trafego")) { const lw = latestWith(c, hasAds); rows.push(`<div class="mrow"><span>Meta Ads · gasto</span>${lw && lw.ads.gasto != null ? `<b>${brl(lw.ads.gasto)}</b>` : na("sem dado")}</div>`); }
+    if (!IS_CLIENT && has(c, "redes")) { const lw = latestWith(c, hasIg); rows.push(`<div class="mrow"><span>Views IG</span>${lw && lw.ig.views != null ? `<b>${int(lw.ig.views)}</b>` : na("sem dado")}</div>`); }
+    if (has(c, "redes") || has(c, "criativos")) rows.push(`<div class="mrow"><span>${has(c, "redes") ? "Pautas" : "Peças"} atrasadas</span><b style="color:${late ? "var(--red)" : "inherit"}">${late}</b></div>`);
+    const head = !IS_CLIENT && has(c, "redes") && mine.length ? (() => { const h = health(c, ps); return `<div class="health-row"><span class="health-num tone-${h.light.tone}">${h.score}</span><div><b>${h.light.name}</b><div class="src">mais fraca: ${h.weakest.name} (${Math.round(h.weakest.value)})</div></div></div>`; })() : "";
     return `<div class="panel client-card" tabindex="0" role="link" data-go="${c.id}">
       <div class="panel-body">
-        <div style="display:flex;gap:10px;align-items:center"><span class="client-avatar" style="background:var(${c.color})">${c.short[0]}</span><div style="min-width:0"><h3 style="font-size:14px">${esc(c.name)}</h3><div class="src">${esc(c.handle)}</div></div></div>
-        <div class="health-row"><span class="health-num tone-${h.light.tone}">${h.score}</span><div><b>${h.light.name}</b><div class="src">mais fraca: ${h.weakest.name} (${Math.round(h.weakest.value)})</div></div></div>
-        <div class="metric-box"><h4>Semana 02–08/11</h4>
-          <div class="mrow"><span>Vendas</span><b class="${W ? "" : "na"}">${W ? brl(W.sales[2]) : "sem dado"}</b></div>
-          <div class="mrow"><span>Views IG</span><b class="${W ? "" : "na"}">${W ? int(W.igViews[2]) : "sem dado"}</b></div>
-          <div class="mrow"><span>Pautas atrasadas</span><b style="color:${late ? "var(--red)" : "inherit"}">${late}</b></div>
-        </div>
-        <div><div class="mrow" style="padding:0 0 5px"><span>Plano Nov–Dez</span><b>${pub}/${mine.length}</b></div><div class="bar"><i style="width:${pub / mine.length * 100}%;background:var(${c.color})"></i></div></div>
-        <p class="src"><b>Próxima:</b> ${next ? `${dm(next.date)} · ${esc(next.title)}` : "—"}</p>
+        <div style="display:flex;gap:10px;align-items:center"><span class="client-avatar" style="background:var(${c.color})">${esc(c.short[0])}</span><div style="min-width:0"><h3 style="font-size:14px">${esc(c.name)}</h3><div class="src">${esc(c.handle || c.segment)}</div></div></div>
+        ${svcChips(c)}${head}
+        ${rows.length ? `<div class="metric-box"><h4>${IS_CLIENT ? "Andamento" : "Resumo"}</h4>${rows.join("")}</div>` : ""}
+        ${mine.length ? `<div><div class="mrow" style="padding:0 0 5px"><span>Plano Nov–Dez</span><b>${pub}/${mine.length}</b></div><div class="bar"><i style="width:${pub / mine.length * 100}%;background:var(${c.color})"></i></div></div>` : ""}
+        ${mine.length ? `<p class="src"><b>Próxima:</b> ${next ? `${dm(next.date)} · ${esc(next.title)}` : "—"}</p>` : ""}
       </div></div>`;
-  }
-  function drawSalesChart(host) {
-    C.bars(host, { cats: D.WINDOWS, series: [{ name: "Minas Farma", color: "--c1", values: D.WEEKLY.M.sales }, { name: "Farma e Farma", color: "--c2", values: D.WEEKLY.F.sales }], fmt: brlK, tipFmt: brl });
   }
 
   /* ====================================================================
@@ -337,6 +452,7 @@
      CLIENTE
      ==================================================================== */
   function sectorPanel(c) {
+    if (c.setor !== "saude" && c.setor !== "agro" && c.setor !== "agencia") return "";   /* varejo e outros: sem notas de setor */
     const sec = sectorOf(c.key);
     if (sec === "agencia") {
       return `<div class="panel">${banner("file", "Regras para o perfil da agência", "portfólio e cases")}
@@ -353,79 +469,125 @@
           <div><span class="col-title" style="color:var(--red)">Erros comuns</span><ul class="plain">${s.pitfalls.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>
         </div></div></div>`;
   }
-  function renderClient(c, v) {
-    v = v || $("#view");
-    const ps = posts().filter(p => p.b === c.key);
-    const W = D.WEEKLY[c.key];
-    const hl = health(c, posts());
+  /* ---------- seções da página do cliente, uma por serviço ---------- */
+  function planPanel(c, ps, showGoals) {
     const counts = Object.fromEntries(COLS.map(s => [s, ps.filter(p => p.status === s).length]));
     const late = ps.filter(p => p.late).sort((a, b) => a.date.localeCompare(b.date));
     const next = ps.filter(p => p.status !== "pub" && toDate(p.date) >= TODAY).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
-    const reels = ps.filter(p => p.format === "Reels").length;
-    const alerts = D.ALERTS.filter(a => a.b === c.key);
-    const findings = D.FINDINGS.filter(x => x.b === c.key);
-    const igp = D.IG_POSTS[c.key] || [];
-    v.innerHTML = `
-      <div class="hero"><span class="client-avatar" style="background:var(${c.color})">${c.short[0]}</span>
-        <div style="min-width:0"><div class="eyebrow" style="color:#b9a2ff">Cliente</div><h1>${esc(c.name)}</h1><p>${esc(c.about)}</p>
-          <div class="meta"><span>${esc(c.segment)}</span><span>${esc(c.handle)}</span>${c.postsProfile ? `<span>${int(c.postsProfile)} posts no perfil</span>` : ""}${c.club ? `<span>${c.club}</span>` : ""}</div></div>
-        <div class="actions toolbar"><a class="btn" href="${c.ig}" target="_blank" rel="noopener">${ico("ig")} Instagram</a><a class="btn" href="${c.docs[0][1]}" target="_blank" rel="noopener">${ico("file")} Pasta no Drive</a></div></div>
-      <div class="kpis">
-        ${kpi("Vendas 02–08/11", W ? brl(W.sales[2]) : "sem dado", W && W.sales[1] ? `${delta(c.key === "M" ? 18.4 : 5.5)} ter–dom vs semana anterior` : "sem PDF de vendas no Drive", "money", "green")}
-        ${kpi("Ticket médio", W ? brl(W.ticket[2]) : "sem dado", W ? `${int(W.orders[2])} compras` : "—", "cart")}
-        ${kpi("Instagram · visualizações", W ? int(W.igViews[2]) : "sem dado", W ? `${delta(pct(W.igViews[1], W.igViews[2]))} vs 27/10–02/11` : "exportar métricas da Meta", "ig", W && W.igViews[2] < W.igViews[1] ? "red" : "green")}
-        ${kpi("Plano Nov–Dez", `${counts.pub} de ${ps.length}`, `${reels} Reels · ${ps.length - reels} carrosséis · <b style="color:var(--red)">${late.length}</b> atrasadas`, "list", "amber")}
-      </div>
-      ${W ? `<div class="grid g2">
-        <div class="panel">${banner("money", "Vendas e Instagram por janela", "relatórios semanais da Nova7")}
-          <div class="panel-cols"><div><span class="col-title">Vendas líquidas</span><div class="chart" id="c-sales"></div></div><div><span class="col-title">Visualizações no Instagram</span><div class="chart" id="c-ig"></div></div></div></div>
-        <div class="panel">${banner("eye", "Métricas da última janela", "02–08/11 comparado a 27/10–02/11")}
+    const title = has(c, "redes") ? "Andamento do plano" : "Fila de peças";
+    return `<div class="panel">${banner("list", title, `${ps.length} ${has(c, "redes") ? "pautas" : "peças"}`, CAN_WRITE || IS_CLIENT ? `<a class="pill-light" href="#calendario" data-brand="${c.key}">Abrir no Kanban</a>` : "")}
+      <div class="panel-body">
+        ${ps.length ? `<div class="bar" style="height:12px">${COLS.map((s, i) => counts[s] ? `<i title="${STATUS[s].name}: ${counts[s]}" style="width:${counts[s] / ps.length * 100}%;background:var(--st${Math.min(4, [5, 4, 3, 3, 2, 1][i])})"></i>` : "").join("")}</div>
+        <div class="legend">${COLS.filter(s => counts[s]).map(s => `<span>${STATUS[s].name} <b class="tnum">${counts[s]}</b></span>`).join("")}</div>` : ""}
+        <span class="col-title">Próximas</span>
+        <div class="post-list">${next.length ? next.map(p => `<button type="button" class="post-row" data-open="${p.code}" style="background:none;text-align:left">${fmtBadge(p.format)}<span class="t">${esc(p.title)}<small>${p.code} · publicar ${DOW[toDate(p.date).getDay()]} ${dm(p.date)}</small></span>${stBadge(p)}</button>`).join("") : `<div class="empty">${ps.length ? "Nenhuma pauta futura." : `Nada no plano ainda.${CAN_WRITE ? ' Comece pelo quadro de ideias do <a href="#calendario">Calendário</a>.' : ""}`}</div>`}</div>
+        ${late.length ? `<span class="col-title" style="color:var(--red)">Atrasadas (${late.length})</span><div class="post-list">${late.slice(0, 8).map(p => `<button type="button" class="post-row" data-open="${p.code}" style="background:none;text-align:left">${fmtBadge(p.format)}<span class="t">${esc(p.title)}<small>${p.code} · era para ${dm(p.date)}</small></span>${stBadge(p)}</button>`).join("")}</div>${late.length > 8 ? `<p class="src">e mais ${late.length - 8} no Kanban.</p>` : ""}` : ""}
+      </div></div>`;
+  }
+  function redesSection(c, ps) {
+    const W = D.WEEKLY[c.key], hl = health(c, posts()), igp = D.IG_POSTS[c.key] || [];
+    const metrics = W ? `<div class="panel">${banner("eye", "Métricas da última janela", "02–08/11 comparado a 27/10–02/11")}
           <div class="panel-cols">
             <div><span class="col-title">Instagram</span>${[["Visualizações", "igViews"], ["Interações", "igInt"], ["Cliques no link", "igClicks"], ["Visitas ao perfil", "igVisits"], ["Novos seguidores", "igFollows"]].map(([n, m]) => `<div class="mrow"><span>${n}</span><b>${int(W[m][2])} ${delta(pct(W[m][1], W[m][2]))}</b></div>`).join("")}</div>
             <div><span class="col-title">Facebook</span>${[["Visualizações", "fbViews"], ["Interações", "fbInt"], ["Cliques no link", "fbClicks"], ["Visitas", "fbVisits"], ["Novos seguidores", "fbFollows"]].map(([n, m]) => `<div class="mrow"><span>${n}</span><b>${int(W[m][2])} ${delta(pct(W[m][1], W[m][2]))}</b></div>`).join("")}</div>
           </div></div>
-      </div>` : `<p class="notice"><b>Sem métricas no Drive.</b> Para acompanhar resultados de ${esc(c.name)}, exporte da Meta Business Suite as visualizações, interações, cliques e visitas de 14/08 a 14/11 e salve na pasta do cliente. ${c.key === "C" ? "Para a Campo Forte, as métricas que importam são mensagens de produtores, pedidos de avaliação, visitas realizadas e propostas aceitas." : "Para a Nova7, acompanhe também pedidos de orçamento e cases autorizados."}</p>`}
-
-      <div class="grid g2">
-        <div class="panel">${banner("target", "Nota de saúde do cliente", "0 a 100 · recalculada com o Kanban e os alertas", healthChip(hl))}
+      <div class="panel">${banner("ig", "Visualizações no Instagram por janela", "relatórios semanais da Nova7")}<div class="panel-body"><div class="chart" id="c-ig"></div></div></div>` : "";
+    const healthPanel = ps.length ? `<div class="panel">${banner("target", "Nota de saúde do cliente", "0 a 100 · recalculada com o Kanban e os alertas", healthChip(hl))}
           <div class="panel-body">
             <div class="health-row big"><span class="health-num tone-${hl.light.tone}">${hl.score}</span><div><b>${hl.light.name}</b><div class="src">${hl.light.action}</div></div></div>
             ${hl.dims.map(d => `<div class="goal" style="grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) 44px"><div class="n">${d.name}<small>peso ${d.weight}% · ${d.how}</small></div><div class="bar"><i style="width:${d.value ?? 0}%;background:${d.value == null ? "transparent" : d.value >= 80 ? "var(--green)" : d.value >= 60 ? "var(--amber)" : "var(--red)"}"></i></div><b class="tnum" style="text-align:right">${d.value == null ? "—" : Math.round(d.value)}</b></div>`).join("")}
-            <p class="src">${hl.dueDone} de ${hl.due} pautas com data vencida estão publicadas na Central. Dimensões sem dado ficam fora da conta. Método adaptado do <a href="${PB.source}" target="_blank" rel="noopener">Digital Marketing Pro</a>; detalhes em <a href="#playbook">Playbook</a>.</p>
-          </div></div>
-        ${sectorPanel(c)}
-      </div>
+            <p class="src">${hl.dueDone} de ${hl.due} pautas com data vencida estão publicadas. Dimensões sem dado ficam fora da conta. Método adaptado do <a href="${PB.source}" target="_blank" rel="noopener">Digital Marketing Pro</a>; detalhes em <a href="#playbook">Playbook</a>.</p>
+          </div></div>` : `<div class="panel">${banner("target", "Nota de saúde do cliente", "precisa de pautas no plano")}<div class="panel-body"><p class="notice info">A nota de saúde mede ritmo de publicação, pipeline, resultados, engajamento e conformidade. Ela aparece quando houver pautas no calendário deste cliente.</p></div></div>`;
+    const sec = sectorPanel(c);
+    return `<div class="section-title"><h2>${SVC.SERVICES.redes.name}</h2><span>calendário, aprovação e resultados dos perfis</span></div>
+      <div class="grid g2">${healthPanel}${sec}</div>
+      ${metrics ? `<div class="grid g2">${metrics}</div>` : ""}
+      <div class="grid g2">${planPanel(c, ps)}<div class="panel">${banner("target", "Metas", "publicações vêm do plano; as demais você define")}<div class="panel-body" id="c-goals"></div></div></div>
+      ${igp.length || c.docs.length ? `<div class="grid g2">
+        ${igp.length ? `<div class="panel">${banner("ig", "Publicações vistas no Instagram", "amostra da auditoria; data exata e alcance por post ainda não extraídos")}
+          <div class="panel-body"><div class="post-list">${igp.map(([sc, f, t, code, seen]) => `<a class="post-row" href="${c.ig}${f === "Reels" ? "reel" : "p"}/${sc}/" target="_blank" rel="noopener">${fmtBadge(f === "Post" ? "Post" : f)}<span class="t">${esc(t)}<small>${code ? code + " · " : ""}visto ${seen}</small></span>${ico("ext").replace("<svg", '<svg width="14" height="14"')}</a>`).join("")}</div></div></div>` : ""}
+        ${c.docs.length ? `<div class="panel">${banner("file", "Documentos", "Google Drive")}
+          <div class="panel-body"><div class="doc-list">${c.docs.map(([n, u]) => `<a href="${u}" target="_blank" rel="noopener">${esc(n)}<span>${u.includes("spreadsheets") ? "planilha" : u.includes("document") ? "documento" : u.includes("folders") ? "pasta" : "arquivo"}</span></a>`).join("")}</div></div></div>` : ""}
+      </div>` : ""}`;
+  }
+  function trafegoSection(c) {
+    const rows = allWeeks().filter(r => r.marca === c.key && r.tipo === "semana" && r.inicio <= lastClosedIso() && hasAds(AN.norm(r))).sort((a, b) => a.inicio.localeCompare(b.inicio)).slice(-8);
+    const head = `<div class="section-title"><h2>${SVC.SERVICES.trafego.name}</h2><span>Meta Ads · saturação em Baixo Guandu: frequência acima de 1,5</span></div>`;
+    if (!rows.length) return head + noteSemana("Sem números de Meta Ads.");
+    const last = rows[rows.length - 1], sig = clientAt(analyzeAt(last.inicio), c);
+    const alerts = analyzeAt(last.inicio).signals.filter(s => s.marca === c.key && s.canal === "Meta Ads");
+    return head + `<div class="grid">
+      <div class="panel">${banner("target", "Gasto por semana", "R$ · Meta Ads")}<div class="panel-body"><div class="chart" id="c-ads"></div></div></div>
+      <div class="panel">${banner("eye", "Semana a semana", "frequência, CPM e custo por resultado")}<div class="table-wrap"><table><thead><tr><th>Semana</th><th class="num">Gasto</th><th class="num">Alcance</th><th class="num">Freq.</th><th class="num">CPM</th><th class="num">Resultados</th><th class="num">Custo/result.</th></tr></thead><tbody>
+      ${rows.slice().reverse().map(r => { const n = AN.norm(r), d = AN.derive(n); return `<tr><td>${periodTxt(r.inicio)}</td><td class="num">${n.ads.gasto == null ? "—" : brl(n.ads.gasto)}</td><td class="num">${n.ads.alcance == null ? "—" : int(n.ads.alcance)}</td><td class="num" style="color:${d.adsFreq != null && d.adsFreq > 1.5 ? "var(--red)" : "inherit"}">${d.adsFreq == null ? "—" : dec(d.adsFreq, 2)}</td><td class="num">${d.adsCpm == null ? "—" : brl(d.adsCpm)}</td><td class="num">${n.ads.resultados == null ? "—" : int(n.ads.resultados)}</td><td class="num">${d.adsCusto == null ? "—" : brl(d.adsCusto)}</td></tr>`; }).join("")}
+      </tbody></table></div></div></div>
+      ${alerts.length ? alerts.map(s => `<p class="notice"><b>${esc(s.classe)} · ${esc(s.titulo)}.</b> ${esc(s.texto)}</p>`).join("") : `<p class="src">Nenhum alerta de saturação ou de custo nos números informados${sig ? "" : ""}.</p>`}`;
+  }
+  function varejoSection(c) {
+    const head = `<div class="section-title"><h2>${SVC.SERVICES.varejo.name}</h2><span>vendas informadas na tela Semana · comparação do mesmo dia da semana</span></div>`;
+    const lw = latestWith(c, hasSales);
+    if (!lw) return head + noteSemana("Sem números de vendas.");
+    const a = analyzeAt(lw.inicio), cc = clientAt(a, c), prev = cc.prev;
+    const row = (l, val) => `<tr><td>${l}</td><td class="num">${val}</td></tr>`;
+    return head + `<div class="grid g2">
+      <div class="panel">${banner("money", "Vendas por semana", "R$")}<div class="panel-body"><div class="chart" id="c-vendas"></div><p class="src">Semana sem total aparece como lacuna.</p></div></div>
+      <div class="panel">${banner("cart", `Semana ${esc(periodTxt(lw.inicio))}`, `contra ${esc(periodTxt(a.prevPeriod.inicio))}`)}<div class="table-wrap"><table><tbody>
+        ${row("Vendas", cc.row.vendas == null ? "sem dado" : brl(cc.row.vendas))}
+        ${row("Período anterior", prev && prev.vendas != null ? brl(prev.vendas) : "sem dado")}
+        ${row("Mesmos dias da semana", cc.mesmosDias ? `${delta(cc.mesmosDias.pct)} <small class="src">${cc.mesmosDias.dias.map(i => AN.DOW[i]).join(", ")}</small>` : "sem dado")}
+        ${row("Compras", cc.row.compras == null ? "sem dado" : int(cc.row.compras))}
+        ${row("Ticket médio", cc.d.ticket == null ? "sem dado" : brl(cc.d.ticket))}
+        ${row("Cestas acima de R$ 100", cc.d.c100Compras == null ? "sem dado" : `${dec(cc.d.c100Compras, 1)}% das compras`)}
+      </tbody></table></div></div></div>
+      ${a.holidays.length ? `<p class="notice"><b>Calendário:</b> ${a.holidays.map(h => `${dm(h.date)} ${esc(h.name)}`).join(" · ")}. Confira antes de concluir queda.</p>` : ""}`;
+  }
+  function criativosSection(c, ps) {
+    const head = `<div class="section-title"><h2>${SVC.SERVICES.criativos.name}</h2><span>fila de peças, etapas e aprovação</span></div>`;
+    if (has(c, "redes")) return "";                                       /* com redes sociais a fila já é o plano do calendário */
+    return head + `<div class="grid g2">${planPanel(c, ps)}
+      <div class="panel">${banner("file", "Como funciona", "peças e aprovação")}<div class="panel-body"><ul class="plain"><li>Cada peça é uma pauta no <a href="#calendario">Calendário</a>, com etapas de produção e data de entrega.</li><li>A aprovação interna e a do cliente ficam registradas na peça.</li>${CAN_WRITE ? `<li>Crie uma peça pelo quadro de <b>Ideias</b> do calendário: <a href="#calendario" data-brand="${c.key}" data-ideas="1">nova ideia para ${esc(c.short)}</a>.</li>` : ""}</ul></div></div></div>`;
+  }
 
-      <div class="grid g2">
-        <div class="panel">${banner("list", "Andamento do plano", `${ps.length} pautas de novembro e dezembro`, `<a class="pill-light" href="#calendario" data-brand="${c.key}">Abrir no Kanban</a>`)}
-          <div class="panel-body">
-            <div class="bar" style="height:12px">${COLS.map((s, i) => counts[s] ? `<i title="${STATUS[s].name}: ${counts[s]}" style="width:${counts[s] / ps.length * 100}%;background:var(--st${Math.min(4, [5, 4, 3, 3, 2, 1][i])})"></i>` : "").join("")}</div>
-            <div class="legend">${COLS.filter(s => counts[s]).map((s, i) => `<span>${STATUS[s].name} <b class="tnum">${counts[s]}</b></span>`).join("")}</div>
-            <span class="col-title">Próximas</span>
-            <div class="post-list">${next.length ? next.map(p => `<button type="button" class="post-row" data-open="${p.code}" style="background:none;text-align:left">${fmtBadge(p.format)}<span class="t">${esc(p.title)}<small>${p.code} · publicar ${DOW[toDate(p.date).getDay()]} ${dm(p.date)}</small></span>${stBadge(p)}</button>`).join("") : `<div class="empty">Nenhuma pauta futura.</div>`}</div>
-            ${late.length ? `<span class="col-title" style="color:var(--red)">Atrasadas (${late.length})</span><div class="post-list">${late.slice(0, 8).map(p => `<button type="button" class="post-row" data-open="${p.code}" style="background:none;text-align:left">${fmtBadge(p.format)}<span class="t">${esc(p.title)}<small>${p.code} · era para ${dm(p.date)}</small></span>${stBadge(p)}</button>`).join("")}</div>${late.length > 8 ? `<p class="src">e mais ${late.length - 8} no Kanban.</p>` : ""}` : ""}
-          </div></div>
-        <div class="panel">${banner("target", "Metas", "publicações vêm do plano; as demais você define")}
-          <div class="panel-body" id="c-goals"></div></div>
-      </div>
-
-      <div class="grid g2">
-        <div class="panel">${banner("ig", "Publicações vistas no Instagram", "amostra da auditoria; data exata e alcance por post ainda não extraídos")}
-          <div class="panel-body"><div class="post-list">${igp.map(([sc, f, t, code, seen]) => `<a class="post-row" href="${c.ig}${f === "Reels" ? "reel" : "p"}/${sc}/" target="_blank" rel="noopener">${fmtBadge(f === "Post" ? "Post" : f)}<span class="t">${esc(t)}<small>${code ? code + " · " : ""}visto ${seen}</small></span>${ico("ext").replace("<svg", '<svg width="14" height="14"')}</a>`).join("") || `<div class="empty">Sem publicações auditadas.</div>`}</div></div></div>
-        <div class="panel">${banner("file", "Documentos", "Google Drive")}
-          <div class="panel-body"><div class="doc-list">${c.docs.map(([n, u]) => `<a href="${u}" target="_blank" rel="noopener">${esc(n)}<span>${u.includes("spreadsheets") ? "planilha" : u.includes("document") ? "documento" : u.includes("folders") ? "pasta" : "arquivo"}</span></a>`).join("")}</div></div></div>
-      </div>
-
-      <div class="section-title"><h2>Alertas de ${esc(c.name)}</h2><span>${alerts.length} itens</span></div>
-      <div class="grid" style="gap:10px">${alerts.map(alertHtml).join("") || `<div class="empty">Nenhum alerta aberto.</div>`}</div>
-      ${findings.length ? `<div class="panel">${banner("target", "Achados dos insights", "evidência não é causalidade")}<div class="table-wrap"><table><thead><tr><th>Prioridade</th><th>Rede</th><th>Achado</th><th>Próxima validação</th></tr></thead><tbody>${findings.map(x => `<tr><td><span class="badge ${x.p === "ALTA" ? "alta" : "media"}">${x.p}</span></td><td>${x.net}</td><td><b>${esc(x.t)}</b><div class="src">${esc(x.e)}</div></td><td>${esc(x.n)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}`;
-    if (W) {
-      C.bars($("#c-sales"), { cats: D.WINDOWS, series: [{ name: "Vendas", color: c.color, values: W.sales }], fmt: brlK, tipFmt: brl, height: 200 });
-      C.bars($("#c-ig"), { cats: D.WINDOWS, series: [{ name: "Visualizações", color: c.color, values: W.igViews }], fmt: k, tipFmt: int, height: 200 });
+  function renderClient(c, v) {
+    v = v || $("#view");
+    const ps = posts().filter(p => p.b === c.key);
+    const ig = igUrl(c);
+    const kp = pickKpis(svcKpis(c, ps));
+    const alerts = D.ALERTS.filter(a => a.b === c.key), findings = D.FINDINGS.filter(x => x.b === c.key);
+    const wait = IS_CLIENT ? awaitingClient(ps) : [];
+    v.innerHTML = `
+      <div class="hero p-${SVC.ORDER.find(s => has(c, s)) || "redes"}"><span class="client-avatar" style="background:var(${c.color})">${esc(c.short[0])}</span>
+        <div style="min-width:0"><div class="eyebrow" style="color:#b9a2ff">${IS_CLIENT ? "Sua empresa" : "Cliente · " + esc(SVC.label(c))}</div><h1>${esc(c.name)}</h1>${c.about ? `<p>${esc(c.about)}</p>` : ""}
+          <div class="meta"><span>${esc(c.segment)}</span>${c.handle ? `<span>${esc(c.handle)}</span>` : ""}${c.postsProfile ? `<span>${int(c.postsProfile)} posts no perfil</span>` : ""}${c.club ? `<span>${esc(c.club)}</span>` : ""}</div>${svcChips(c)}</div>
+        <div class="actions toolbar">${ig ? `<a class="btn" href="${esc(ig)}" target="_blank" rel="noopener">${ico("ig")} Instagram</a>` : ""}${!IS_CLIENT && c.docs[0] ? `<a class="btn" href="${esc(c.docs[0][1])}" target="_blank" rel="noopener">${ico("file")} Pasta no Drive</a>` : ""}</div></div>
+      ${IS_CLIENT ? `<div class="kpis k3">${kpi("Aguardando sua aprovação", String(wait.length), wait.length ? "abra a pauta para aprovar ou pedir ajustes" : "nada pendente com você", "bell", wait.length ? "red" : "green")}${kpi("Publicadas", `${ps.filter(p => p.status === "pub").length} de ${ps.length}`, "no plano de novembro e dezembro", "list", "green")}${kpi("Atrasadas", String(ps.filter(p => p.late).length), "pautas com data vencida", "alert", "amber")}</div>
+        ${wait.length ? `<div class="panel">${banner("bell", "Aguardando sua aprovação", `${wait.length} pauta(s)`)}<div class="panel-body"><div class="post-list">${wait.slice(0, 12).map(p => postRow(p, `publicar ${DOW[toDate(p.date).getDay()]} ${dm(p.date)}`)).join("")}</div></div></div>` : ""}
+        ${planPanel(c, ps)}`
+      : `<div class="kpis">${kp.join("")}</div>
+      ${has(c, "redes") ? redesSection(c, ps) : ""}
+      ${has(c, "criativos") ? criativosSection(c, ps) : ""}
+      ${has(c, "trafego") ? trafegoSection(c) : ""}
+      ${has(c, "varejo") ? varejoSection(c) : ""}
+      ${alerts.length ? `<div class="section-title"><h2>Alertas de ${esc(c.name)}</h2><span>${alerts.length} itens</span></div><div class="grid" style="gap:10px">${alerts.map(alertHtml).join("")}</div>` : ""}
+      ${findings.length ? `<div class="panel">${banner("target", "Achados dos insights", "evidência não é causalidade")}<div class="table-wrap"><table><thead><tr><th>Prioridade</th><th>Rede</th><th>Achado</th><th>Próxima validação</th></tr></thead><tbody>${findings.map(x => `<tr><td><span class="badge ${x.p === "ALTA" ? "alta" : "media"}">${x.p}</span></td><td>${x.net}</td><td><b>${esc(x.t)}</b><div class="src">${esc(x.e)}</div></td><td>${esc(x.n)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}`}`;
+    if (!IS_CLIENT) {
+      const W = D.WEEKLY[c.key];
+      if (W && $("#c-ig", v)) C.bars($("#c-ig"), { cats: D.WINDOWS, series: [{ name: "Visualizações", color: c.color, values: W.igViews }], fmt: k, tipFmt: int, height: 200 });
+      const ah = $("#c-ads", v);
+      if (ah) {
+        const rows = allWeeks().filter(r => r.marca === c.key && r.tipo === "semana" && r.inicio <= lastClosedIso() && hasAds(AN.norm(r))).sort((a, b) => a.inicio.localeCompare(b.inicio)).slice(-8);
+        C.bars(ah, { cats: rows.map(r => dm(r.inicio)), series: [{ name: "Gasto", color: c.color, values: rows.map(r => r.ads.gasto) }], fmt: brlK, tipFmt: brl, height: 200 });
+      }
+      const vh = $("#c-vendas", v);
+      if (vh) {
+        const ini = (latestWith(c, hasSales) || {}).inicio, s = AN.series(allWeeks(), "semana", ini, c.key, r => r.vendas, 8);
+        if (s.some(p => p.valor != null)) C.bars(vh, { cats: s.map(p => dm(p.inicio)), series: [{ name: "Vendas", color: c.color, values: s.map(p => p.valor) }], fmt: brlK, tipFmt: brl, height: 200 });
+        else vh.innerHTML = `<p class="src">Nenhuma semana com total de vendas informado.</p>`;
+      }
+      if ($("#c-goals", v)) renderGoals(c, ps, D.WEEKLY[c.key]);
     }
-    renderGoals(c, ps, W);
     bindOpen(v);
-    const kb = $('[data-brand]', v); if (kb) kb.addEventListener("click", () => { prefs.kbrand = c.key; savePrefs(); });
+    $$("[data-brand]", v).forEach(kb => kb.addEventListener("click", () => { prefs.kbrand = c.key; if (kb.dataset.ideas) prefs.kview = "ideias"; savePrefs(); }));
   }
 
   function renderGoals(c, ps, W) {
@@ -433,6 +595,7 @@
     const pub = ps.filter(p => p.status === "pub").length;
     const defs = [{ id: "posts", name: "Publicações Nov–Dez", fixed: ps.length, cur: pub, f: int, src: "plano editorial" }];
     if (W) defs.push({ id: "sales", name: "Vendas semanais", unit: "R$", cur: W.sales[2], f: brl }, { id: "ig", name: "Visualizações IG por semana", unit: "views", cur: W.igViews[2], f: int }, { id: "int", name: "Interações IG por semana", unit: "interações", cur: W.igInt[2], f: int });
+    else if (c.key !== "N" && c.key !== "C") defs.push({ id: "leads", name: "Contatos e pedidos por semana", unit: "contatos", cur: null, f: int });
     else if (c.key === "C") defs.push({ id: "leads", name: "Pedidos de avaliação técnica", unit: "contatos", cur: null, f: int }, { id: "visits", name: "Visitas técnicas realizadas", unit: "visitas", cur: null, f: int });
     else defs.push({ id: "cases", name: "Cases autorizados no portfólio", unit: "cases", cur: null, f: int }, { id: "leads", name: "Pedidos de orçamento", unit: "pedidos", cur: null, f: int });
     const host = $("#c-goals");
@@ -441,7 +604,7 @@
       const p = goal && r.cur != null ? Math.min(100, r.cur / goal * 100) : 0;
       return `<div class="goal"><div class="n">${r.name}<small>atual: ${r.cur == null ? "sem medição" : r.f(r.cur)}</small></div>
         <div><div class="v"><span>${goal ? p.toFixed(0) + "% da meta" : "—"}</span><span>${goal ? r.f(goal) : "meta a definir"}</span></div><div class="bar"><i style="width:${p}%;background:${p >= 100 ? "var(--green)" : `var(${c.color})`}"></i></div></div>
-        ${r.fixed != null ? `<div><span class="lbl">Origem</span><span class="src">${r.src}</span></div>` : `<div><label class="lbl" for="g-${key}">Meta (${r.unit})</label><input type="number" min="0" step="any" id="g-${key}" data-k="${key}" value="${goal ?? ""}" placeholder="definir"></div>`}</div>`;
+        ${r.fixed != null ? `<div><span class="lbl">Origem</span><span class="src">${r.src}</span></div>` : `<div><label class="lbl" for="g-${key}">Meta (${r.unit})</label><input type="number" min="0" step="any" id="g-${key}" data-k="${key}" value="${goal ?? ""}" placeholder="definir"${CAN_WRITE ? "" : " disabled"}></div>`}</div>`;
     }).join("") + `<p class="src">As metas digitadas ficam salvas neste navegador.</p>`;
     $$("input[data-k]", host).forEach(inp => inp.addEventListener("change", () => {
       const s = store.get(GOAL_KEY, {}), val = parseFloat(inp.value);
@@ -461,7 +624,7 @@
         <div class="toolbar"><button type="button" class="btn sm" id="k-export">Copiar alterações</button><button type="button" class="btn sm" id="k-reset">Desfazer alterações</button></div></div>
       <div class="toolbar">
         <div class="seg" id="k-view" role="group" aria-label="Visualização">${[["status", "Por status"], ["semana", "Semana"], ["mes", "Mês"], ["ideias", "Ideias"]].map(([a, n]) => `<button type="button" data-v="${a}" aria-pressed="${prefs.kview === a}">${n}</button>`).join("")}</div>
-        <div class="seg" id="k-brand" role="group" aria-label="Marca">${[["all", "Todas"], ...D.CLIENTS.map(c => [c.key, c.short])].map(([a, n]) => `<button type="button" data-v="${a}" aria-pressed="${prefs.kbrand === a}">${n}</button>`).join("")}</div>
+        <div class="seg" id="k-brand" role="group" aria-label="Marca">${[["all", "Todas"], ...CLIENTS.map(c => [c.key, c.short])].map(([a, n]) => `<button type="button" data-v="${a}" aria-pressed="${prefs.kbrand === a}">${n}</button>`).join("")}</div>
         <select id="k-fmt" aria-label="Formato"><option value="all">Todos os formatos</option><option value="Reels">Reels</option><option value="Carrossel">Carrossel</option></select>
         <input type="search" id="k-q" placeholder="Buscar título ou código" aria-label="Buscar">
         <span class="spacer" style="flex:1"></span>
@@ -565,6 +728,7 @@
   document.addEventListener("touchmove", e => { if (touchDragging) e.preventDefault(); }, { passive: false });
   document.addEventListener("click", e => { if (suppressClick) { e.stopPropagation(); e.preventDefault(); suppressClick = false; } }, true);
   function bindDrag(board) {
+    if (!CAN_WRITE) return;
     $$("[data-drag]", board).forEach(el => {
       el.addEventListener("dragstart", e => e.preventDefault());
       el.addEventListener("pointerdown", e => {
@@ -641,9 +805,15 @@
   const refreshUnder = () => { if (current === "calendario") drawBoard(); else route(); renderNav(); markNav(); };
   const WEEKDAYS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
   const slotLabel = s => `${DOW[toDate(s.date).getDay()]} ${dm(s.date)} · ${s.time} · ${s.format === "Qualquer" ? "qualquer formato" : s.format}${s.holiday ? " · atenção: " + s.holiday : ""}`;
-  const docFor = (b, format) => { const docs = CL[b].docs, want = format === "Reels" ? "Roteiros de Reels" : "Roteiros de carrosséis"; return (docs.find(d => d[0] === want) || docs[0])[1]; };
+  const docFor = (b, format) => { const docs = CL[b].docs || [], want = format === "Reels" ? "Roteiros de Reels" : "Roteiros de carrosséis"; const d = docs.find(x => x[0] === want) || docs[0]; return d ? d[1] : ""; };
   function bindOpen(root) {
     $$("[data-open],[data-code]", root).forEach(el => el.addEventListener("click", () => openDrawer(el.dataset.open || el.dataset.code)));
+  }
+  /* quem não edita (leitura) vê a gaveta, mas não muda nada */
+  function lockDrawer(dlg) {
+    $$("input, select, textarea", dlg).forEach(el => { el.disabled = true; });
+    $$(".drawer-body button.btn", dlg).forEach(b => { b.hidden = true; });
+    const note = document.createElement("p"); note.className = "notice info"; note.textContent = "Seu acesso é só de leitura."; const body = $(".drawer-body", dlg); if (body) body.prepend(note);
   }
   function showDialog(dlg) { if (!dlg.open) { if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", ""); } }
 
@@ -652,7 +822,7 @@
     if (!st.needs.length) return `<div class="aprov" id="aprov"><span class="col-title">Aprovação</span><p class="src">Este cliente está sem etapa de aprovação. Para exigir aprovação, mude a política em Fluxo e horários.</p></div>`;
     const row = kind => {
       if (!st.needs.includes(kind)) return "";
-      const a = rec[kind], role = kind === "internal" ? F.INTERNAL_ROLE[p.b] : "quem aprova no cliente";
+      const a = rec[kind], role = kind === "internal" ? roleOf(p.b) : "quem aprova no cliente";
       if (a) return `<div class="aprov-row done"><i class="ok" aria-hidden="true">✓</i><div><b>${F.KIND_NAME[kind]}</b> <small>${role}</small><div class="src">Aprovada por ${esc(a.by)} em ${fmtAt(a.at)}</div></div><button type="button" class="btn sm" data-act="revoke" data-kind="${kind}">Reabrir</button></div>`;
       return `<div class="aprov-row"><i aria-hidden="true"></i><div><b>${F.KIND_NAME[kind]}</b> <small>${role}</small>
         <div class="aprov-act"><input type="text" id="ap-by-${kind}" aria-label="Nome de quem aprova (${F.KIND_NAME[kind].toLowerCase()})" placeholder="${kind === "internal" ? "Seu nome" : "Nome do aprovador no cliente"}" value="${kind === "internal" ? esc(flow.user) : ""}"><button type="button" class="btn sm primary" data-act="approve" data-kind="${kind}">Aprovar</button><button type="button" class="btn sm" data-act="changes" data-kind="${kind}">Pedir ajustes</button></div></div></div>`;
@@ -683,8 +853,8 @@
           <ul class="steps" style="margin-top:10px">${steps.map(([k2, d], i) => { const isDone = i < done || p.status === "pub"; const isLate = !isDone && d && toDate(d) < TODAY; return `<li class="${isDone ? "done" : isLate ? "late" : ""}"><i></i><span>${STEP_NAMES[k2]}${isLate ? " · atrasada" : ""}</span><span class="tnum">${d ? DOW[toDate(d).getDay()] + " " + dm(d) : "não se aplica"}</span></li>`; }).join("")}
           <li class="${p.status === "pub" ? "done" : p.late ? "late" : ""}"><i></i><span><b>Publicar</b></span><span class="tnum"><b>${DOW[toDate(p.date).getDay()]} ${dm(p.date)}${p.time ? " " + p.time : ""}</b></span></li></ul></div>
         ${approvalSection(p)}
-        ${qualityForm(p)}
-        <div class="doc-list"><a href="${p.doc}" target="_blank" rel="noopener">Abrir roteiro ${p.format === "Reels" ? "de Reels" : "de carrosséis"}<span>Google Docs</span></a><a href="${D.CENTRAL}" target="_blank" rel="noopener">Central editorial<span>planilha</span></a></div>
+        ${IS_CLIENT ? "" : qualityForm(p)}
+        ${IS_CLIENT ? "" : `<div class="doc-list">${p.doc ? `<a href="${p.doc}" target="_blank" rel="noopener">Abrir roteiro ${p.format === "Reels" ? "de Reels" : "de carrosséis"}<span>Google Docs</span></a>` : ""}<a href="${D.CENTRAL}" target="_blank" rel="noopener">Central editorial<span>planilha</span></a></div>`}
         <div class="toolbar"><button type="button" class="btn primary" id="d-save">Salvar</button>${p.edited ? `<button type="button" class="btn" id="d-revert">Voltar ao plano original</button>` : ""}${p.fromIdea ? `<button type="button" class="btn" id="d-remove">Remover pauta e devolver a ideia</button>` : ""}</div>
       </div>`;
     const close = () => dlg.close();
@@ -696,6 +866,7 @@
       return { dims, checks: ck };
     };
     const persistQ = () => {
+      if (!CAN_WRITE) return;
       const q = readQ();
       if (Object.keys(q.dims).length || Object.keys(q.checks).length) checks[p.code] = q; else delete checks[p.code];
       store.set(CHECK_KEY, checks);
@@ -716,9 +887,9 @@
       if (act === "approve" && kind === "internal" && by && by !== flow.user) { flow.user = by; F.saveFlow(flow); }
       persistQ();
       const keep = { status: $("#d-status").value, date: $("#d-date").value };
-      if (act === "changes" && ["apr", "agd"].includes(p.status)) { update(p.code, { status: "prod" }); keep.status = "prod"; }
+      if (CAN_WRITE && act === "changes" && ["apr", "agd"].includes(p.status)) { update(p.code, { status: "prod" }); keep.status = "prod"; }
       flowDirty = true;
-      toast({ approve: "Aprovação registrada", revoke: "Aprovação reaberta", changes: "Ajustes pedidos; a pauta voltou para Em produção", comment: "Comentário registrado" }[act]);
+      toast({ approve: "Aprovação registrada", revoke: "Aprovação reaberta", changes: CAN_WRITE ? "Ajustes pedidos; a pauta voltou para Em produção" : "Ajustes pedidos à equipe da Nova7", comment: "Comentário registrado" }[act]);
       openDrawer(p.code, { draft: keep, focus: "aprov" });
     }));
 
@@ -734,6 +905,16 @@
       if (!armed) { armed = true; rm.textContent = "Confirmar: remover pauta"; setTimeout(() => { armed = false; rm.textContent = "Remover pauta e devolver a ideia"; }, 4000); return; }
       F.removeCustom(p.code); delete overrides[p.code]; store.set(KB_KEY, overrides); close(); refreshUnder(); toast(`${p.code} removida; a ideia voltou para Aprovada`);
     }; }
+    if (!CAN_WRITE) {
+      ["#d-status", "#d-date"].forEach(sel => { const el = $(sel, dlg); if (el) el.disabled = true; });
+      ["#d-save", "#d-revert", "#d-remove"].forEach(sel => { const el = $(sel, dlg); if (el) el.hidden = true; });
+      $$("[data-dim],[data-chk]", dlg).forEach(el => { el.disabled = true; });
+      if (IS_CLIENT) {
+        const by = $("#ap-by-client", dlg); if (by) { by.value = ME.nome || ""; by.readOnly = true; }
+        const kind = $("#ap-kind", dlg); if (kind) { kind.value = "client"; kind.disabled = true; }
+        $$("[data-act]", dlg).forEach(b => { if (b.dataset.kind === "internal") b.hidden = true; });
+      } else { $$("[data-act]", dlg).forEach(b => { b.hidden = true; }); $$("#aprov input, #aprov select", dlg).forEach(el => { el.disabled = true; }); }
+    }
     showDialog(dlg);
     if (opts.focus) $("#" + opts.focus, dlg)?.scrollIntoView({ block: "start" });
   }
@@ -748,14 +929,14 @@
   function drawIdeas(board, nav) {
     nav.innerHTML = "";
     const q = ($("#k-q")?.value || "").trim().toLowerCase();
-    const ideas = F.getIdeas().filter(i => (prefs.kbrand === "all" || i.b === prefs.kbrand) && (prefs.kfmt === "all" || i.format === prefs.kfmt) && (!q || i.title.toLowerCase().includes(q)));
+    const ideas = F.getIdeas().filter(i => CL[i.b] && (prefs.kbrand === "all" || i.b === prefs.kbrand) && (prefs.kfmt === "all" || i.format === prefs.kfmt) && (!q || i.title.toLowerCase().includes(q)));
     const promoted = ideas.filter(i => i.stage === "agendada"), def = prefs.kbrand !== "all" ? prefs.kbrand : "M";
     $("#k-summary").innerHTML = `<span><b class="tnum">${ideas.length - promoted.length}</b> ideias no quadro</span>${F.STAGES.map(([k2, n]) => `<span>${n} <b class="tnum">${ideas.filter(i => i.stage === k2).length}</b></span>`).join("")}<span>Viraram pauta <b class="tnum">${promoted.length}</b></span>`;
     board.innerHTML = `
       <form class="idea-form" id="i-form" autocomplete="off">
-        <div><label class="lbl" for="i-brand">Cliente</label><select id="i-brand">${D.CLIENTS.map(c => `<option value="${c.key}" ${c.key === def ? "selected" : ""}>${esc(c.short)}</option>`).join("")}</select></div>
+        <div><label class="lbl" for="i-brand">Cliente</label><select id="i-brand">${CLIENTS.map(c => `<option value="${c.key}" ${c.key === def ? "selected" : ""}>${esc(c.short)}</option>`).join("")}</select></div>
         <div><label class="lbl" for="i-format">Formato</label><select id="i-format">${F.FORMATS.map(f => `<option>${f}</option>`).join("")}</select></div>
-        <div class="grow"><label class="lbl" for="i-title">Nova ideia</label><input type="text" id="i-title" placeholder="Ex.: 3 erros ao guardar medicamentos no verão" maxlength="140"></div>
+        <div class="grow"${CAN_WRITE ? "" : " hidden"}><label class="lbl" for="i-title">Nova ideia</label><input type="text" id="i-title" placeholder="Ex.: 3 erros ao guardar medicamentos no verão" maxlength="140"></div>
         <div class="grow"><label class="lbl" for="i-note">Observação (opcional)</label><input type="text" id="i-note" placeholder="Por que vale a pena, restrições, quem revisa" maxlength="300"></div>
         <button type="submit" class="btn primary">Adicionar</button>
       </form>
@@ -797,7 +978,7 @@
            <p class="src">A pauta nasce em "A planejar", com as datas de roteiro, gravação, edição, aprovação e agendamento no padrão da Central.</p></div>`;
     dlg.innerHTML = `<div class="drawer-head"><span class="client-avatar" style="background:var(${CL[i.b].color})">${CL[i.b].short[0]}</span><div><small style="color:var(--banner-muted)">Ideia · ${esc(CL[i.b].name)}</small><h2>${esc(i.title)}</h2></div><button type="button" class="x" id="d-close">Fechar</button></div>
       <div class="drawer-body">
-        <div class="form-row"><div><label class="lbl" for="ie-brand">Cliente</label><select id="ie-brand">${D.CLIENTS.map(c => `<option value="${c.key}" ${c.key === i.b ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></div>
+        <div class="form-row"><div><label class="lbl" for="ie-brand">Cliente</label><select id="ie-brand">${CLIENTS.map(c => `<option value="${c.key}" ${c.key === i.b ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></div>
           <div><label class="lbl" for="ie-format">Formato</label><select id="ie-format">${F.FORMATS.map(f => `<option ${f === i.format ? "selected" : ""}>${f}</option>`).join("")}</select></div></div>
         <div><label class="lbl" for="ie-title">Título</label><input type="text" id="ie-title" value="${esc(i.title)}" maxlength="140" style="width:100%"></div>
         <div><label class="lbl" for="ie-note">Observação</label><textarea id="ie-note" rows="3" style="width:100%" maxlength="300">${esc(i.note || "")}</textarea></div>
@@ -824,6 +1005,7 @@
       const [d, t] = $("#ie-slot").value.split("|"); if (!d) { toast("Não há horário livre à vista."); return; }
       if (scheduleIdea(id, { date: d, time: t })) close();
     };
+    if (!CAN_WRITE) lockDrawer(dlg);
     showDialog(dlg);
   }
   function openSlot(brand, date, time, format) {
@@ -837,6 +1019,7 @@
     $("#d-close").onclick = close; dlg.onclick = e => { if (e.target === dlg) close(); };
     $$("[data-pick]", dlg).forEach(b => b.addEventListener("click", () => { if (scheduleIdea(b.dataset.pick, { date, time })) close(); }));
     const go = $("#sl-ideas"); if (go) go.onclick = () => { prefs.kview = "ideias"; prefs.kbrand = brand; savePrefs(); close(); route(); };
+    if (!CAN_WRITE) lockDrawer(dlg);
     showDialog(dlg);
   }
 
@@ -850,7 +1033,7 @@
       <div class="panel-body">
         <div><label class="lbl" for="pol-${k2}">Aprovação antes de a peça ficar pronta</label>
           <select id="pol-${k2}" data-pol="${k2}">${Object.entries(F.POLICIES).map(([id, p2]) => `<option value="${id}" ${id === pol ? "selected" : ""}>${p2.name}</option>`).join("")}</select>
-          <p class="src" style="margin-top:6px">${F.POLICIES[pol].text}${pol !== "none" ? ` Revisão interna: ${F.INTERNAL_ROLE[k2]}.` : ""}</p></div>
+          <p class="src" style="margin-top:6px">${F.POLICIES[pol].text}${pol !== "none" ? ` Revisão interna: ${roleOf(k2)}.` : ""}</p></div>
         <div><span class="col-title">Horários fixos de publicação</span>
           <div class="slot-list">${slots.map((s, i) => `<div class="slot-row">
             <select id="s-${k2}-${i}-d" data-slot="${k2}|${i}|dow" aria-label="Dia da semana">${[1, 2, 3, 4, 5, 6, 0].map(d => `<option value="${d}" ${d === s.dow ? "selected" : ""}>${WEEKDAYS[d]}</option>`).join("")}</select>
@@ -868,7 +1051,7 @@
         <p>Defina, para cada cliente, quem precisa aprovar uma peça antes de ela ficar pronta e em quais dias e horários a agência publica. Os horários livres aparecem no calendário e servem para agendar as ideias aprovadas.</p></div></div>
       <div class="panel">${banner("target", "Quem está usando", "o nome entra nos registros de aprovação")}
         <div class="panel-body"><div class="form-row"><div><label class="lbl" for="f-user">Seu nome</label><input type="text" id="f-user" value="${esc(flow.user)}" placeholder="Ex.: Gustavo" maxlength="60"></div></div></div></div>
-      <div class="grid g2">${D.CLIENTS.map(c => fluxoPanel(c, flow, taken)).join("")}</div>
+      <div class="grid g2">${CLIENTS.map(c => fluxoPanel(c, flow, taken)).join("")}</div>
       <p class="notice info">Os horários iniciais foram sugeridos pelos dias em que o plano Nov–Dez de cada cliente já publica; os horários do dia são palpites. Confirme com cada cliente. Tudo fica salvo neste navegador.</p>`;
     const redraw = () => renderFluxo(v);
     $("#f-user").addEventListener("change", e => { const f = F.getFlow(); f.user = e.target.value.trim(); F.saveFlow(f); toast("Nome salvo"); });
@@ -881,6 +1064,7 @@
     $$("[data-del]", v).forEach(b => b.addEventListener("click", () => { const [k2, i] = b.dataset.del.split("|"), f = F.getFlow(); f.slots[k2].splice(+i, 1); F.saveFlow(f); redraw(); }));
     $$("[data-add]", v).forEach(b => b.addEventListener("click", () => { const f = F.getFlow(); (f.slots[b.dataset.add] = f.slots[b.dataset.add] || []).push({ dow: 1, time: "12:00", format: "Qualquer" }); F.saveFlow(f); redraw(); }));
     $$("[data-reset]", v).forEach(b => b.addEventListener("click", () => { const f = F.getFlow(); f.slots[b.dataset.reset] = F.defaultSlots(b.dataset.reset); F.saveFlow(f); toast("Horários sugeridos restaurados"); redraw(); }));
+    if (!IS_ADMIN) { $$("select, input, button.btn", v).forEach(el => { if (el.id !== "f-user") el.disabled = true; }); v.insertAdjacentHTML("afterbegin", `<p class="notice info">Só administradores mudam políticas e horários.</p>`); }
   }
 
   /* ---------- checagem pré-publicação ---------- */
@@ -917,7 +1101,7 @@
      ==================================================================== */
   function renderPlaybook(v) {
     const all = posts();
-    const hs = D.CLIENTS.map(c => ({ c, h: health(c, all) }));
+    const hs = CLIENTS.map(c => ({ c, h: health(c, all) }));
     v.innerHTML = `
       <div class="page-head"><div><div class="eyebrow">Método da agência</div><h1>Playbook</h1>
         <p>Regras de trabalho da Nova7: como medimos a saúde de cada cliente, como revisamos antes de publicar, quem aprova o quê, a cadência de relatórios e os formatos de cada rede. Adaptado do repositório aberto <a class="lnk" href="${PB.source}" target="_blank" rel="noopener" style="color:var(--violet-d);font-weight:600">Digital Marketing Pro</a> (licença MIT) e dos critérios já definidos no Drive.</p></div></div>
@@ -987,7 +1171,7 @@
     v.innerHTML = `<div class="page-head"><div><div class="eyebrow">Auditoria de 10/11 · insights de 14/11</div><h1>Alertas e próximas ações</h1>
       <p>P0 é imediato, P1 para os próximos dois dias, P2 para o próximo fechamento semanal.</p></div>
       <div class="seg" id="a-f" role="group" aria-label="Prioridade">${[["all", "Todos"], ["P0", "P0"], ["P1", "P1"], ["P2", "P2"]].map(([a, n]) => `<button type="button" data-v="${a}" aria-pressed="${aFilter === a}">${n} <span class="tnum">${a === "all" ? D.ALERTS.length : D.ALERTS.filter(x => x.p === a).length}</span></button>`).join("")}</div></div>
-      <div class="kpis k3">${["P0", "P1", "P2"].map((p, i) => kpi(["Imediato", "Próximos 2 dias", "Fechamento semanal"][i], String(D.ALERTS.filter(a => a.p === p).length), D.CLIENTS.map(c => `${c.short} ${D.ALERTS.filter(a => a.p === p && a.b === c.key).length}`).join(" · "), "alert", ["red", "amber", ""][i])).join("")}</div>
+      <div class="kpis k3">${["P0", "P1", "P2"].map((p, i) => kpi(["Imediato", "Próximos 2 dias", "Fechamento semanal"][i], String(D.ALERTS.filter(a => a.p === p).length), CLIENTS.map(c => `${c.short} ${D.ALERTS.filter(a => a.p === p && a.b === c.key).length}`).join(" · "), "alert", ["red", "amber", ""][i])).join("")}</div>
       <div class="grid" style="gap:10px">${list.map(alertHtml).join("")}</div>`;
     $$("#a-f button", v).forEach(b => b.onclick = () => { aFilter = b.dataset.v; route(); });
   }

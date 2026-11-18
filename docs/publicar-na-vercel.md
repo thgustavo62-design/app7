@@ -19,7 +19,7 @@ O arquivo `private/data.js` tem vendas, auditoria e estratégia dos clientes. Em
 4. Abra a conta criada → aba **Chaves** → **Adicionar chave** → **Criar nova chave** → **JSON**. Um arquivo é baixado. **Guarde fora do repositório.**
 5. Copie o e-mail da conta de serviço (termina em `.iam.gserviceaccount.com`).
 6. Abra a planilha **NOVA7 | SITE | BANCO DE DADOS** → **Compartilhar** → cole esse e-mail → papel **Editor** → desmarque "Notificar" → **Enviar**.
-7. Na aba **Usuarios** da planilha, preencha quem pode entrar: `email` (conta Google), `nome`, `papel` (`admin`, `editor` ou `leitura`) e `ativo` = `sim`. Pelo menos uma linha `admin`.
+7. Na aba **Usuarios**, cadastre **só o primeiro administrador** (os demais usuários você cadastra pelo site, em Configurações): `email` (conta Google), `nome`, `tipo` = `equipe`, `papel` = `admin`, `empresas` vazio (vê todas) e `ativo` = `sim`. A aba **Clientes** já vem com os quatro clientes iniciais; novos clientes também são cadastrados pelo site.
 
 ## 2. Google Cloud: login com Google
 

@@ -8,8 +8,13 @@
   const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const round2 = n => Math.round(n * 100) / 100;
   const inp = v => (v == null ? "" : String(v).replace(".", ","));
-  const BRANDS = ["M", "F", "C", "N"];
-  const BRAND_COLOR = { M: "--c1", F: "--c2", C: "--c3", N: "--c4" };
+  /* empresas que entram na tela: as que têm redes, tráfego ou varejo (só criativos não tem número semanal) */
+  const clientList = () => (H ? H.clients() : []).filter(c => ["redes", "trafego", "varejo"].some(s => (c.services || []).includes(s)));
+  const clientOf = k => (H ? H.clients() : []).find(c => c.key === k) || { key: k, name: k, services: [], color: "--c1" };
+  const svcOf = (k, s) => (clientOf(k).services || []).includes(s);
+  const nameOf = k => clientOf(k).name;
+  const colorOf = k => clientOf(k).color;
+  const analysisClients = () => clientList().map(c => ({ key: c.key, name: c.name, services: c.services }));
   const CHANNELS = { ig: ["Instagram", "social", A.SOCIAL, A.SOCIAL_NAME], fb: ["Facebook", "social", A.SOCIAL, A.SOCIAL_NAME], ads: ["Meta Ads", "ads", A.ADS, A.ADS_NAME] };
   const CLASS_BADGE = { CORRIGIR: "p0", TESTAR: "p1", ESCALAR: "st-pub", MANTER: "st-pub", INCONCLUSIVO: "" };
 
@@ -41,13 +46,15 @@
       return round2(v);
     };
     const t = name => (form.elements[name] ? form.elements[name].value.trim() : "");
-    const row = blank(tipo, inicio, marca);
-    const old = stored(tipo, inicio, marca); if (old) row.v = old.v;
-    if (A.PHARMA.includes(marca)) {
+    const old = stored(tipo, inicio, marca);
+    const row = Object.assign(blank(tipo, inicio, marca), old ? A.norm(old) : {});
+    if (old) row.v = old.v;
+    const on = name => !!form.elements[name];                     /* o que não está na tela (serviço que o cliente não tem) fica como estava */
+    if (on("vendas")) {
       row.vendas = n("vendas"); row.compras = n("compras"); row.c100n = n("c100n"); row.c100rs = n("c100rs");
       if (tipo === "semana") row.dias = [0, 1, 2, 3, 4, 5, 6].map(i => n("dia" + i));
     }
-    Object.keys(CHANNELS).forEach(ch => CHANNELS[ch][2].forEach(f => { row[ch][f] = n(`${ch}.${f}`); }));
+    Object.keys(CHANNELS).forEach(ch => CHANNELS[ch][2].forEach(f => { if (on(`${ch}.${f}`)) row[ch][f] = n(`${ch}.${f}`); }));
     row.janela = t("janela"); row.fonte = t("fonte"); row.obs = t("obs");
     return { row, bad };
   }
@@ -135,17 +142,17 @@
   }
 
   function formHtml(tipo, inicio, marca) {
-    const r = rowFor(tipo, inicio, marca), ph = A.PHARMA.includes(marca), per = A.period(tipo, inicio);
+    const r = rowFor(tipo, inicio, marca), ph = svcOf(marca, "varejo"), per = A.period(tipo, inicio);
     const days = [...Array(7)].map((_, i) => { const d = A.addDays(A.parse(inicio), i); return { i, iso: A.iso(d), hol: A.HOLIDAYS[A.iso(d)] }; });
     const group = (ch) => `<fieldset><legend>${CHANNELS[ch][0]}</legend>
       <div class="fgrid">${CHANNELS[ch][2].map(f => num(`${ch}.${f}`, CHANNELS[ch][3][f], r[ch][f])).join("")}</div>${readOnly() ? "" : pasteBox(ch)}</fieldset>`;
     return `<form id="sem-form" autocomplete="off" novalidate>
-      ${ph ? `<fieldset><legend>Vendas · ${esc(A.NAMES[marca])}</legend>
+      ${ph ? `<fieldset><legend>Vendas · ${esc(nameOf(marca))}</legend>
         <div class="fgrid">${num("vendas", "Vendas do período (R$)", r.vendas)}${num("compras", "Compras (cupons)", r.compras)}${num("c100n", "Cestas acima de R$ 100 (nº)", r.c100n)}${num("c100rs", "Cestas acima de R$ 100 (R$)", r.c100rs)}</div>
         ${tipo === "semana" ? `<p class="src">Vendas por dia: deixe em branco o dia sem relatório. Em branco é falta de dado, não zero.</p>
         <div class="fgrid days">${days.map(d => num("dia" + d.i, `${A.DOW[d.i]} ${dm(d.iso)}${d.hol ? " · " + esc(d.hol) : ""}`, r.dias[d.i])).join("")}</div>` : ""}
-      </fieldset>` : `<p class="notice info">${esc(A.NAMES[marca])} não tem venda de balcão: aqui entram só redes e anúncios.</p>`}
-      ${group("ig")}${group("fb")}${group("ads")}
+      </fieldset>` : `<p class="notice info">${esc(nameOf(marca))} não tem análise de varejo: aqui entram só os serviços contratados (${esc(window.N7Services.label(clientOf(marca)))}).</p>`}
+      ${svcOf(marca, "redes") ? group("ig") + group("fb") : ""}${svcOf(marca, "trafego") ? group("ads") : ""}
       <fieldset><legend>Origem dos números</legend><div class="fgrid one">
         ${txt("janela", "Janela diferente da semana (se as redes usaram outras datas)", r.janela, "Ex.: Redes de 27/10 a 02/11")}
         ${txt("fonte", "Fonte", r.fonte, "Ex.: PDF analítico de 09/11 e Meta Business Suite")}
@@ -198,7 +205,7 @@
     const hol = a.holidays.filter(h => h.date >= a.period.inicio && h.date <= a.period.fim);
     const hasDays = a.period.tipo === "semana" && ph.some(c => c.row.dias.some(v => v != null));
     const daily = hasDays ? `<div class="panel">${H.banner("cal", "Dia a dia", hol.length ? "Feriado ou data atípica marcado no gráfico" : "Vendas por dia da semana")}
-      <div class="panel-body"><div class="legend">${ph.map(c => `<span><i class="sw" style="background:var(${BRAND_COLOR[c.marca]})"></i>${esc(c.nome)}</span>`).join("")}</div><div class="chart" id="sem-daily"></div>
+      <div class="panel-body"><div class="legend">${ph.map(c => `<span><i class="sw" style="background:var(${colorOf(c.marca)})"></i>${esc(c.nome)}</span>`).join("")}</div><div class="chart" id="sem-daily"></div>
       ${hol.length ? `<p class="notice">${hol.map(h => `<b>${dm(h.date)}</b> ${esc(h.name)}`).join(" · ")}. Confira antes de concluir queda: feriado não é demanda.</p>` : ""}
       <p class="src">Dias em branco no gráfico são dias sem relatório, não vendas zero.</p></div></div>` : "";
     /* redes e anúncios */
@@ -214,7 +221,7 @@
       </tbody></table></div></div>` : "";
     /* evolução */
     const evo = ph.some(c => A.series(weeks(), a.period.tipo, a.period.inicio, c.marca, r => r.vendas).filter(p => p.valor != null).length >= 2)
-      ? `<div class="panel">${H.banner("chart", "Evolução das vendas", `Últimos ${a.period.tipo === "mes" ? "meses" : "períodos"} registrados`)}<div class="panel-body"><div class="legend">${ph.map(c => `<span><i class="sw" style="background:var(${BRAND_COLOR[c.marca]})"></i>${esc(c.nome)}</span>`).join("")}</div><div class="chart" id="sem-evo"></div><p class="src">Períodos sem registro aparecem como lacuna.</p></div></div>` : "";
+      ? `<div class="panel">${H.banner("chart", "Evolução das vendas", `Últimos ${a.period.tipo === "mes" ? "meses" : "períodos"} registrados`)}<div class="panel-body"><div class="legend">${ph.map(c => `<span><i class="sw" style="background:var(${colorOf(c.marca)})"></i>${esc(c.nome)}</span>`).join("")}</div><div class="chart" id="sem-evo"></div><p class="src">Períodos sem registro aparecem como lacuna.</p></div></div>` : "";
     /* sinais */
     const sig = `<div class="panel">${H.banner("bell", "O que os números dizem", "Classificação e confiança de cada leitura")}
       <div class="panel-body">${a.signals.length ? a.signals.map(s => `<div class="sig"><div class="sig-h"><span class="badge ${CLASS_BADGE[s.classe]}">${s.classe}</span><span class="badge">${esc(s.nome)} · ${esc(s.canal)}</span><span class="badge">confiança ${s.confianca}</span></div><b>${esc(s.titulo)}</b><p>${esc(s.texto)}</p></div>`).join("") : `<p class="src">Nenhum sinal acima dos limites. Com poucos números informados isso não significa que está tudo bem.</p>`}</div></div>`;
@@ -233,8 +240,10 @@
   function render(view, helpers) {
     H = helpers;
     if (!ui.inicio || A.parse(ui.inicio) == null) ui.inicio = A.lastClosed(ui.tipo, new Date());
+    if (!clientList().some(c => c.key === ui.marca)) ui.marca = (clientList()[0] || {}).key || "";
+    if (!ui.marca) { view.innerHTML = `<div class="page-head"><div><h1>Semana</h1><p>Nenhum cliente com redes sociais, tráfego pago ou análise de varejo. Cadastre os serviços em Configurações.</p></div></div>`; return; }
     const ro = readOnly(), per = A.period(ui.tipo, ui.inicio), list = weeks();
-    const a = A.analyze({ weeks: list, gens: gens(), tipo: ui.tipo, inicio: ui.inicio });
+    const a = A.analyze({ weeks: list, gens: gens(), tipo: ui.tipo, inicio: ui.inicio, clients: analysisClients() });
     const last = A.lastClosed(ui.tipo, new Date()), isFuture = ui.inicio > last;
     const unsaved = Object.keys(drafts).length > 0;
     view.innerHTML = `
@@ -254,7 +263,7 @@
       ${a.holidays.length ? `<p class="notice"><b>Atenção ao calendário:</b> ${a.holidays.map(h => `${dm(h.date)} ${esc(h.name)}`).join(" · ")}. Confirme antes de concluir queda.</p>` : ""}
       <div class="panel">${H.banner("file", "Entrada dos números", `${esc(per.label)}`, ro ? "" : `<span class="badge" id="sem-dirty"${unsaved ? "" : " hidden"}>alterações não salvas</span><button type="button" class="btn sm primary" id="sem-save">Salvar</button>`)}
         <div class="panel-body">
-          <div class="seg" id="sem-marca" role="group" aria-label="Empresa">${BRANDS.map(m => `<button type="button" data-v="${m}" aria-pressed="${ui.marca === m}">${esc(A.NAMES[m])}${stored(ui.tipo, ui.inicio, m) || drafts[keyOf(ui.tipo, ui.inicio, m)] ? " ●" : ""}</button>`).join("")}</div>
+          <div class="seg" id="sem-marca" role="group" aria-label="Empresa">${clientList().map(c => c.key).map(m => `<button type="button" data-v="${m}" aria-pressed="${ui.marca === m}">${esc(nameOf(m))}${stored(ui.tipo, ui.inicio, m) || drafts[keyOf(ui.tipo, ui.inicio, m)] ? " ●" : ""}</button>`).join("")}</div>
           ${formHtml(ui.tipo, ui.inicio, ui.marca)}
           <h3 class="sub">Contexto e decisão do período</h3>
           ${genHtml(ui.tipo, ui.inicio)}
@@ -271,14 +280,14 @@
     const host = $("#sem-daily", view);
     if (host && C) {
       const cats = [...Array(7)].map((_, i) => { const d = A.iso(A.addDays(A.parse(a.period.inicio), i)); return `${A.DOW[i]}${A.HOLIDAYS[d] ? " *" : ""}`; });
-      const series = ph.map(c => ({ name: c.nome, color: BRAND_COLOR[c.marca], values: c.row.dias }));
+      const series = ph.map(c => ({ name: c.nome, color: colorOf(c.marca), values: c.row.dias }));
       if (series.some(s => s.values.some(v => v != null))) C.bars(host, { cats, series, fmt: money, tipFmt: brl, height: 230 });
     }
     const evo = $("#sem-evo", view);
     if (evo && C) {
       const ser = ph.map(c => A.series(weeks(), a.period.tipo, a.period.inicio, c.marca, r => r.vendas));
       const cats = ser[0].map(p => dm(p.inicio));
-      C.lines(evo, { cats, series: ph.map((c, i) => ({ name: c.nome, short: c.nome.split(" ")[0], color: BRAND_COLOR[c.marca], values: ser[i].map(p => p.valor) })), fmt: money, tipFmt: brl, height: 220 });
+      C.lines(evo, { cats, series: ph.map((c, i) => ({ name: c.nome, short: c.nome.split(" ")[0], color: colorOf(c.marca), values: ser[i].map(p => p.valor) })), fmt: money, tipFmt: brl, height: 220 });
     }
   }
 
@@ -298,7 +307,7 @@
     $("#sem-pptx", view).onclick = () => {
       if (Object.keys(drafts).length || !$("#sem-dirty", view).hidden) { stash(view); if (Object.keys(drafts).length) return H.toast("Há alterações não salvas. Clique em Salvar antes de gerar o PowerPoint."); }
       if (!root.N7Report) return H.toast("O gerador de PowerPoint não carregou. Recarregue a página.");
-      const an = A.analyze({ weeks: weeks(), gens: gens(), tipo: ui.tipo, inicio: ui.inicio });
+      const an = A.analyze({ weeks: weeks(), gens: gens(), tipo: ui.tipo, inicio: ui.inicio, clients: analysisClients() });
       if (!an.clients.some(c => !c.vazio)) return H.toast("Informe pelo menos um número do período antes de gerar o PowerPoint.");
       root.N7Report.download(an).then(name => H.toast("PowerPoint gerado: " + name), e => { console.error(e); H.toast("Não foi possível gerar o PowerPoint."); });
     };

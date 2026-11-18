@@ -14,7 +14,7 @@ const db = require('../lib/db');
 
 /* ---------- sessão ---------- */
 test('sessão: assina, aceita e recusa adulteração e vencimento', () => {
-  const u = { email: 'a@b.com', nome: 'Ana', papel: 'editor' };
+  const u = { email: 'a@b.com', nome: 'Ana', papel: 'editor', tipo: 'equipe', empresas: [] };
   const t = session.create(u, 'segredo', 60, 1000e3);
   assert.deepEqual(session.verify(t, 'segredo', 1010e3), u);
   assert.equal(session.verify(t, 'outro', 1010e3), null);
@@ -237,4 +237,121 @@ test('semanas: estado vem da planilha, gravação valida período e números, au
   /* apagar */
   await model.applyOps(g, [{ t: 'week', op: 'delete', tipo: 'semana', inicio: '2026-11-02', marca: 'F', v: '1' }], ed);
   assert.equal((await model.loadState(new Repo(g.d))).weeks.some(x => x.inicio === '2026-11-02' && x.marca === 'F'), false);
+});
+
+/* ---------- empresas, usuários e escopo ---------- */
+const seeded = () => new Repo(new MemoryDriver(require('../lib/seed').build({ devEmail: 'dev@agencia.test' })));
+const admin = { email: 'dev@agencia.test', nome: 'Dev', papel: 'admin', tipo: 'equipe', empresas: [] };
+const newClient = { t: 'client', chave: 'PBP', id: 'padaria-bom-pao', nome: 'Padaria Bom Pão', curto: 'Bom Pão', cor: '--c5', segmento: 'Padaria · Baixo Guandu-ES', perfil: '@bompao', setor: 'varejo', servicos: ['trafego', 'criativos'] };
+const planOf = b => require('../lib/dataset').load().PLAN.find(p => p.b === b).code;
+
+test('empresas: cadastro com serviços, validações, desativar e uso como marca nas outras operações', async () => {
+  const r = seeded();
+  const reg0 = await model.loadRegistry(r, admin);
+  assert.deepEqual(reg0.clients.map(c => c.key), ['M', 'F', 'C', 'N']);
+  assert.deepEqual(reg0.clients[0].services, ['redes', 'trafego', 'varejo']); assert.deepEqual(reg0.clients[2].services, ['redes']);
+  const ok = await model.applyOps(r, [newClient], admin); assert.equal(ok.results[0].v, '1');
+  const c = (await model.loadRegistry(new Repo(r.d), admin)).clients.find(x => x.key === 'PBP');
+  assert.deepEqual(c.services, ['trafego', 'criativos']); assert.equal(c.active, true);
+  const bad = (op, re, u = admin) => assert.rejects(model.applyOps(seeded(), [op], u), re);
+  await bad({ ...newClient, chave: 'pbp' }, /Chave inválida/);
+  await bad({ ...newClient, id: 'config' }, /reservado/);
+  await bad({ ...newClient, id: 'minas-farma' }, /Já existe/);
+  await bad({ ...newClient, servicos: [] }, /pelo menos um serviço/);
+  await bad({ ...newClient, servicos: ['xyz'] }, /pelo menos um serviço/);
+  await bad({ ...newClient, cor: '--c99' }, /Cor inválido/);
+  await bad({ ...newClient, op: 'delete' }, /desative/);
+  await bad(newClient, /configurações/, { email: 'e@x.com', papel: 'editor' });
+  /* a nova empresa vale como marca; desativada deixa de valer */
+  const idea = { t: 'idea', op: 'upsert', id: 'id-pbp', b: 'PBP', format: 'Reels', title: 'Fornada', stage: 'nova', at: '2026-11-18' };
+  assert.equal((await model.applyOps(new Repo(r.d), [idea], admin)).results[0].v, '1');
+  await model.applyOps(new Repo(r.d), [{ ...newClient, ativo: 'nao', v: '1' }], admin);
+  await assert.rejects(model.applyOps(new Repo(r.d), [{ ...idea, id: 'id-2' }], admin), /Empresa inválida/);
+  assert.equal((await model.loadRegistry(new Repo(r.d), { email: 'e@x.com', papel: 'editor', tipo: 'equipe', empresas: [] })).clients.some(x => x.key === 'PBP'), false, 'não-admin não vê empresa desativada');
+  /* planilha ainda vazia: os quatro iniciais seguem valendo e vão junto na primeira gravação */
+  const vazio = mk(); await model.applyOps(vazio, [newClient], admin);
+  assert.equal((await new Repo(vazio.d).rows('Clientes')).length, 5);
+});
+
+test('usuários: cadastro por administrador, tipo equipe e cliente, trava do último administrador', async () => {
+  const r = seeded();
+  const add = (o, u = admin, repo = r) => model.applyOps(new Repo(repo.d), [Object.assign({ t: 'user', op: 'upsert' }, o)], u);
+  await add({ email: 'Ana@Agencia.com', nome: 'Ana', tipo: 'equipe', papel: 'editor', empresas: ['M', 'F'] });
+  await add({ email: 'dono@padaria.com', nome: 'Dono', tipo: 'cliente', empresas: ['F'] });
+  const f = await model.findUser(new Repo(r.d), 'ANA@agencia.com'); assert.deepEqual([f.tipo, f.papel, f.empresas], ['equipe', 'editor', ['M', 'F']]);
+  const c = await model.findUser(new Repo(r.d), 'dono@padaria.com'); assert.deepEqual([c.tipo, c.papel, c.empresas], ['cliente', 'cliente', ['F']]);
+  const reg = await model.loadRegistry(new Repo(r.d), admin); assert.equal(reg.users.length, 3);
+  assert.equal((await model.loadRegistry(new Repo(r.d), f)).users, undefined, 'só administrador recebe a lista de usuários');
+  await assert.rejects(add({ email: 'x@y.com', nome: 'X', tipo: 'cliente', empresas: [] }), /pelo menos uma empresa/);
+  await assert.rejects(add({ email: 'x@y.com', nome: 'X', tipo: 'cliente', empresas: ['ZZ'] }), /Empresa inválida/);
+  await assert.rejects(add({ email: 'x@y', nome: 'X', tipo: 'equipe', papel: 'editor' }), /E-mail inválido/);
+  await assert.rejects(add({ email: 'x@y.com', nome: 'X', tipo: 'equipe', papel: 'chefe' }), /Papel inválido/);
+  await assert.rejects(add({ email: 'x@y.com', nome: 'X', tipo: 'equipe', papel: 'leitura' }, f), /configurações/);
+  await assert.rejects(add({ email: 'dev@agencia.test', nome: 'Dev', tipo: 'equipe', papel: 'editor' }), /próprio acesso/);
+  await assert.rejects(add({ email: 'dev@agencia.test', op: 'delete' }), /próprio acesso/);
+  await add({ email: 'ana@agencia.com', nome: 'Ana', tipo: 'equipe', papel: 'admin' });                       /* promove */
+  await add({ email: 'dev@agencia.test', nome: 'Dev', tipo: 'equipe', papel: 'admin', ativo: 'nao' }, { ...admin, email: 'ana@agencia.com' });
+  assert.equal(await model.findUser(new Repo(r.d), 'dev@agencia.test'), null, 'desativado não entra');
+  await assert.rejects(add({ email: 'ana@agencia.com', op: 'delete' }, { ...admin, email: 'outro@x.com' }), /pelo menos um administrador/);
+  await add({ email: 'dono@padaria.com', op: 'delete' }); assert.equal(await model.findUser(new Repo(r.d), 'dono@padaria.com'), null);
+});
+
+test('escopo: usuário cliente só aprova pautas da própria empresa; equipe restrita só mexe nas empresas listadas', async () => {
+  const r = seeded(), cliF = { email: 'dono@f.com', nome: 'Dona da Farma', papel: 'cliente', tipo: 'cliente', empresas: ['F'] };
+  const ev = (code, kind = 'client', act = 'aprovou') => ({ t: 'event', ev: { id: 'e-' + Math.random().toString(36).slice(2, 10), code, kind, act, by: 'Fulano', text: 'ok' } });
+  const run = (ops, u) => model.applyOps(new Repo(r.d), ops, u);
+  await run([ev(planOf('F'))], cliF);
+  const ev1 = (await new Repo(r.d).rows('Aprovacoes'))[0]; assert.equal(ev1.por, 'Dona da Farma', 'o nome vem do login, não do pedido');
+  await assert.rejects(run([ev(planOf('M'))], cliF), /acesso a esta pauta/);
+  await assert.rejects(run([ev(planOf('F'), 'internal')], cliF), /só registram aprovação do cliente/);
+  await assert.rejects(run([{ t: 'override', op: 'upsert', code: planOf('F'), status: 'pub' }], cliF), /só registram aprovação/);
+  await assert.rejects(run([{ t: 'goal', key: 'F-sales', value: 1 }], cliF), /só registram aprovação/);
+  await assert.rejects(run([{ t: 'user', op: 'upsert', email: 'a@b.com', nome: 'A', tipo: 'equipe', papel: 'admin' }], cliF), /configurações/);
+  /* estado recortado */
+  const st = await model.loadState(new Repo(r.d)); const { scopeState } = require('../lib/scope'); const brands = require('../lib/dataset').planBrands();
+  const v = scopeState(st, cliF, c => brands.get(c));
+  assert.equal(v.ideas.length, 0); assert.equal(v.weeks.length, 0); assert.equal(v.weekGen.length, 0);
+  assert.ok(v.events.every(e => brands.get(e.code) === 'F')); assert.deepEqual(Object.keys(v.flow.policy), ['F']);
+  /* equipe restrita a C */
+  const eqC = { email: 'c@x.com', nome: 'C', papel: 'editor', tipo: 'equipe', empresas: ['C'] };
+  await assert.rejects(run([{ t: 'idea', op: 'upsert', id: 'i-x', b: 'M', format: 'Reels', title: 'T', stage: 'nova' }], eqC), /acesso a esta empresa/);
+  await assert.rejects(run([{ t: 'override', op: 'upsert', code: planOf('M'), status: 'prod' }], eqC), /acesso a esta pauta/);
+  await assert.rejects(run([{ t: 'week', op: 'upsert', tipo: 'semana', inicio: '2026-11-09', marca: 'M' }], eqC), /acesso a esta empresa/);
+  await assert.rejects(run([{ t: 'weekgen', op: 'upsert', tipo: 'semana', inicio: '2026-11-09' }], eqC), /todas as empresas/);
+  await run([{ t: 'override', op: 'upsert', code: planOf('C'), status: 'prod' }], eqC);
+  assert.equal(scopeState(st, eqC, c => brands.get(c)).weeks.length, 0, 'semanas só das empresas dela');
+});
+
+test('dados dos clientes: o script entregue a quem é de uma empresa só traz essa empresa', () => {
+  const ds = require('../lib/dataset'), vm = require('vm');
+  const run = js => { const ctx = { window: {} }; vm.runInNewContext(js, ctx); return JSON.parse(JSON.stringify(ctx.window.N7)); };
+  const D = run(ds.scriptFor(new Set(['F']), { internal: false }));
+  assert.deepEqual(D.CLIENTS.map(c => c.key), ['F']); assert.deepEqual(Object.keys(D.WEEKLY), ['F']);
+  assert.ok(D.PLAN.length > 0 && D.PLAN.every(p => p.b === 'F')); assert.deepEqual(D.ALERTS, []); assert.deepEqual(D.FINDINGS, []); assert.deepEqual(D.ROUTINE, []);
+  assert.equal(D.MINAS_AUG, null); assert.ok(D.FARMA_DAILY);
+  assert.deepEqual(Object.keys(D.IG_POSTS), ['F']);
+  assert.ok(!JSON.stringify(D).includes('Minas Club'), 'nada da Minas Farma vaza');
+  const all = run(ds.scriptFor(null)); assert.equal(all.CLIENTS.length, 4);
+});
+
+test('rotas: cliente recebe só a própria empresa em /api/data e /api/state, e não grava o que não é dele', async () => {
+  db._resetMemory();
+  const { createServer } = require('../dev-server'), { cfg } = require('../lib/config');
+  const srv = createServer(); await new Promise(rs => srv.listen(0, rs));
+  const base = 'http://localhost:' + srv.address().port;
+  const mk2 = u => 'n7_session=' + encodeURIComponent(session.create(u, cfg().sessionSecret, 600));
+  const call = async (p, cookie, body) => { const res = await fetch(base + p, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-n7': '1', cookie }, body: body ? JSON.stringify(body) : undefined }); const t = await res.text(); let j = null; try { j = JSON.parse(t); } catch (e) { /* script */ } return { status: res.status, text: t, json: j }; };
+  try {
+    const adm = mk2(admin), cli = mk2({ email: 'dono@f.com', nome: 'Dona', papel: 'cliente', tipo: 'cliente', empresas: ['F'] });
+    const d = await call('/api/data', cli); assert.equal(d.status, 200); assert.ok(!d.text.includes('Minas Club')); assert.match(d.text, /^window\.N7 = \{/);
+    const s = await call('/api/state', cli); assert.equal(s.status, 200);
+    assert.deepEqual(s.json.registry.clients.map(c => c.key), ['F']); assert.equal(s.json.registry.users, undefined); assert.equal(s.json.state.ideas.length, 0);
+    const sa = await call('/api/state', adm); assert.equal(sa.json.registry.clients.length, 4); assert.ok(sa.json.registry.users.length >= 1); assert.equal(sa.json.state.ideas.length, 4);
+    assert.equal((await call('/api/mutate', cli, { ops: [{ t: 'goal', key: 'F-sales', value: 5 }] })).status, 403);
+    assert.equal((await call('/api/mutate', cli, { ops: [{ t: 'event', ev: { id: 'e-abcdef12', code: planOf('F'), kind: 'client', act: 'aprovou', by: 'x', text: '' } }] })).status, 200);
+    assert.equal((await call('/api/mutate', cli, { ops: [{ t: 'event', ev: { id: 'e-abcdef13', code: planOf('M'), kind: 'client', act: 'aprovou', by: 'x', text: '' } }] })).status, 403);
+    /* administrador desativa a Farma: some do /api/data de todos */
+    await call('/api/mutate', adm, { ops: [{ t: 'client', chave: 'F', id: 'farma-e-farma', nome: 'Farma e Farma', curto: 'Farma', cor: '--c2', segmento: 'x', perfil: '@f', setor: 'saude', servicos: ['redes'], ativo: 'nao', v: '1' }] });
+    const d2 = await call('/api/data', adm); assert.ok(!d2.text.includes('"key":"F"'), 'empresa desativada não é entregue');
+  } finally { srv.close(); db._resetMemory(); }
 });

@@ -13,7 +13,7 @@
   function headline(an) {
     const ph = an.clients.filter(c => c.farmacia), t = an.total;
     if (!t) return "Período com dados incompletos: veja o que faltou para fechar a análise.";
-    const base = `As duas farmácias venderam ${brl(t.vendas)}`;
+    const base = ph.length > 1 ? `${ph.map(c => c.nome).join(" e ")} somaram ${brl(t.vendas)}` : `${ph[0].nome} vendeu ${brl(t.vendas)}`;
     const prev = ph.every(c => c.prev && c.prev.vendas != null) ? ph.reduce((s, c) => s + c.prev.vendas, 0) : null;
     if (prev != null) return `${base}, ${pctTxt((t.vendas / prev - 1) * 100)} sobre o período anterior.`;
     const md = ph.filter(c => c.mesmosDias && c.mesmosDias.pct != null);
@@ -24,10 +24,10 @@
   function build(an, opts = {}) {
     const PptxGenJS = opts.PptxGenJS || root.PptxGenJS;
     const pres = new PptxGenJS();
+    const ph = an.clients.filter(c => c.farmacia), lojas = ph.length ? ph.map(c => c.nome).join(" e ") : "Nova7";
     pres.layout = "LAYOUT_WIDE";                                    /* 13,33 x 7,5 pol. */
-    pres.title = `${an.period.tipo === "mes" ? "Mensal" : "Semanal"} Minas Farma e Farma e Farma · ${an.period.label}`;
+    pres.title = `${an.period.tipo === "mes" ? "Mensal" : "Semanal"} ${lojas} · ${an.period.label}`;
     pres.author = "Nova7";
-    const ph = an.clients.filter(c => c.farmacia);
     const tag = an.period.tipo === "mes" ? "Mensal" : "Semanal";
     let n = 0;
     const slide = (title, sub) => {
@@ -48,7 +48,7 @@
     {
       const s = pres.addSlide(); n++;
       s.background = { color: INK };
-      s.addText(`${tag} · Minas Farma e Farma e Farma`, { x: 0.8, y: 1.0, w: 11.7, h: 0.5, fontFace: FONT, fontSize: 18, color: "D9D7D2", margin: 0 });
+      s.addText(`${tag} · ${lojas}`, { x: 0.8, y: 1.0, w: 11.7, h: 0.5, fontFace: FONT, fontSize: 18, color: "D9D7D2", margin: 0 });
       s.addText(an.period.label, { x: 0.8, y: 1.7, w: 11.7, h: 1.2, fontFace: FONT, fontSize: 44, bold: true, color: "FFFFFF", margin: 0, valign: "top" });
       s.addText(headline(an), { x: 0.8, y: 3.4, w: 10.5, h: 1.6, fontFace: FONT, fontSize: 22, color: "FFFFFF", margin: 0, valign: "top" });
       const hol = an.holidays.filter(h => h.date >= an.period.inicio && h.date <= an.period.fim);
@@ -73,7 +73,7 @@
       ];
       s.addTable(rows, { x: 0.6, y: 1.7, w: 12.1, colW: [3.7, 4.2, 4.2], rowH: 0.5, border: { type: "solid", pt: 0.75, color: LINE } });
       const t = an.total;
-      if (t) s.addText(`Total das duas lojas: ${brl(t.vendas)}${t.compras != null ? ` · ${int(t.compras)} compras · ticket ${brl(t.ticket)}` : ""}${t.shareMinas != null ? ` · Minas Farma ${dec(t.shareMinas, 1)}% das vendas` : ""}.`, { x: 0.6, y: 6.1, w: 12.1, h: 0.5, fontFace: FONT, fontSize: 14, bold: true, color: INK, margin: 0 });
+      if (t) s.addText(`Total das lojas: ${brl(t.vendas)}${t.compras != null ? ` · ${int(t.compras)} compras · ticket ${brl(t.ticket)}` : ""}${t.shareMinas != null ? ` · Minas Farma ${dec(t.shareMinas, 1)}% das vendas` : ""}.`, { x: 0.6, y: 6.1, w: 12.1, h: 0.5, fontFace: FONT, fontSize: 14, bold: true, color: INK, margin: 0 });
       s.addText(`${an.gen && an.gen.promocao ? `Promoção do período: ${an.gen.promocao}. ` : ""}Comparação descritiva: não isola efeito de promoção, mídia ou calendário.`, { x: 0.6, y: 6.6, w: 12.1, h: 0.35, fontFace: FONT, fontSize: 12, color: MUTED, margin: 0 });
     }
 
@@ -153,7 +153,11 @@
     return pres;
   }
 
-  const fileName = an => `${an.period.tipo === "mes" ? "Mensal" : "Semanal"}_MinasFarma_FarmaEFarma_${an.period.inicio}.pptx`;
+  const slugName = n => String(n).split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join("").replace(/[^A-Za-z0-9]/g, "");
+  const fileName = an => {
+    const ph = an.clients.filter(c => c.farmacia), nomes = ph.length ? ph.map(c => slugName(c.nome)).join("_") : "Nova7";
+    return `${an.period.tipo === "mes" ? "Mensal" : "Semanal"}_${nomes}_${an.period.inicio}.pptx`;
+  };
 
   /* PptxGenJS grava entradas de pasta e sem compressão; refaz o zip sem elas (alguns serviços em nuvem recusam) */
   async function pack(pres, JSZip) {

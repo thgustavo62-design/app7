@@ -11,6 +11,7 @@
   const POP = 30674;                                         /* Baixo Guandu-ES */
   const NAMES = { M: "Minas Farma", F: "Farma e Farma", C: "Campo Forte", N: "Nova7 Produtora" };
   const PHARMA = ["M", "F"];
+  const DEFAULT_CLIENTS = [{ key: "M", name: NAMES.M, services: ["redes", "trafego", "varejo"] }, { key: "F", name: NAMES.F, services: ["redes", "trafego", "varejo"] }, { key: "C", name: NAMES.C, services: ["redes"] }, { key: "N", name: NAMES.N, services: ["redes"] }];
   const DOW = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"];
   const MONTHS = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
   const SOCIAL = ["views", "alcance", "interacoes", "cliques", "visitas", "seguidores"];
@@ -116,7 +117,7 @@
     clients.filter(c => !c.vazio).forEach(c => {
       const r = c.row, d = c.d;
       /* vendas */
-      if (PHARMA.includes(c.marca)) {
+      if (c.farmacia) {
         const ref = c.mesmosDias || (c.cmp.vendas && c.cmp.vendas.pct != null ? { pct: c.cmp.vendas.pct, atual: c.cmp.vendas.atual, anterior: c.cmp.vendas.anterior, dias: null } : null);
         if (ref && ref.pct != null) {
           const escopo = ref.dias && !ref.completo ? `nos mesmos ${ref.dias.length} dias da semana (${ref.dias.map(i => DOW[i]).join(", ")})` : "no período";
@@ -157,7 +158,7 @@
         const cp = c.prev, tem = !!cp;
         if (d.adsFreq != null && d.adsFreq > 1.5) add(c, "Meta Ads", "Frequência acima de 1,5",
           `Frequência ${dec(d.adsFreq, 2)}: a verba passou a comprar repetição, não gente nova. Rever público e orçamento.`, "warn", "CORRIGIR", r.ads.impressoes, { semAnterior: !tem });
-        if (PHARMA.includes(c.marca) && r.ads.alcance != null && r.ads.alcance > POP) add(c, "Meta Ads", "Alcance acima da população da cidade",
+        if (c.farmacia && r.ads.alcance != null && r.ads.alcance > POP) add(c, "Meta Ads", "Alcance acima da população da cidade",
           `${int(r.ads.alcance)} pessoas alcançadas para ${int(POP)} habitantes de Baixo Guandu: saturação provável.`, "warn", "CORRIGIR", r.ads.alcance);
         if (r.ads.gasto != null && r.ads.gasto > 0 && r.ads.resultados === 0) add(c, "Meta Ads", "Gasto sem resultado",
           `${brl(r.ads.gasto)} investidos e nenhum resultado registrado.`, "down", "CORRIGIR", r.ads.impressoes);
@@ -172,15 +173,16 @@
   }
 
   /* ---------- análise completa ---------- */
-  function analyze({ weeks = [], gens = [], tipo = "semana", inicio }) {
+  function analyze({ weeks = [], gens = [], tipo = "semana", inicio, clients: clientDefs }) {
     const per = period(tipo, inicio), prevInicio = prevStart(tipo, inicio), prevPer = period(tipo, prevInicio);
     const find = (list, ini, marca) => list.find(r => r.tipo === tipo && r.inicio === ini && (marca ? r.marca === marca : true));
     const holidays = holidaysIn(per.inicio, per.fim).concat(holidaysIn(prevPer.inicio, prevPer.fim));
-    const clients = Object.keys(NAMES).map(marca => {
+    const clients = (clientDefs || DEFAULT_CLIENTS).map(def => {
+      const marca = def.key, svc = def.services || [];
       const raw = find(weeks, inicio, marca), rawPrev = find(weeks, prevInicio, marca);
       const row = norm(raw), prev = rawPrev ? norm(rawPrev) : null, d = derive(row), dp = prev ? derive(prev) : null;
       const vazio = !hasData(row), temPrev = !!(prev && hasData(prev));
-      const c = { marca, nome: NAMES[marca], farmacia: PHARMA.includes(marca), row, prev: temPrev ? prev : null, d, dp: temPrev ? dp : null, vazio, cmp: {}, missing: [] };
+      const c = { marca, nome: def.name, svc, farmacia: svc.includes("varejo"), row, prev: temPrev ? prev : null, d, dp: temPrev ? dp : null, vazio, cmp: {}, missing: [] };
       c.cmp.vendas = cmp(row.vendas, temPrev ? prev.vendas : null);
       c.cmp.compras = cmp(row.compras, temPrev ? prev.compras : null);
       c.cmp.ticket = cmp(d.ticket, temPrev ? dp.ticket : null);
@@ -192,8 +194,8 @@
       if (vazio) c.missing.push("Nenhum número informado neste período");
       else {
         if (c.farmacia) { if (row.vendas == null) c.missing.push("Vendas do período (PDF analítico)"); if (tipo === "semana" && row.dias.some(v => v == null)) c.missing.push("Vendas de todos os 7 dias"); }
-        if (!anyVal(row.ig)) c.missing.push("Instagram"); if (!anyVal(row.fb)) c.missing.push("Facebook");
-        if (!anyVal(row.ads)) c.missing.push("Meta Ads (se houve anúncio na semana)");
+        if (svc.includes("redes")) { if (!anyVal(row.ig)) c.missing.push("Instagram"); if (!anyVal(row.fb)) c.missing.push("Facebook"); }
+        if (svc.includes("trafego") && !anyVal(row.ads)) c.missing.push("Meta Ads (se houve anúncio na semana)");
         if (!temPrev) c.missing.push(`${tipo === "mes" ? "Mês" : "Semana"} anterior (${prevPer.label}): sem base de comparação`);
       }
       return c;
@@ -206,7 +208,7 @@
     const missing = clients.flatMap(c => c.missing.map(m => `${c.nome}: ${m}`));
     const first = signals.find(s => s.classe === "CORRIGIR") || signals.find(s => s.classe === "TESTAR");
     return { period: per, prevPeriod: prevPer, holidays, clients, total, gen, signals, missing, suggestion: first ? `${first.nome} · ${first.canal}: ${first.titulo}. ${first.texto}` : null,
-      eficiencia: PHARMA.map(m => clients.find(c => c.marca === m)).filter(c => c && c.d.igPorMil != null).map(c => ({ marca: c.marca, nome: c.nome, porMil: c.d.igPorMil })) };
+      eficiencia: clients.filter(c => c.farmacia && c.d.igPorMil != null).map(c => ({ marca: c.marca, nome: c.nome, porMil: c.d.igPorMil })) };
   }
 
   /* série para gráficos de evolução: últimos k períodos até "inicio" */
@@ -218,5 +220,5 @@
   const periodsWith = (weeks, tipo) => [...new Set(weeks.filter(r => r.tipo === tipo).map(r => r.inicio))].sort();
 
   root.N7Analysis = { period, prevStart, nextStart, lastClosed, holidaysIn, norm, derive, sameWeekdays, analyze, series, periodsWith, hasData,
-    fmt: { brl, int, dec, pctTxt, short, dm }, NAMES, SOCIAL, SOCIAL_NAME, ADS, ADS_NAME, PHARMA, DOW, POP, HOLIDAYS, mondayOf, parse, iso, addDays };
+    fmt: { brl, int, dec, pctTxt, short, dm }, NAMES, DEFAULT_CLIENTS, SOCIAL, SOCIAL_NAME, ADS, ADS_NAME, PHARMA, DOW, POP, HOLIDAYS, mondayOf, parse, iso, addDays };
 })(typeof window !== "undefined" ? window : globalThis);

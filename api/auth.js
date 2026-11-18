@@ -22,7 +22,7 @@ module.exports = handle(async (req, res) => {
     if (!s) return send(res, 401, NO_LOGIN(c));
     const u = await findUser(getRepo(), s.email);               /* confere se o acesso continua ativo */
     if (!u) return send(res, 401, NO_LOGIN(c));
-    return send(res, 200, { user: u });
+    return startSession(res, u, c);                             /* renova o cookie com o acesso atual */
   }
 
   if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido' });
@@ -32,7 +32,7 @@ module.exports = handle(async (req, res) => {
 
   if (action === 'dev') {
     if (!c.devEmail) return send(res, 404, { error: 'Indisponível' });
-    const u = await findUser(getRepo(), c.devEmail) || { email: c.devEmail, nome: 'Desenvolvimento', papel: 'admin' };
+    const u = await findUser(getRepo(), c.devEmail) || { email: c.devEmail, nome: 'Desenvolvimento', papel: 'admin', tipo: 'equipe', empresas: [] };
     return startSession(res, u, c);
   }
 
