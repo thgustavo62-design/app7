@@ -132,7 +132,12 @@
     cart: '<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l3 12h11l2-8H6"/>',
     ext: '<path d="M14 3h7v7M10 14 21 3M21 14v7H3V3h7"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-    sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>'
+    sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+    layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
+    users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.4c1.9.8 3 2.8 3 5.6"/>',
+    shield: '<path d="M12 3 4 6v6c0 4.5 3.2 7.8 8 9 4.8-1.2 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/>',
+    spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/>',
+    bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>'
   };
   const ico = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]}</svg>`;
   const banner = (icon, title, sub, right = "") => `<div class="panel-banner"><span class="tile">${ico(icon)}</span><div><h3>${title}</h3>${sub ? `<small>${sub}</small>` : ""}</div>${right ? `<div class="right">${right}</div>` : ""}</div>`;
@@ -171,7 +176,8 @@
   }
   /* ajudantes da Central de Inteligência: dados do site entregues às funções puras do brain.js */
   const brainHelpers = () => ({ ico, banner, toast, esc, store, canWrite: CAN_WRITE, today: TODAY_ISO,
-    input: () => ({ today: TODAY_ISO, clients: CLIENTS.map(c => ({ key: c.key, name: c.name, services: c.services })), posts: posts(), weeks: allWeeks(), gens: store.get("weekGen", []), decisions: store.get("decisions", []),
+    input: () => ({ today: TODAY_ISO, clients: CLIENTS.map(c => ({ key: c.key, id: c.id, name: c.name, services: c.services })), posts: posts(), weeks: allWeeks(), gens: store.get("weekGen", []), decisions: store.get("decisions", []),
+      ideas: F.getIdeas(), slots: F.getFlow().slots, checks,
       needsClient: p => { const st = F.approvalState(p.code, p.b); return st.needs.includes("client") && !st.rec.client; }, planSource: D.PLAN_SOURCE }),
     go: (route, brand, ideas) => { if (brand) prefs.kbrand = brand; if (ideas) prefs.kview = "ideias"; if (brand || ideas) savePrefs(); location.hash = "#" + route; } });
   const settingsCtx = () => ({ REG, ME, clients: () => CLIENTS, banner, ico, toast, esc, reload: reloadRegistry });
