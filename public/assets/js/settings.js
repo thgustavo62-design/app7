@@ -93,13 +93,13 @@
         <div class="panel-body" style="padding-bottom:0"><div class="toolbar"><label class="lbl" for="u-filter" style="margin:0">Mostrar</label><select id="u-filter"><option value="all">Todos os usuários</option><option value="equipe" ${ui.filter === "equipe" ? "selected" : ""}>Só equipe da Nova7</option>${clients.map(c => `<option value="${C.esc(c.key)}" ${ui.filter === c.key ? "selected" : ""}>Quem acessa ${C.esc(c.name)}</option>`).join("")}</select></div></div>
         <div class="table-wrap"><table><thead><tr><th>Usuário</th><th>Tipo</th><th>Acesso</th><th>Empresas</th><th>Situação</th><th></th></tr></thead><tbody>
         ${list.map(u => `<tr class="${u.ativo ? "" : "inactive"}"><td><b>${C.esc(u.nome)}</b><div class="src">${C.esc(u.email)}</div></td><td>${u.tipo === "cliente" ? "Cliente" : "Equipe Nova7"}</td>
-          <td>${u.tipo === "cliente" ? "Aprova e acompanha" : C.esc({ admin: "Administrador", editor: "Editor", leitura: "Leitura" }[u.papel] || u.papel)}</td><td>${empresasTxt(u)}</td><td>${u.ativo ? `<span class="badge st-pub">ativo</span>` : `<span class="badge">desativado</span>`}</td>
+          <td>${u.tipo === "cliente" ? "Aprova e acompanha" : C.esc({ admin: "Administrador", editor: "Editor", leitura: "Leitura" }[u.papel] || u.papel)}</td><td>${empresasTxt(u)}</td><td>${u.ativo ? `<span class="badge st-pub">ativo</span>` : `<span class="badge">desativado</span>`}${u.ativo && u.senhaPadrao ? ` <span class="badge p1" title="Ainda não criou a própria senha">senha padrão</span>` : ""}</td>
           <td style="text-align:right"><button type="button" class="btn sm" data-edit-user="${C.esc(u.email)}">Editar</button></td></tr>`).join("") || `<tr><td colspan="6"><div class="empty">Nenhum usuário neste filtro.</div></td></tr>`}
         </tbody></table></div></div>
       ${ed ? `<div class="panel">${C.banner("file", cur ? `Editar ${C.esc(cur.nome)}` : "Novo usuário", "o acesso vale no próximo login ou ao recarregar a página")}
         <form class="panel-body cfg-form" id="u-form" autocomplete="off" novalidate>
           <div class="form-row"><div><label class="lbl" for="uf-name">Nome</label><input type="text" id="uf-name" maxlength="80" value="${C.esc(f.nome)}" required></div>
-            <div><label class="lbl" for="uf-email">E-mail da conta Google</label><input type="email" id="uf-email" maxlength="120" value="${C.esc(f.email)}" ${cur ? "readonly" : ""} required></div></div>
+            <div><label class="lbl" for="uf-email">E-mail (usado para entrar)</label><input type="email" id="uf-email" maxlength="120" value="${C.esc(f.email)}" ${cur ? "readonly" : ""} required></div></div>
           <div><span class="lbl">Tipo de usuário</span><div class="svc-pick" role="radiogroup" aria-label="Tipo">
             <label style="--svc:var(--c1)"><input type="radio" name="tipo" value="equipe" ${f.tipo === "equipe" ? "checked" : ""}><span><b>Equipe da Nova7</b><small>Trabalha no sistema. Vê todas as empresas ou só as marcadas.</small></span></label>
             <label style="--svc:var(--c3)"><input type="radio" name="tipo" value="cliente" ${f.tipo === "cliente" ? "checked" : ""}><span><b>Usuário do cliente</b><small>Vê só a própria empresa: o que está sendo feito, e aprova ou pede ajustes nas pautas.</small></span></label></div></div>
@@ -108,7 +108,7 @@
             <p class="src" id="uf-emp-hint"></p></div>
           ${cur ? `<label class="check"><input type="checkbox" id="uf-active" ${f.ativo ? "checked" : ""}> Usuário ativo (desmarque para bloquear o acesso)</label>` : ""}
           <p class="login-err" id="u-err" role="alert" style="display:none"></p>
-          <div class="cfg-actions"><button type="submit" class="btn primary">Salvar usuário</button><button type="button" class="btn" id="u-cancel">Cancelar</button>${cur ? `<button type="button" class="btn" id="u-del" style="margin-left:auto">Remover usuário</button>` : ""}</div>
+          <div class="cfg-actions"><button type="submit" class="btn primary">Salvar usuário</button><button type="button" class="btn" id="u-cancel">Cancelar</button>${cur ? `<button type="button" class="btn" id="u-reset" title="A pessoa volta a entrar com a senha padrão e cria uma nova">Redefinir senha</button>` : ""}${cur ? `<button type="button" class="btn" id="u-del" style="margin-left:auto">Remover usuário</button>` : ""}</div>
         </form></div>` : ""}`;
     const go = key => { ui.edit = { kind: "user", key }; render(v, v.dataset.sub, C); };
     $("#u-filter", v).onchange = e => { ui.filter = e.target.value; render(v, v.dataset.sub, C); };
@@ -131,6 +131,11 @@
       try { await mutate(Object.assign(base(), { op: "upsert", ativo: cur ? ($("#uf-active", v).checked ? "sim" : "nao") : "sim" })); ui.edit = null; await C.reload(); C.toast(cur ? "Usuário salvo" : "Usuário cadastrado"); }
       catch (x) { fail(x); }
     };
+    const rs = $("#u-reset", v);
+    if (rs) { let armed = false; rs.onclick = async () => {
+      if (!armed) { armed = true; rs.textContent = "Confirmar: redefinir"; setTimeout(() => { armed = false; rs.textContent = "Redefinir senha"; }, 4000); return; }
+      try { await mutate(Object.assign(base(), { op: "upsert", resetSenha: true, ativo: $("#uf-active", v).checked ? "sim" : "nao" })); ui.edit = null; await C.reload(); C.toast("Senha redefinida: a pessoa entra com a senha padrão e cria uma nova"); } catch (x) { fail(x); }
+    }; }
     const del = $("#u-del", v);
     if (del) { let armed = false; del.onclick = async () => {
       if (!armed) { armed = true; del.textContent = "Confirmar: remover"; setTimeout(() => { armed = false; del.textContent = "Remover usuário"; }, 4000); return; }

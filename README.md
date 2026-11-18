@@ -131,3 +131,7 @@ Método adaptado do repositório aberto [digital-marketing-pro](https://github.c
 - O servidor foi testado com respostas simuladas do Google e com dados em memória. O primeiro deploy real precisa do teste de fumaça do guia de publicação.
 - Campo Forte e Nova7 Produtora ainda não têm métricas exportadas da Meta no Drive.
 - Os horários livres só conhecem 5 datas de atenção (`HOLIDAYS` em `public/assets/js/workflow.js`).
+
+## Login por e-mail e senha
+
+A tela de entrada aceita **e-mail e senha** (e, se `GOOGLE_CLIENT_ID` estiver configurado, também o login com Google). Todo usuário cadastrado começa com a **senha padrão** (variável `SENHA_PADRAO` na Vercel) e é **obrigado a criar a própria senha no primeiro acesso**; depois disso a senha padrão deixa de valer para ele. O servidor guarda só o hash (`scrypt`) na coluna `senha_hash` da aba `Usuarios`, bloqueia a conta por 15 minutos depois de 5 erros seguidos e não revela se o e-mail existe. Enquanto a senha não é trocada, `/api/state`, `/api/data` e `/api/mutate` respondem 403. Em **Configurações → Usuários**, o administrador vê quem ainda está na senha padrão e pode **redefinir a senha** de alguém (a pessoa volta à senha padrão e cria outra).

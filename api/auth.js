@@ -4,9 +4,10 @@ const session = require('../lib/session');
 const { verifyIdToken } = require('../lib/googleid');
 const { getRepo } = require('../lib/db');
 const { findUser } = require('../lib/model');
+const { checkPassword, setPassword } = require('../lib/login-senha');
 const { send, readJson, query, sameSiteRequest, currentUser, handle } = require('../lib/http');
 
-const NO_LOGIN = c => ({ error: 'login', login: { clientId: c.clientId, dev: !!c.devEmail } });
+const NO_LOGIN = c => ({ error: 'login', login: { clientId: c.clientId, dev: !!c.devEmail, password: true } });
 
 function startSession(res, user, c) {
   const token = session.create(user, c.sessionSecret, c.sessionTtl);
@@ -22,6 +23,7 @@ module.exports = handle(async (req, res) => {
     if (!s) return send(res, 401, NO_LOGIN(c));
     const u = await findUser(getRepo(), s.email);               /* confere se o acesso continua ativo */
     if (!u) return send(res, 401, NO_LOGIN(c));
+    if (s.trocar) u.trocar = true;                              /* primeiro acesso: ainda precisa criar a senha */
     return startSession(res, u, c);                             /* renova o cookie com o acesso atual */
   }
 
@@ -29,6 +31,22 @@ module.exports = handle(async (req, res) => {
   if (!sameSiteRequest(req)) return send(res, 403, { error: 'Pedido de origem desconhecida' });
 
   if (action === 'logout') return send(res, 200, { ok: true }, { 'Set-Cookie': session.clearCookie(c.hosted) });
+
+  if (action === 'password') {
+    const body = await readJson(req);
+    const r = await checkPassword(getRepo(), body.email, body.senha, c);
+    if (r.error) return send(res, r.status, { error: r.error });
+    return startSession(res, r.user, c);
+  }
+
+  if (action === 'setpassword') {
+    const s = currentUser(req);
+    if (!s) return send(res, 401, NO_LOGIN(c));
+    const body = await readJson(req);
+    const r = await setPassword(getRepo(), s, body.nova, body.atual, c);
+    if (r.error) return send(res, r.status, { error: r.error });
+    return startSession(res, r.user, c);
+  }
 
   if (action === 'dev') {
     if (!c.devEmail) return send(res, 404, { error: 'Indisponível' });

@@ -381,3 +381,66 @@ test('chave da conta de serviço: aceita JSON normal, com quebras de linha colad
   const cortada = normal.replace(/(BEGIN PRIVATE KEY-----\\n)[\s\S]{40}[\s\S]*?(\\n-----END)/, '$1MIIEv$2');
   assert.throws(() => ok(cortada), /corrompida|incompleta/);
 });
+
+/* ---------- login por e-mail e senha ---------- */
+test('senha: padrão no primeiro acesso, troca obrigatória, regras, bloqueio e redefinição pelo administrador', async () => {
+  const { checkPassword, setPassword, MAX_TRIES, LOCK_MS } = require('../lib/login-senha');
+  const seed = require('../lib/seed').build({ devEmail: 'dev@agencia.test' });
+  const repo = () => new Repo(d), d = new MemoryDriver(seed);
+  const c = { defaultPassword: 'Padrao@2026' };
+  const email = 'dev@agencia.test';
+  const wrong = await checkPassword(repo(), email, 'errada', c); assert.equal(wrong.status, 401);
+  const ghost = await checkPassword(repo(), 'ninguem@x.com', 'errada', c); assert.equal(ghost.error, wrong.error, 'não revela se o e-mail existe');
+  const first = await checkPassword(repo(), ' Dev@Agencia.test ', 'Padrao@2026', c);
+  assert.equal(first.user.trocar, true); assert.equal(first.user.papel, 'admin');
+  assert.match((await setPassword(repo(), first.user, 'curta1', '', c)).error, /8 caracteres/);
+  assert.match((await setPassword(repo(), first.user, 'Padrao@2026', '', c)).error, /diferente da senha padrão/);
+  assert.match((await setPassword(repo(), first.user, 'somenteletras', '', c)).error, /letras e números/);
+  const done = await setPassword(repo(), first.user, 'MinhaSenha9', '', c); assert.ok(!done.user.trocar);
+  assert.match((await repo().rows('Usuarios'))[0].senha_hash, /^s1\$/, 'guarda só o hash');
+  assert.ok(!JSON.stringify(await repo().rows('Usuarios')).includes('MinhaSenha9'));
+  assert.equal((await checkPassword(repo(), email, 'Padrao@2026', c)).status, 401, 'a senha padrão deixa de valer');
+  const ok = await checkPassword(repo(), email, 'MinhaSenha9', c); assert.ok(ok.user && !ok.user.trocar);
+  assert.match((await setPassword(repo(), ok.user, 'OutraSenha8', 'errada1', c)).error, /atual não confere/);
+  assert.ok((await setPassword(repo(), ok.user, 'OutraSenha8', 'MinhaSenha9', c)).user, 'troca com a atual');
+  /* bloqueio */
+  const t0 = Date.now();
+  for (let i = 1; i < MAX_TRIES; i++) assert.equal((await checkPassword(repo(), email, 'x' + i, c, t0)).status, 401);
+  const lock = await checkPassword(repo(), email, 'x9', c, t0); assert.equal(lock.status, 429); assert.match(lock.error, /bloqueada/);
+  assert.equal((await checkPassword(repo(), email, 'OutraSenha8', c, t0 + 60e3)).status, 429, 'nem a senha certa entra bloqueado');
+  assert.ok((await checkPassword(repo(), email, 'OutraSenha8', c, t0 + LOCK_MS + 1000)).user, 'depois do prazo volta a valer');
+  /* administrador redefine: volta para a senha padrão */
+  const adm = { email: 'dev@agencia.test', nome: 'Dev', papel: 'admin', tipo: 'equipe', empresas: [] };
+  await model.applyOps(repo(), [{ t: 'user', op: 'upsert', email: 'ana@agencia.com', nome: 'Ana', tipo: 'equipe', papel: 'editor' }], adm);
+  const ana1 = await checkPassword(repo(), 'ana@agencia.com', 'Padrao@2026', c); assert.equal(ana1.user.trocar, true, 'usuário novo entra com a senha padrão');
+  await setPassword(repo(), ana1.user, 'SenhaDaAna1', '', c);
+  const reg = await model.loadRegistry(repo(), adm); assert.equal(reg.users.find(u => u.email === 'ana@agencia.com').senhaPadrao, false);
+  await model.applyOps(repo(), [{ t: 'user', op: 'upsert', email: 'ana@agencia.com', nome: 'Ana', tipo: 'equipe', papel: 'editor', resetSenha: true }], adm);
+  assert.equal((await checkPassword(repo(), 'ana@agencia.com', 'Padrao@2026', c)).user.trocar, true);
+  assert.equal((await model.loadRegistry(repo(), adm)).users.find(u => u.email === 'ana@agencia.com').senhaPadrao, true);
+  /* sem a variável SENHA_PADRAO configurada, avisa em vez de aceitar qualquer coisa */
+  await assert.rejects(checkPassword(repo(), 'ana@agencia.com', 'qualquer', {}), /SENHA_PADRAO/);
+});
+
+test('rotas de senha: primeiro acesso bloqueia os dados até criar a senha; depois entra normal', async () => {
+  db._resetMemory();
+  const { createServer } = require('../dev-server');
+  const srv = createServer(); await new Promise(rs => srv.listen(0, rs));
+  const base = 'http://localhost:' + srv.address().port; let cookie = '';
+  const call = async (p, body) => { const res = await fetch(base + p, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-n7': '1', cookie }, body: body ? JSON.stringify(body) : undefined }); const sc = res.headers.get('set-cookie'); if (sc && /n7_session=[^;]+/.test(sc) && !/Max-Age=0/.test(sc)) cookie = sc.split(';')[0]; const t = await res.text(); let j = null; try { j = JSON.parse(t); } catch (e) { /* script */ } return { status: res.status, json: j }; };
+  try {
+    const padrao = require('../lib/config').cfg().defaultPassword;
+    assert.equal((await call('/api/auth?action=me')).json.login.password, true, 'a tela de login sabe que há senha');
+    assert.equal((await call('/api/auth?action=password', { email: 'dev@local', senha: 'errada' })).status, 401);
+    const l = await call('/api/auth?action=password', { email: 'dev@local', senha: padrao }); assert.equal(l.status, 200); assert.equal(l.json.user.trocar, true);
+    assert.equal((await call('/api/state')).json.error, 'trocar_senha'); assert.equal((await call('/api/data')).status, 403);
+    assert.equal((await call('/api/mutate', { ops: [{ t: 'goal', key: 'M-sales', value: 1 }] })).status, 403);
+    assert.equal((await call('/api/auth?action=me')).json.user.trocar, true, 'continua pedindo a troca ao recarregar');
+    assert.equal((await call('/api/auth?action=setpassword', { nova: '123' })).status, 400);
+    const s = await call('/api/auth?action=setpassword', { nova: 'SenhaNova77' }); assert.equal(s.status, 200); assert.ok(!s.json.user.trocar);
+    assert.equal((await call('/api/state')).status, 200); assert.equal((await call('/api/data')).status, 200);
+    cookie = '';
+    assert.equal((await call('/api/auth?action=setpassword', { nova: 'SenhaNova77' })).status, 401, 'sem login não troca senha');
+    assert.equal((await call('/api/auth?action=password', { email: 'dev@local', senha: 'SenhaNova77' })).json.user.trocar, undefined);
+  } finally { srv.close(); db._resetMemory(); }
+});
