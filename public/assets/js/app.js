@@ -185,10 +185,20 @@
       ${ops.length ? `<div class="nav-group">Operação</div>${ops.map(([id, ic, name, extra]) => `<a class="nav-item" href="#${id}">${ico(ic)}<span>${name}</span>${extra}</a>`).join("")}` : ""}
       ${IS_ADMIN ? `<div class="nav-group">Sistema</div><a class="nav-item" href="#config">${ico("sliders")}<span>Configurações</span></a>` : ""}`;
   }
+  /* barra de abas do celular (a navegação completa fica em "Mais") */
+  function renderTabbar(active) {
+    const tb = $("#tabbar"); if (!tb) return;
+    const items = [["painel", "home", "Painel"]];
+    if (ACCESS.calendario()) items.push(["calendario", "cal", "Calendário"]);
+    if (ACCESS.semana()) items.push(["semana", "file", "Semana"]);
+    if (ACCESS.insights()) items.push(["insights", "chart", "Insights"]);
+    tb.innerHTML = items.slice(0, 4).map(([id, ic, name]) => `<a class="tab" href="#${id}"${active === id ? ' aria-current="page"' : ""}>${ico(ic)}<span>${name}</span></a>`).join("") +
+      `<button type="button" class="tab" data-more aria-label="Abrir o menu completo">${ico("list")}<span>Mais</span></button>`;
+  }
   function route() {
     const [id, sub] = (location.hash || "#painel").slice(1).split("/");
     const r = allowedRoute(id) ? id : "painel";
-    renderNav();
+    renderNav(); renderTabbar(r);
     $$("#nav .nav-item").forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + r));
     $("#crumb").innerHTML = `Central Nova7 › <b>${esc(ROUTES[r].title)}</b>`;
     document.title = ROUTES[r].title === "Painel" ? "Central Nova7" : `${ROUTES[r].title} · Central Nova7`;
@@ -1187,6 +1197,7 @@
   function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => { t.hidden = true; }, 2600); }
 
   /* ---------- inicialização ---------- */
+  $("#tabbar").addEventListener("click", e => { if (e.target.closest("[data-more]")) $(".shell").classList.toggle("nav-open"); });
   $("#menu-btn").addEventListener("click", () => $(".shell").classList.toggle("nav-open"));
   $(".sidebar").addEventListener("click", e => { if (e.target.closest(".nav-item")) $(".shell").classList.remove("nav-open"); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") $(".shell").classList.remove("nav-open"); });

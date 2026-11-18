@@ -135,3 +135,17 @@ Método adaptado do repositório aberto [digital-marketing-pro](https://github.c
 ## Login por e-mail e senha
 
 A tela de entrada aceita **e-mail e senha** (e, se `GOOGLE_CLIENT_ID` estiver configurado, também o login com Google). Todo usuário cadastrado começa com a **senha padrão** (variável `SENHA_PADRAO` na Vercel) e é **obrigado a criar a própria senha no primeiro acesso**; depois disso a senha padrão deixa de valer para ele. O servidor guarda só o hash (`scrypt`) na coluna `senha_hash` da aba `Usuarios`, bloqueia a conta por 15 minutos depois de 5 erros seguidos e não revela se o e-mail existe. Enquanto a senha não é trocada, `/api/state`, `/api/data` e `/api/mutate` respondem 403. Em **Configurações → Usuários**, o administrador vê quem ainda está na senha padrão e pode **redefinir a senha** de alguém (a pessoa volta à senha padrão e cria outra).
+
+## App no celular (PWA)
+
+O site é um **PWA**: dá para instalar na tela inicial do celular e abre em tela cheia, como app.
+
+- **Android (Chrome):** abra o site, toque em **Instalar app** (no menu "Mais") ou em ⋮ → *Instalar app*.
+- **iPhone (Safari):** toque em Compartilhar → *Adicionar à Tela de Início*.
+- **No celular:** barra de abas embaixo (Painel, Calendário, Semana, Insights e Mais), topo compacto, indicadores em 2 colunas, filtros que rolam de lado e campos sem o zoom automático do iPhone.
+- **Sem internet** o app abre e avisa "Sem conexão". **Nenhum dado de `/api/` é guardado no aparelho**: só o casco do app (HTML, CSS, JS e ícones). Para publicar uma versão nova do casco que force a troca, mude `VERSION` em `public/sw.js`; o app avisa "Há uma versão nova" e atualiza com um toque.
+- Os ícones saem do símbolo da marca (128 px); com um arquivo vetorial (SVG) ficam ainda mais nítidos.
+
+## Calendário ao vivo e fontes de dados
+
+O plano de pautas é **lido da aba PRODUÇÃO CENTRAL** da planilha Central editorial (cache de 5 minutos; empresa, datas, etapas, status e nota vêm de lá). Se a leitura falhar, o site continua com a cópia embutida (`private/data.js`) e mostra o motivo. **Configurações → Fontes de dados** mostra o estado, as contagens e as linhas que não puderam ser importadas, com o botão *Ler agora*. A planilha precisa estar compartilhada com a conta de serviço; para outra planilha, defina `CENTRAL_SHEET_ID`.
