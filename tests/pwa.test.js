@@ -1,4 +1,4 @@
-﻿// PWA: manifesto, ícones, service worker (nunca guarda /api/), cabeçalhos e ligação no app.html.
+// PWA: manifesto, ícones, service worker (nunca guarda /api/), cabeçalhos e ligação no app.html.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs'), path = require('path');

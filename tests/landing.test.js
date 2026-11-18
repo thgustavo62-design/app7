@@ -7,7 +7,7 @@ const read = p => fs.readFileSync(pub(p), 'utf8');
 const html = read('index.html');
 
 test('landing: título, descrição, um único h1, idioma e imagem de compartilhamento com o tamanho certo', () => {
-  assert.match(html, /<html lang="pt-BR">/); assert.match(html, /<title>[^<]{20,80}<\/title>/); assert.match(html, /<meta name="description" content="[^"]{80,200}"/);
+  assert.match(html, /<html lang="pt-BR">/); assert.match(html, /<title>[^<]{20,80}<\/title>/); assert.match(html, /<meta name="description" content="[^"]{80,165}"/);
   assert.equal((html.match(/<h1[ >]/g) || []).length, 1);
   assert.match(html, /name="robots" content="index, follow"/);
   const og = fs.readFileSync(pub('assets/brand/og-nova7.png')); assert.equal(og.readUInt32BE(16), 1200); assert.equal(og.readUInt32BE(20), 630);
@@ -59,4 +59,11 @@ test('landing: segue o manual (Montserrat, assinatura, cores) e a galeria de fot
   list.forEach(p => { assert.match(p.src, /^[\w./-]+\.(jpe?g|png|webp|avif)$/i); assert.ok(fs.existsSync(pub('assets/photos/' + p.src)), `${p.src} existe`); });
   assert.ok(/id="bastidores"[^>]*\shidden/.test(html), 'a seção de fotos começa escondida');
   assert.ok(html.includes('<symbol id="n7"'), 'o 7 da marca em vetor');
+});
+
+test('arquivos públicos de texto não têm BOM (um BOM no início do robots.txt invalida a primeira regra)', () => {
+  ['robots.txt', 'manifest.webmanifest', 'assets/photos/photos.json', 'sw.js', 'index.html', 'app.html'].forEach(f => {
+    const b = fs.readFileSync(pub(f)); assert.ok(!(b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF), `${f} sem BOM`);
+  });
+  assert.match(read('robots.txt'), /^User-agent: \*/);
 });
