@@ -25,11 +25,9 @@
   const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 
   /* ---------- armazenamento local (por navegador) ---------- */
-  const store = {
-    get(key, fb) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fb; } catch (e) { return fb; } },
-    set(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); return true; } catch (e) { return false; } }
-  };
-  const KB_KEY = "nova7-kanban-v1", GOAL_KEY = "nova7-metas-v1", PREF_KEY = "nova7-prefs-v1", CHECK_KEY = "nova7-checagem-v1";
+  /* armazenamento sincronizado com o servidor (store.js); "prefs" fica só neste navegador */
+  const store = window.N7Store;
+  const KB_KEY = "overrides", GOAL_KEY = "goals", PREF_KEY = "prefs", CHECK_KEY = "checks";
   const PB = window.N7_PLAYBOOK;
   const F = window.N7Flow;
   let checks = store.get(CHECK_KEY, {});

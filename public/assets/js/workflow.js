@@ -7,13 +7,12 @@
    AGPL-3.0): só as ideias de produto; o código é próprio.
    ===================================================================== */
 (function (root) {
-  const KEYS = { flow: "nova7-fluxo-v1", ideas: "nova7-ideias-v1", approvals: "nova7-aprovacoes-v1", custom: "nova7-pautas-v1" };
-  const mem = {};
-  const store = {
-    get(k, fb) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : (k in mem ? mem[k] : fb); } catch (e) { return k in mem ? mem[k] : fb; } },
-    set(k, v) { mem[k] = v; try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
-  };
+  /* chaves do N7Store; "user" é só deste navegador */
+  const KEYS = { flow: "flow", ideas: "ideas", events: "events", custom: "custom", user: "user" };
+  const S = () => root.N7Store;
+  const store = { get: (k, fb) => S().get(k, fb), set: (k, v) => S().set(k, v) };
   const clone = o => JSON.parse(JSON.stringify(o));
+  const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
   /* ---------- datas (locais, sem fuso) ---------- */
   const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -46,42 +45,50 @@
   function getFlow() {
     const saved = store.get(KEYS.flow, {}) || {};
     const d = clone(DEFAULT_FLOW);
-    return { user: saved.user || "", policy: Object.assign(d.policy, saved.policy || {}), slots: Object.assign(d.slots, saved.slots || {}) };
+    return { user: store.get(KEYS.user, "") || "", policy: Object.assign(d.policy, saved.policy || {}), slots: Object.assign(d.slots, saved.slots || {}) };
   }
-  const saveFlow = f => store.set(KEYS.flow, f);
+  function saveFlow(f) {
+    store.set(KEYS.user, f.user || "");
+    return store.set(KEYS.flow, { policy: f.policy, slots: f.slots });
+  }
   const defaultSlots = b => clone(DEFAULT_FLOW.slots[b] || []);
 
-  /* ---------- aprovações ---------- */
+  /* ---------- aprovações: registro de eventos ---------- */
   const emptyRec = () => ({ internal: null, client: null, comments: [], history: [] });
-  const allApprovals = () => store.get(KEYS.approvals, {}) || {};
-  const recOf = code => Object.assign(emptyRec(), allApprovals()[code] || {});
-  function saveRec(code, rec) { const all = allApprovals(); all[code] = rec; store.set(KEYS.approvals, all); }
+  const events = () => store.get(KEYS.events, []) || [];
+  function foldRec(list) {
+    const r = emptyRec();
+    list.forEach(e => {
+      const kn = (KIND_NAME[e.kind] || e.kind), kl = kn.toLowerCase();
+      if (e.act === "aprovou") { r[e.kind] = { by: e.by, at: e.at }; r.history.push({ at: e.at, text: `Aprovação ${kl} registrada por ${e.by}.` }); }
+      else if (e.act === "reabriu") { const prev = r[e.kind]; r.history.push({ at: e.at, text: `Aprovação ${kl} reaberta${e.by ? " por " + e.by : ""}${prev ? ` (era de ${prev.by})` : ""}.` }); r[e.kind] = null; }
+      else if (e.act === "pediu_ajustes") { r[e.kind] = null; r.comments.push({ kind: e.kind, by: e.by, at: e.at, text: e.text, change: true }); r.history.push({ at: e.at, text: `${kn}: ${e.by} pediu ajustes.` }); }
+      else if (e.act === "comentou") { r.comments.push({ kind: e.kind, by: e.by, at: e.at, text: e.text }); r.history.push({ at: e.at, text: `Comentário ${kl} de ${e.by}.` }); }
+    });
+    return r;
+  }
+  const recOf = code => foldRec(events().filter(e => e.code === code));
   const stamp = now => now || new Date().toISOString();
+  function addEvent(code, kind, act, by, text, now) {
+    const list = events(); list.push({ id: newId("e-"), code, kind, act, by, at: stamp(now), text: text || "" });
+    store.set(KEYS.events, list);
+  }
   function approve(code, kind, by, now) {
     by = String(by || "").trim(); if (!by) return { ok: false, msg: "Informe o nome de quem está aprovando." };
-    const r = recOf(code), at = stamp(now);
-    r[kind] = { by, at }; r.history.push({ at, text: `Aprovação ${KIND_NAME[kind].toLowerCase()} registrada por ${by}.` });
-    saveRec(code, r); return { ok: true };
+    addEvent(code, kind, "aprovou", by, "", now); return { ok: true };
   }
   function revoke(code, kind, by, now) {
-    const r = recOf(code); if (!r[kind]) return { ok: false, msg: "Não há aprovação para reabrir." };
-    const at = stamp(now); r.history.push({ at, text: `Aprovação ${KIND_NAME[kind].toLowerCase()} reaberta${by ? " por " + by : ""} (era de ${r[kind].by}).` });
-    r[kind] = null; saveRec(code, r); return { ok: true };
+    if (!recOf(code)[kind]) return { ok: false, msg: "Não há aprovação para reabrir." };
+    addEvent(code, kind, "reabriu", String(by || "").trim(), "", now); return { ok: true };
   }
   function requestChanges(code, kind, by, text, now) {
     text = String(text || "").trim(); by = String(by || "").trim();
     if (!text) return { ok: false, msg: "Escreva o que precisa mudar no campo de comentário." };
-    const r = recOf(code), at = stamp(now), who = by || KIND_NAME[kind];
-    r[kind] = null; r.comments.push({ kind, by: who, at, text, change: true });
-    r.history.push({ at, text: `${KIND_NAME[kind]}: ${who} pediu ajustes.` });
-    saveRec(code, r); return { ok: true };
+    addEvent(code, kind, "pediu_ajustes", by || KIND_NAME[kind], text, now); return { ok: true };
   }
   function comment(code, kind, by, text, now) {
     text = String(text || "").trim(); if (!text) return { ok: false, msg: "Escreva o comentário." };
-    const r = recOf(code), at = stamp(now);
-    r.comments.push({ kind, by: String(by || "").trim() || KIND_NAME[kind], at, text });
-    r.history.push({ at, text: `Comentário ${KIND_NAME[kind].toLowerCase()} de ${String(by || "").trim() || KIND_NAME[kind]}.` });
-    saveRec(code, r); return { ok: true };
+    addEvent(code, kind, "comentou", String(by || "").trim() || KIND_NAME[kind], text, now); return { ok: true };
   }
   function approvalState(code, brand, flow) {
     flow = flow || getFlow();
@@ -176,6 +183,6 @@
     getIdeas, addIdea, updateIdea, removeIdea,
     getCustom, promote, removeCustom,
     _iso: iso, _parse: parse, _addDays: addDays,
-    _reset() { Object.keys(mem).forEach(k => delete mem[k]); try { Object.values(KEYS).forEach(k => localStorage.removeItem(k)); } catch (e) { } }
+    _reset() { S().reset(); }
   };
 })(typeof window !== "undefined" ? window : globalThis);

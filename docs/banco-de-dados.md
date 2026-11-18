@@ -31,6 +31,9 @@ O ID da planilha não fica no repositório: vai na variável de ambiente `SHEET_
 
 `Ideias`, `Politicas`, `Horarios` e `Config` já vêm com os dados iniciais (4 ideias, 4 políticas, 12 horários).
 
-## Limites do Google Sheets API
+## Como o servidor usa a planilha
 
-60 leituras e 60 gravações por minuto por usuário e 300 por projeto. O servidor deve guardar leituras em cache por alguns segundos, ler e gravar em lote e tentar de novo com espera crescente quando receber erro 429.
+- Cada chamada de API lê cada aba no máximo uma vez (em uma única requisição `batchGet`) e mantém essa cópia atualizada enquanto grava. Uma gravação é uma chamada `update` (linha existente) ou `append` (linha nova); exclusão limpa a linha.
+- Gravações usam `valueInputOption=RAW`, e todas as células são texto: nada é convertido nem avaliado como fórmula.
+- Limites do Google Sheets API: 60 leituras e 60 gravações por minuto por usuário e 300 por projeto. Ao receber erro 429 ou 5xx, o servidor espera e tenta de novo (até 5 vezes, com espera crescente).
+- A planilha pode ter colunas extras e em outra ordem. Se faltar uma coluna esperada, o servidor recusa com uma mensagem que nomeia a aba e a coluna.

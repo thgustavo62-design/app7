@@ -2,7 +2,8 @@
 // Rodar: node --test tests/
 const test = require("node:test");
 const assert = require("node:assert/strict");
-require("../assets/js/workflow.js");
+require("../public/assets/js/store.js");
+require("../public/assets/js/workflow.js");
 const F = globalThis.N7Flow;
 const NOW = "2026-11-18T14:30:00.000Z";
 test.beforeEach(() => F._reset());
