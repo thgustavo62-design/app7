@@ -177,3 +177,13 @@ A tela `#cerebro` responde "o que fazer hoje" **sem nenhuma API de IA**: agentes
 - **Memória:** cada achado pode ser marcado como *Feito* (some hoje), *Adiar 2 dias* ou *Ignorar* (14 dias), gravado na aba `Decisoes` da planilha-banco. Se o problema continuar depois da data, ele volta.
 - **Painel:** mostra a decisão do dia num cartão no alto. Usuário cliente não vê a Central de Inteligência.
 - O Claude (API) é opcional e ainda não é usado; se for ligado depois, serve só para explicar em texto, sem mudar as regras. A parte da Meta (Windsor.ai) entra quando for conectada.
+
+### Fotos na landing (bastidores)
+
+A landing segue o manual de identidade da Nova7 (preto `#0B0C11`, grafite `#171927`, ciano `#38BCD8`, violeta `#7443D8`, Montserrat, "Mais que posts, direção."). Hoje ela é toda desenhada em CSS e SVG, com o "7" da marca em vetor. Para mostrar **fotos reais** (equipe, gravações, bastidores, cidade):
+
+1. Coloque os arquivos (`.jpg`, `.png`, `.webp`) em `public/assets/photos/` (até uns 400 KB cada; redimensione antes).
+2. Liste em `public/assets/photos/photos.json`: `[{ "src": "gravacao-1.jpg", "alt": "Gravação de Reels", "caption": "Bastidores de uma gravação" }]`.
+3. A seção **Bastidores** aparece sozinha quando a lista tem fotos. Sem fotos, ela fica escondida.
+
+**Não use fotos ou artes de clientes sem autorização** (regra do próprio manual); registre a autorização no ACERVO & AUTORIZAÇÃO.

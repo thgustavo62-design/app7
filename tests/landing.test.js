@@ -28,7 +28,7 @@ test('landing: nenhum script dentro do HTML (a política de segurança do site p
 });
 test('landing: não cita clientes nem promete números (autorização de case pendente)', () => {
   ['Minas Farma', 'Farma e Farma', 'Campo Forte', 'Minas Club', 'Farma Club'].forEach(n => assert.ok(!html.includes(n), `não cita ${n}`));
-  assert.ok(!/\d+\s?%/.test(html.replace(/style="[^"]*"/g, '')), 'sem percentuais de resultado inventados');
+  assert.ok(!/\d+\s?%/.test(html.replace(/<[^>]+>/g, ' ')), 'sem percentuais de resultado inventados');
 });
 test('landing: contato configurável em um só lugar e com plano B (WhatsApp, e-mail, Instagram)', () => {
   const js = read('assets/js/landing.js');
@@ -48,4 +48,15 @@ test('roteamento: o app fica em /app (sem indexação) e a raiz é pública; rob
 test('landing: WhatsApp configurado com DDI 55 e DDD 27, e o mesmo número no dado estruturado', () => {
   const js = read('assets/js/landing.js'); assert.match(js, /whatsapp: "5527997010954"/);
   assert.equal(JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]).telephone, '+5527997010954');
+});
+
+test('landing: segue o manual (Montserrat, assinatura, cores) e a galeria de fotos só aceita arquivos que existem', () => {
+  const css = read('assets/css/landing.css');
+  ['#0b0c11', '#171927', '#38bcd8', '#7443d8'].forEach(c => assert.ok(css.toLowerCase().includes(c), `cor do manual ${c}`));
+  assert.match(html, /family=Montserrat/); assert.match(html, /Mais que posts,/); assert.match(html, /direção\./);
+  assert.match(html, /Estratégia · Marketing · Produção audiovisual/);
+  const list = JSON.parse(read('assets/photos/photos.json')); assert.ok(Array.isArray(list));
+  list.forEach(p => { assert.match(p.src, /^[\w./-]+\.(jpe?g|png|webp|avif)$/i); assert.ok(fs.existsSync(pub('assets/photos/' + p.src)), `${p.src} existe`); });
+  assert.ok(/id="bastidores"[^>]*\shidden/.test(html), 'a seção de fotos começa escondida');
+  assert.ok(html.includes('<symbol id="n7"'), 'o 7 da marca em vetor');
 });

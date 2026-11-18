@@ -1,5 +1,6 @@
-/* Landing page da Nova7: contato, menu do celular, animação de entrada e ano do rodapé.
-   Para trocar os dados de contato, edite só o objeto CONTACT abaixo. */
+/* Landing page da Nova7: contato, menu do celular, animações de entrada, galeria de bastidores e botão flutuante.
+   Para trocar os dados de contato, edite só o objeto CONTACT abaixo.
+   Para mostrar fotos, coloque os arquivos em public/assets/photos/ e liste em photos.json (a seção "Bastidores" aparece sozinha). */
 (function () {
   const CONTACT = {
     whatsapp: "5527997010954",            /* só números com DDI e DDD, ex.: 5527999999999 */
@@ -9,6 +10,7 @@
   };
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   /* o botão principal vai para o WhatsApp; sem número, para o e-mail; sem e-mail, para o Instagram */
   const href = CONTACT.whatsapp ? `https://wa.me/${CONTACT.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(CONTACT.message)}`
@@ -31,17 +33,45 @@
   nav.addEventListener("click", e => { if (e.target.closest("a")) setMenu(false); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") setMenu(false); });
 
-  /* cabeçalho ganha fundo ao rolar */
-  const top = $("#top"), onScroll = () => top.classList.toggle("scrolled", scrollY > 8);
+  /* cabeçalho ganha fundo ao rolar; o botão de contato aparece depois do início */
+  const top = $("#top"), wa = $(".wa-float");
+  const onScroll = () => { top.classList.toggle("scrolled", scrollY > 8); if (wa) wa.classList.toggle("show", scrollY > 520); };
   addEventListener("scroll", onScroll, { passive: true }); onScroll();
 
-  /* entrada suave dos blocos (sem animação para quem prefere menos movimento) */
+  /* entrada suave dos blocos */
   const items = $$(".reveal");
-  if (!("IntersectionObserver" in window) || matchMedia("(prefers-reduced-motion: reduce)").matches) items.forEach(el => el.classList.add("in"));
+  if (!("IntersectionObserver" in window) || calm) items.forEach(el => el.classList.add("in"));
   else {
-    document.documentElement.classList.add("js");
     const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { threshold: .12, rootMargin: "0px 0px -6% 0px" });
-    items.forEach((el, i) => { el.style.transitionDelay = (i % 4) * 70 + "ms"; io.observe(el); });
+    items.forEach((el, i) => { el.style.transitionDelay = (i % 3) * 80 + "ms"; io.observe(el); });
+  }
+
+  /* o celular do hero acompanha o ponteiro (só com mouse e sem "reduzir movimento") */
+  const stage = $("#stage");
+  if (stage && !calm && matchMedia("(hover: hover) and (pointer: fine)").matches) {
+    const hero = $(".hero");
+    hero.addEventListener("pointermove", e => {
+      const r = hero.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
+      stage.style.setProperty("--ry", (x * 10).toFixed(2) + "deg"); stage.style.setProperty("--rx", (-y * 8).toFixed(2) + "deg");
+    });
+    hero.addEventListener("pointerleave", () => { stage.style.setProperty("--ry", "0deg"); stage.style.setProperty("--rx", "0deg"); });
+  }
+
+  /* galeria de bastidores: só aparece quando photos.json tem fotos */
+  const sec = $("#bastidores"), gal = $("#gallery");
+  if (sec && gal) {
+    fetch("/assets/photos/photos.json", { cache: "no-cache" }).then(r => (r.ok ? r.json() : [])).then(list => {
+      const photos = (Array.isArray(list) ? list : []).filter(p => p && /^[\w./-]+\.(jpe?g|png|webp|avif)$/i.test(p.src || ""));
+      if (!photos.length) return;
+      photos.forEach(p => {
+        const fig = document.createElement("figure"), img = document.createElement("img");
+        img.src = "/assets/photos/" + p.src.replace(/^\/+/, ""); img.alt = p.alt || p.caption || "Bastidores da Nova7"; img.loading = "lazy"; img.decoding = "async";
+        fig.appendChild(img);
+        if (p.caption) { const c = document.createElement("figcaption"); c.textContent = p.caption; fig.appendChild(c); }
+        gal.appendChild(fig);
+      });
+      sec.hidden = false;
+    }).catch(() => { /* sem fotos: a seção continua escondida */ });
   }
   const y = $("#year"); if (y) y.textContent = new Date().getFullYear();
 })();
