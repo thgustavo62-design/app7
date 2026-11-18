@@ -4,7 +4,7 @@
    - Arquivos de outros domínios (fontes, login do Google) não passam por aqui.
    Para publicar uma versão nova do casco, mude VERSION. */
 const VERSION = 'n7-v1';
-const SHELL = ['/', '/assets/css/app.css', '/assets/js/boot.js', '/assets/js/store.js', '/assets/js/services.js', '/assets/js/playbook.js', '/assets/js/workflow.js',
+const SHELL = ['/app', '/assets/css/app.css', '/assets/js/boot.js', '/assets/js/store.js', '/assets/js/services.js', '/assets/js/playbook.js', '/assets/js/workflow.js',
   '/assets/js/charts.js', '/assets/js/sync.js', '/assets/js/ingest.js', '/assets/js/analysis.js', '/assets/js/report.js', '/assets/js/semana.js', '/assets/js/settings.js', '/assets/js/pwa.js',
   '/assets/js/app.js', '/assets/brand/nova7-simbolo.png', '/assets/icons/icon-192.png', '/assets/icons/apple-touch-icon.png', '/manifest.webmanifest'];
 const HEAVY = /\/assets\/(vendor|icons|brand)\//;                 /* quase nunca mudam: cache primeiro */
@@ -23,8 +23,8 @@ self.addEventListener('fetch', e => {
   if (url.pathname.startsWith('/api/')) return;                   /* dados privados: sempre rede, nunca cache */
   if (url.pathname === '/sw.js') return;
   const network = () => fetch(req).then(res => { if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); } return res; });
-  if (req.mode === 'navigate') {                                  /* páginas: rede primeiro; sem internet, abre o casco guardado */
-    e.respondWith(network().catch(() => caches.match('/').then(r => r || new Response('Sem conexão', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }))));
+  if (req.mode === 'navigate') {                                  /* páginas: rede primeiro; sem internet, abre o casco do app guardado */
+    e.respondWith(network().catch(() => caches.match('/app').then(r => r || new Response('Sem conexão', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }))));
     return;
   }
   if (HEAVY.test(url.pathname)) {                                 /* ícones, logo e bibliotecas: cache primeiro */

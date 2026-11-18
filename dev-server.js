@@ -21,7 +21,7 @@ function createServer() {
       try { handler = require(path.join(__dirname, 'api', api[1] + '.js')); } catch (e) { res.statusCode = 404; return res.end('{"error":"não encontrado"}'); }
       return handler(req, res);
     }
-    let file = path.normalize(path.join(PUBLIC, decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)));
+    let file = path.normalize(path.join(PUBLIC, decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname === '/app' ? '/app.html' : url.pathname)));
     if (!file.startsWith(PUBLIC + path.sep) && file !== PUBLIC) { res.statusCode = 403; return res.end(); }
     fs.readFile(file, (err, buf) => {
       if (err) { res.statusCode = 404; return res.end('Não encontrado'); }

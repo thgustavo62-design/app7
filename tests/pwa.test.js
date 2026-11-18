@@ -1,4 +1,4 @@
-﻿// PWA: manifesto, ícones, service worker (nunca guarda /api/), cabeçalhos e ligação no index.html.
+﻿// PWA: manifesto, ícones, service worker (nunca guarda /api/), cabeçalhos e ligação no app.html.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs'), path = require('path');
@@ -25,11 +25,11 @@ test('service worker: dados privados nunca passam pelo cache e todo o casco list
   assert.match(sw, /req\.method !== 'GET'/, 'só GET');
   const shell = JSON.parse(sw.match(/const SHELL = (\[[\s\S]*?\]);/)[1].replace(/'/g, '"'));
   assert.ok(!shell.some(u => u.startsWith('/api/')));
-  shell.filter(u => u !== '/').forEach(u => assert.ok(fs.existsSync(pub(u.replace(/^\//, ''))), `${u} existe`));
+  shell.forEach(u => assert.ok(fs.existsSync(pub(u === '/app' ? 'app.html' : u.replace(/^\//, ''))), `${u} existe`));
   assert.ok(shell.includes('/assets/js/pwa.js') && shell.includes('/assets/js/settings.js'));
 });
-test('index.html: manifesto, ícone do iPhone, cor do tema, barra de abas e pwa.js antes do boot', () => {
-  const h = read('index.html');
+test('app.html: manifesto, ícone do iPhone, cor do tema, barra de abas e pwa.js antes do boot', () => {
+  const h = read('app.html');
   ['rel="manifest"', 'rel="apple-touch-icon"', 'name="theme-color"', 'apple-mobile-web-app-capable', 'id="tabbar"', 'id="install-btn"', 'viewport-fit=cover'].forEach(t => assert.ok(h.includes(t), t));
   assert.ok(h.indexOf('pwa.js') > 0 && h.indexOf('pwa.js') < h.indexOf('boot.js'));
 });

@@ -159,3 +159,11 @@ Os resultados da Meta de todos os clientes vêm do **Windsor.ai** pela API de co
 3. **Testar a última semana** mostra o que veio, sem gravar; **Sincronizar agora** grava na aba `Semanas`. O agendador da Vercel faz isso todo dia às 09:00 UTC (variável `CRON_SECRET`), nas duas últimas semanas fechadas.
 
 Regras: o Windsor só troca os campos que vieram com valor (vendas, anotações e o que você digitou ficam); campo que a conta não tem fica **sem dado, nunca zero**; cada métrica é pedida separadamente, então um campo recusado não derruba os demais. Os campos de cada métrica estão em `MAP` no `lib/windsor.js`. **Confira o alcance** na primeira vez contra o Meta: ele é calculado no período inteiro pelo Windsor, e o resultado do anúncio usa por padrão as conversas iniciadas (`WINDSOR_ADS_RESULT_FIELD` troca o campo).
+
+## Landing page pública
+
+A raiz do site (`/`) é a **landing page da Nova7**, aberta a qualquer pessoa (serviços, como trabalhamos, diferenciais, contato). O sistema de gestão fica em **`/app`** (com login, sem indexação nos buscadores; `robots.txt` bloqueia `/app` e `/api/`). Arquivos: `public/index.html`, `public/assets/css/landing.css`, `public/assets/js/landing.js`, imagem de compartilhamento `public/assets/brand/og-nova7.png`.
+
+- **Contato:** edite só o objeto `CONTACT` no início de `landing.js` (WhatsApp com DDI e DDD, e-mail, Instagram). Sem WhatsApp, os botões usam o e-mail; sem e-mail, o Instagram.
+- **Clientes:** a landing **não cita clientes nem resultados**, porque a autorização de case ainda está pendente na Central. Um teste automático garante isso.
+- A imagem de compartilhamento (`og:image`) usa o endereço atual da Vercel; ao ligar um domínio próprio, troque a URL em `index.html`.

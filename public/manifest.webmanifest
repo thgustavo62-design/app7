@@ -1,11 +1,11 @@
 {
-  "id": "/",
+  "id": "/app",
   "name": "Central Nova7",
   "short_name": "Nova7",
   "description": "Gestão da agência Nova7: painel, calendário, aprovações e resultados dos clientes.",
   "lang": "pt-BR",
   "dir": "ltr",
-  "start_url": "/?source=pwa",
+  "start_url": "/app?source=pwa",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
@@ -19,8 +19,8 @@
     { "src": "/assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Painel", "short_name": "Painel", "url": "/#painel", "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
-    { "name": "Calendário Kanban", "short_name": "Calendário", "url": "/#calendario", "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
-    { "name": "Semana", "short_name": "Semana", "url": "/#semana", "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+    { "name": "Painel", "short_name": "Painel", "url": "/app#painel", "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Calendário Kanban", "short_name": "Calendário", "url": "/app#calendario", "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Semana", "short_name": "Semana", "url": "/app#semana", "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
   ]
 }
