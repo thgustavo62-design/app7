@@ -26,10 +26,12 @@ O ID da planilha não fica no repositório: vai na variável de ambiente `SHEET_
 | `Horarios` | horários fixos de publicação (`dia_semana` 0 domingo a 6 sábado) | id, marca, dia_semana, hora, formato, atualizado_em, atualizado_por |
 | `Metas` | metas por marca e indicador | marca, indicador, valor, atualizado_em, atualizado_por |
 | `Usuarios` | quem pode entrar (papel: admin, editor, leitura) | email, nome, papel, ativo |
+| `Semanas` | números de cada empresa por semana (`tipo` semana, `inicio` na segunda) ou mês (`tipo` mes, `inicio` no dia 1): vendas, 7 dias, cestas, Instagram, Facebook e Meta Ads. **Vazio é falta de dado, nunca zero** | tipo, inicio, fim, marca, vendas, compras, dia1 a dia7, c100_n, c100_rs, ig_*, fb_* (views, alcance, interacoes, cliques, visitas, seguidores), ads_* (gasto, alcance, impressoes, resultados), janela, fonte, obs, versao, atualizado_em, atualizado_por |
+| `SemanasGeral` | promoção, concorrência, decisão, resposta (`sim` ou `nao`) e notas do período | tipo, inicio, promocao, concorrencia, decisao, rumo, notas, versao, atualizado_em, atualizado_por |
 | `LinksAprovacao` | links de aprovação enviados a clientes | jti, codigo, tipo, criado_por, criado_em, expira_em, usado_em, usado_por |
 | `Config` | versão do esquema e fuso | chave, valor |
 
-`Ideias`, `Politicas`, `Horarios` e `Config` já vêm com os dados iniciais (4 ideias, 4 políticas, 12 horários).
+`Ideias`, `Politicas`, `Horarios` e `Config` já vêm com os dados iniciais (4 ideias, 4 políticas, 12 horários). `Semanas` e `SemanasGeral` vêm com as semanas de 19/10, 26/10 e 02/11 (6 linhas e 1 linha de contexto), só com o que consta nos relatórios; as colunas são texto, com ponto decimal (`109842.42`).
 
 ## Como o servidor usa a planilha
 

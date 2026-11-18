@@ -203,3 +203,38 @@ test('rotas: sem login nada sai; login de desenvolvimento; estado; gravação; s
     assert.equal((await call('/index.html', { auth: false })).status, 200);
   } finally { srv.close(); }
 });
+
+/* ---------- semanas e meses ---------- */
+test('semanas: estado vem da planilha, gravação valida período e números, ausência de dado não vira zero', async () => {
+  const ed = { email: 'e@x.com', papel: 'editor' }, lei = { email: 'l@x.com', papel: 'leitura' };
+  const st0 = await model.loadState(new Repo(new MemoryDriver(require('../lib/seed').build({}))));
+  assert.equal(st0.weeks.length, 6); assert.equal(st0.weekGen.length, 1);
+  const w = st0.weeks.find(x => x.inicio === '2026-11-02' && x.marca === 'M');
+  assert.equal(w.vendas, 109842.42); assert.equal(w.dias.length, 7); assert.equal(w.ig.views, 119600); assert.equal(w.ads.gasto, null, 'campo vazio fica null, não 0');
+  const row = { t: 'week', op: 'upsert', tipo: 'semana', inicio: '2026-11-09', marca: 'M', vendas: 120000.5, compras: 1800, dias: [1, 2, 3, 4, 5, 6, 7], ig: { views: 1000 }, fb: {}, ads: { gasto: 45, resultados: 0 }, fonte: 'teste' };
+  const r = mk(); const ok = await model.applyOps(r, [row], ed); assert.equal(ok.results[0].v, '1');
+  const st = await model.loadState(new Repo(r.d));
+  const n = st.weeks.find(x => x.inicio === '2026-11-09');
+  assert.equal(n.fim, '2026-11-15'); assert.equal(n.ads.gasto, 45); assert.equal(n.ads.resultados, 0, 'zero informado continua zero'); assert.equal(n.ads.alcance, null); assert.equal(n.dias[6], 7);
+  const bad = async (op, u = ed, re = /inválid|precisa|Informe/) => assert.rejects(model.applyOps(mk(), [op], u), re);
+  await bad({ ...row, inicio: '2026-11-10' });                                    /* terça */
+  await bad({ ...row, tipo: 'mes', inicio: '2026-11-09' });                        /* mês sem dia 1 */
+  await bad({ ...row, vendas: -5 });
+  await bad({ ...row, vendas: 'abc' });
+  await bad({ ...row, dias: [1, 2, 3] });
+  await bad({ ...row, marca: 'Z' });
+  await bad(row, lei, /só de leitura/);
+  /* mês: fim = último dia; reenvio exige a versão */
+  const rm = mk(); await model.applyOps(rm, [{ ...row, tipo: 'mes', inicio: '2026-10-01', dias: [] }], ed);
+  assert.equal((await model.loadState(new Repo(rm.d))).weeks.find(x => x.tipo === 'mes').fim, '2026-10-31');
+  const c = await model.applyOps(new Repo(rm.d), [{ ...row, tipo: 'mes', inicio: '2026-10-01', dias: [], vendas: 1, v: '9' }], ed); assert.ok(c.conflict);
+  const up = await model.applyOps(new Repo(rm.d), [{ ...row, tipo: 'mes', inicio: '2026-10-01', dias: [], vendas: 1, v: '1' }], ed); assert.equal(up.results[0].v, '2');
+  /* decisão da semana */
+  const g = new Repo(new MemoryDriver(require('../lib/seed').build({})));
+  const gr = await model.applyOps(g, [{ t: 'weekgen', op: 'upsert', tipo: 'semana', inicio: '2026-11-09', promocao: 'BF', decisao: 'Cortar frequência', rumo: 'nao' }], ed); assert.equal(gr.results[0].v, '1');
+  assert.equal((await model.loadState(new Repo(g.d))).weekGen.find(x => x.inicio === '2026-11-09').rumo, 'nao');
+  await assert.rejects(model.applyOps(mk(), [{ t: 'weekgen', op: 'upsert', tipo: 'semana', inicio: '2026-11-09', rumo: 'talvez' }], ed), /inválid/);
+  /* apagar */
+  await model.applyOps(g, [{ t: 'week', op: 'delete', tipo: 'semana', inicio: '2026-11-02', marca: 'F', v: '1' }], ed);
+  assert.equal((await model.loadState(new Repo(g.d))).weeks.some(x => x.inicio === '2026-11-02' && x.marca === 'F'), false);
+});

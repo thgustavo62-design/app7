@@ -129,7 +129,8 @@
     calendario: { title: "Calendário Kanban", render: renderKanban },
     alertas: { title: "Alertas", render: renderAlertas },
     fluxo: { title: "Fluxo e horários", render: renderFluxo },
-    playbook: { title: "Playbook", render: renderPlaybook }
+    playbook: { title: "Playbook", render: renderPlaybook },
+    semana: { title: "Semana", render: v => window.N7Semana.render(v, { ico, banner, kpi, delta, toast }) }
   };
   D.CLIENTS.forEach(c => { ROUTES[c.id] = { title: c.name, render: () => renderClient(c) }; });
 
@@ -141,6 +142,7 @@
       <div class="nav-group">Visão</div>
       <a class="nav-item" href="#painel">${ico("home")}<span>Painel</span></a>
       <a class="nav-item" href="#insights">${ico("chart")}<span>Insights</span></a>
+      <a class="nav-item" href="#semana">${ico("file")}<span>Semana</span></a>
       <div class="nav-group">Clientes</div>
       ${D.CLIENTS.map(c => `<a class="nav-item" href="#${c.id}"><i class="nav-dot" style="background:var(${c.color})"></i><span>${esc(c.name)}</span>${late(c.id) ? `<span class="nav-count" title="pautas atrasadas">${late(c.id)}</span>` : ""}</a>`).join("")}
       <div class="nav-group">Operação</div>
@@ -999,6 +1001,7 @@
   $(".sidebar").addEventListener("click", e => { if (e.target.closest(".nav-item")) $(".shell").classList.remove("nav-open"); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") $(".shell").classList.remove("nav-open"); });
   addEventListener("scroll", () => $(".topbar").classList.toggle("scrolled", scrollY > 4), { passive: true });
+  { const lw = window.N7Analysis.period("semana", window.N7Analysis.lastClosed("semana", new Date())); $("#stamp-week").textContent = `Última semana fechada: ${dm(lw.inicio)}–${dm(lw.fim)}/${lw.fim.slice(0, 4)}`; }
   addEventListener("hashchange", route);
   $("#drawer").addEventListener("close", () => { if (flowDirty) { flowDirty = false; refreshUnder(); } });
   let rt; const redraw = () => { clearTimeout(rt); rt = setTimeout(() => { if (current !== "calendario") { const y = scrollY; route(); scrollTo(0, y); } }, 160); };

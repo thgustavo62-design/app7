@@ -43,6 +43,7 @@
     const st = await api("/api/state");
     if (st.status === 401) return showLogin(null, "Sua sessão terminou. Entre de novo.");
     if (!st.ok) return message("Não foi possível carregar", (st.body && st.body.error) || "Erro ao ler o banco de dados.", `<button type="button" class="btn" data-retry>Tentar de novo</button>`);
+    window.N7User = user;
     N7Store.hydrate(st.body.state);
     if (!N7Store.get("user", "")) N7Store.set("user", user.nome || "");
     const sync = N7Sync.createSync({

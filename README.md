@@ -10,6 +10,7 @@ Site de gestão interna da agência Nova7: resultados, metas e produção de con
 | --- | --- |
 | `#painel` | Indicadores da agência, cartões dos clientes com nota de saúde, pautas da semana, alertas P0 e rotina semanal |
 | `#insights` | Vendas, ticket, Instagram e Facebook por janela, Facebook diário da Farma e Farma, cesta, achados e qualidade dos dados. Filtro: duas farmácias, Minas ou Farma |
+| `#semana` | Rotina de segunda-feira: digite os números da semana ou do mês (ou cole as tabelas da Meta), veja a análise e baixe o PowerPoint de 6 a 8 slides |
 | `#minas-farma`, `#farma-e-farma`, `#campo-forte`, `#nova7` | Página do cliente: resultados, nota de saúde, notas do setor, andamento do plano, metas, publicações auditadas, documentos do Drive, alertas e achados |
 | `#calendario` | Calendário Kanban com quatro visões (status, semana, mês e ideias), filtros, arrastar e soltar, horários livres e gaveta da pauta com etapas, aprovação e checagem pré-publicação |
 | `#fluxo` | Política de aprovação e horários fixos de publicação de cada cliente |
@@ -41,11 +42,16 @@ public/                 o site (só esta pasta é servida como arquivos)
   assets/js/workflow.js regras de aprovação, horários fixos e ideias
   assets/js/playbook.js método da agência
   assets/js/charts.js   gráficos em SVG
+  assets/js/ingest.js   leitura de números e de tabelas coladas da Meta
+  assets/js/analysis.js análise semanal e mensal (mesmo dia da semana, feriados, classe e confiança)
+  assets/js/semana.js   tela Semana: entrada, análise e exportação
+  assets/js/report.js   deck em PowerPoint (PptxGenJS)
+  assets/vendor/        PptxGenJS 4.0.1 (MIT) com JSZip
   assets/js/app.js      rotas, telas, Kanban e metas
 api/                    funções da Vercel: auth, state, mutate, data
 lib/                    sessão, login Google, cliente do Sheets, repositório, validação
 private/data.js         dados dos clientes (não é servido como arquivo)
-tests/                  25 testes: node --test tests/*.test.js
+tests/                  41 testes: node --test tests/*.test.js
 dev-server.js           servidor local com dados em memória
 vercel.json             pasta pública, cabeçalhos de segurança (CSP) e função de dados
 ```
@@ -77,6 +83,19 @@ Ideias de produto inspiradas no [Brightbean Studio](https://github.com/brightbea
 - **Etapas de aprovação por cliente** (`#fluxo`): sem aprovação, só interna, ou interna e do cliente. **Uma pauta não vai para "Pronto" nem "Publicado" enquanto faltar aprovação da política do cliente.** Há pedido de ajustes, comentários e histórico.
 - **Quadro de ideias** (visão Ideias do calendário): Nova ideia, Em análise, Aprovada e Descartada. Só ideia Aprovada pode ser agendada; ela vira uma pauta (`I-F01`...) no próximo horário livre do cliente.
 - **Horários fixos de publicação**: dia, hora e formato por cliente, sugeridos pelos dias em que o plano Nov–Dez já publica (os horários do dia são palpites). Datas de atenção (24, 25 e 31/12, 01/01 e 20/11) vêm marcadas.
+
+## Semana: análise de segunda-feira e PowerPoint
+
+A tela `#semana` substitui a planilha da rotina de segunda. Escolha **Semana** (segunda a domingo) ou **Mês**, e preencha por empresa:
+
+- **Vendas** das duas farmácias (total, compras, cestas acima de R$ 100 e vendas de cada dia), **Instagram**, **Facebook** e **Meta Ads**. Cada canal aceita **colar a tabela** exportada da Meta (com cabeçalho, em CSV ou tabulação, série diária ou linhas como `Visualizações 119,6 mil`). O site mostra o que leu antes de aplicar e usa a linha de total quando existe. Nada é gravado até clicar em **Salvar**.
+- **Promoção que rodou, concorrência, decisão da semana e a pergunta "estamos no melhor caminho?"**.
+
+Regras da análise (as da rotina da agência): compara **o mesmo dia da semana** nas duas janelas, marca feriados, classifica cada leitura (ESCALAR, MANTER, TESTAR, CORRIGIR, INCONCLUSIVO) com confiança ALTA, MÉDIA ou BAIXA, trata base pequena como inconclusiva, sinaliza Meta Ads com frequência acima de 1,5 ou alcance acima dos 30.674 habitantes, e **nunca troca dado que falta por zero**. Campo vazio é falta de dado e aparece na lista "o que não pôde ser respondido".
+
+O botão **Baixar PowerPoint** gera, no navegador, um deck editável (tabelas e gráfico nativos) com capa, a semana por filial, dia a dia, mídia paga (se informada), Instagram e Facebook, o que funcionou, o que faltou e a decisão da semana. Slides sem conteúdo são omitidos. Nome: `Semanal_MinasFarma_FarmaEFarma_AAAA-MM-DD.pptx`.
+
+Ainda não entram: margem, lift e margem incremental das promoções, entrega contra balcão e estoque (dependem do PDF por item e da exportação de estoque) e a exportação em Excel.
 
 ## Nota de saúde e checagem pré-publicação
 

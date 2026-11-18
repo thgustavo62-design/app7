@@ -78,3 +78,14 @@ test('motor: falha de rede mantém a fila e tenta de novo', async () => {
   fail = false; await new Promise(r => setTimeout(r, 60));
   assert.equal(st.at(-1), 'saved'); assert.equal(sync.pending(), 0); assert.ok(calls >= 2);
 });
+
+test('semanas e decisão da semana: operações por período e marca, com versão', () => {
+  const w = { tipo: 'semana', inicio: '2026-11-09', fim: '2026-11-15', marca: 'M', vendas: 1000, dias: [1, 2, 3, 4, 5, 6, 7], ig: { views: 5 }, fb: {}, ads: {}, v: '2' };
+  assert.deepEqual(diffKey('weeks', [w], [JSON.parse(JSON.stringify(w))]), []);
+  const ops = diffKey('weeks', [w], [{ ...w, vendas: 1100 }, { ...w, marca: 'F', v: undefined }]);
+  assert.equal(ops.length, 2); assert.equal(ops[0].t, 'week'); assert.equal(ops[0].v, '2'); assert.equal(ops[0].vendas, 1100); assert.equal(ops[1].marca, 'F'); assert.equal(ops[1].v, undefined);
+  assert.deepEqual(diffKey('weeks', [w], []), [{ t: 'week', op: 'delete', tipo: 'semana', inicio: '2026-11-09', marca: 'M', v: '2' }]);
+  const g = { tipo: 'semana', inicio: '2026-11-09', decisao: 'x', rumo: 'sim', v: '1' };
+  assert.equal(diffKey('weekGen', [g], [{ ...g, rumo: 'nao' }])[0].t, 'weekgen');
+  assert.deepEqual(diffKey('weekGen', [g], []), [{ t: 'weekgen', op: 'delete', tipo: 'semana', inicio: '2026-11-09', v: '1' }]);
+});

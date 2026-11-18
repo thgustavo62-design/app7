@@ -7,8 +7,9 @@
   const same = (a, b) => stable(strip(a)) === stable(strip(b));
 
   function diffList(old, nw, idKey, up, del) {
-    const prev = new Map((old || []).map(x => [x[idKey], x])), ops = [];
-    (nw || []).forEach(x => { const o = prev.get(x[idKey]); if (!o || !same(o, x)) ops.push(up(x, o)); prev.delete(x[idKey]); });
+    const idOf = typeof idKey === "function" ? idKey : x => x[idKey];
+    const prev = new Map((old || []).map(x => [idOf(x), x])), ops = [];
+    (nw || []).forEach(x => { const o = prev.get(idOf(x)); if (!o || !same(o, x)) ops.push(up(x, o)); prev.delete(idOf(x)); });
     prev.forEach(o => ops.push(del(o)));
     return ops;
   }
@@ -32,6 +33,12 @@
       case "custom": return diffList(old, nw, "code",
         (x, o) => ({ t: "custom", op: "upsert", code: x.code, b: x.b, title: x.title, format: x.format, date: x.date, time: x.time || "", status: x.status || "plan", steps: x.steps || {}, doc: x.doc || "", note: x.note || "", fromIdea: x.fromIdea || "", v: x.v ?? (o && o.v) }),
         o => ({ t: "custom", op: "delete", code: o.code, v: o.v }));
+      case "weeks": return diffList(old, nw, x => `${x.tipo}|${x.inicio}|${x.marca}`,
+        (x, o) => Object.assign({ t: "week", op: "upsert", v: x.v ?? (o && o.v) }, strip(x), { v: x.v ?? (o && o.v) }),
+        o => ({ t: "week", op: "delete", tipo: o.tipo, inicio: o.inicio, marca: o.marca, v: o.v }));
+      case "weekGen": return diffList(old, nw, x => `${x.tipo}|${x.inicio}`,
+        (x, o) => Object.assign({ t: "weekgen", op: "upsert" }, strip(x), { v: x.v ?? (o && o.v) }),
+        o => ({ t: "weekgen", op: "delete", tipo: o.tipo, inicio: o.inicio, v: o.v }));
       case "events": {
         const seen = new Set((old || []).map(e => e.id));
         return (nw || []).filter(e => !seen.has(e.id)).map(e => ({ t: "event", ev: { id: e.id, code: e.code, kind: e.kind, act: e.act, by: e.by, at: e.at, text: e.text || "" } }));
@@ -58,7 +65,7 @@
   function createSync({ store, fetchFn, onState, onFatal, onAuth, retryMs = 6000 }) {
     fetchFn = fetchFn || ((u, i) => fetch(u, i));
     let queue = [], busy = false, attempts = 0, timer = null, sent = 0;   /* queue[0..sent-1] já foram enviadas e aguardam resposta */
-    const target = op => `${op.t}|${op.id || op.code || op.key || op.marca || (op.ev && op.ev.id)}`;
+    const target = op => `${op.t}|${op.id || op.code || op.key || (op.t === "week" || op.t === "weekgen" ? op.tipo + "|" + op.inicio + "|" + (op.marca || "") : op.marca) || (op.ev && op.ev.id)}`;
     const setState = s => { try { onState && onState(s); } catch (e) { /* ignora */ } };
 
     function applyResult(op, r) {
@@ -68,6 +75,8 @@
       if (op.t === "idea") store.setVersion("ideas", x => x.id === op.id, r.v);
       else if (op.t === "custom") store.setVersion("custom", x => x.code === op.code, r.v);
       else if (op.t === "override") store.setVersion("overrides", op.code, r.v);
+      else if (op.t === "week") store.setVersion("weeks", x => x.tipo === op.tipo && x.inicio === op.inicio && x.marca === op.marca, r.v);
+      else if (op.t === "weekgen") store.setVersion("weekGen", x => x.tipo === op.tipo && x.inicio === op.inicio, r.v);
     }
     async function flush() {
       if (busy) return; busy = true; clearTimeout(timer); setState("saving");
