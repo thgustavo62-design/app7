@@ -624,3 +624,35 @@ html.is-offline body::before { content: "Sem conexão"; position: fixed; top: en
 .brain-area-h b { font-family: var(--f-head); font-size: 15px; } .brain-area-h span { color: var(--muted); font-size: 12px; }
 .brain-area .brain-agent > summary .tile { color: var(--ac); }
 .bm-node .bm-l { paint-order: stroke; stroke: var(--card); stroke-width: 4px; stroke-linejoin: round; }
+
+/* subabas (barra no topo) e cena 3D */
+.subtabs.scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-bottom: 14px; position: sticky; top: 0; z-index: 5; background: var(--bg); }
+.subtabs.scroll::-webkit-scrollbar { display: none; }
+.subtabs.scroll a { white-space: nowrap; flex: none; }
+.tab-n { font-style: normal; font-size: 10.5px; font-weight: 800; min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 99px; background: var(--box); color: var(--text-2); margin-left: 4px; }
+.tab-n.risk { background: #dc2626; color: #fff; }
+.sc-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: start; }
+.sc-stage { position: relative; height: 580px; border-radius: 20px; overflow: hidden; background: radial-gradient(120% 120% at 30% 20%, #2a1a63 0%, #14102c 50%, #0a0a14 100%); border: 1px solid #3b2d78; box-shadow: 0 24px 60px -30px rgba(109, 59, 218, .7); }
+.sc-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; }
+.sc-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.sc-label { position: absolute; left: 0; top: 0; font: 600 11px/1.1 var(--f-body, inherit); color: #e6e1f7; white-space: nowrap; text-shadow: 0 1px 3px #000, 0 0 8px #000; transition: opacity .2s, color .2s; will-change: transform; }
+.sc-label.t-hub { font-weight: 800; color: #fff; } .sc-label.t-service { color: #fbcfe8; font-weight: 700; } .sc-label.t-client { color: #fff; font-weight: 700; font-size: 12px; }
+.sc-label.dim { color: #a8a2c4; font-weight: 500; } .sc-label.sel, .sc-label.hov { color: #fff; font-weight: 800; text-shadow: 0 0 10px #8b5cf6, 0 1px 3px #000; }
+.sc-hint { position: absolute; left: 14px; bottom: 10px; right: 14px; margin: 0; font-size: 11px; color: #b9b2d6; pointer-events: none; }
+.sc-stage.no3d { height: auto; min-height: 0; padding: 22px; } .sc-fallback b { color: #fff; } .sc-fallback .src { color: #cfc8ea; }
+.sc-panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); max-height: 580px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.sc-panel p { font-size: 13px; } .sc-panel .col-title { margin-top: 6px; }
+.sc-head { display: flex; gap: 12px; align-items: center; } .sc-head > div { min-width: 0; } .sc-head b { font-family: var(--f-head); font-size: 16px; display: block; margin-bottom: 4px; }
+.sc-head .tile { width: 38px; height: 38px; border-radius: 11px; background: var(--blue-bg); color: var(--violet-d); display: grid; place-items: center; flex: none; } .sc-head .tile svg { width: 19px; height: 19px; }
+.sc-empty { padding: 14px 4px; } .sc-empty b { font-family: var(--f-head); font-size: 16px; }
+.area-b { color: #fff; background: var(--ac); border-color: transparent; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 600 12px inherit; padding: 6px 11px; border-radius: 99px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; min-height: 32px; }
+.chip i { font-style: normal; font-size: 10.5px; font-weight: 800; background: var(--ac, var(--violet)); color: #fff; border-radius: 99px; padding: 1px 6px; }
+.chip:hover, .chip[aria-pressed="true"] { border-color: var(--ac, var(--violet)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ac, var(--violet)) 28%, transparent); }
+.chip.lv-ok { border-color: #16a34a; } .chip.lv-atencao { border-color: #f59e0b; } .chip.lv-risco { border-color: #dc2626; }
+.sc-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11.5px; color: var(--muted); margin: 10px 2px; }
+.bm-key i.svc { border-radius: 2px; background: #f472b6; transform: rotate(45deg) scale(.85); } .bm-key i.sat { width: 6px; height: 6px; background: #ef4444; }
+.sc-list { display: grid; gap: 12px; margin-top: 6px; }
+@media (max-width: 960px) { .sc-wrap { grid-template-columns: minmax(0, 1fr); } .sc-stage { height: 440px; } .sc-panel { max-height: none; } }
+@media (max-width: 560px) { .sc-stage { height: 400px; } .sc-label { font-size: 10px; } }

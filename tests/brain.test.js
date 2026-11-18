@@ -1,9 +1,9 @@
 // Central de Inteligência: agentes e maestro (sem API), com dados reais das semanas de 19/10 a 08/11.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-require('../public/assets/js/analysis.js'); require('../public/assets/js/brain.js');
+require('../public/assets/js/analysis.js');
 const { WEEKS, GENS } = require('../lib/seed-weeks');
-const B = globalThis.N7Brain;
+const B = require('../public/assets/js/brain/index.mjs').default;
 
 const clients = [
   { key: 'M', name: 'Minas Farma', services: ['redes', 'trafego', 'varejo'] }, { key: 'F', name: 'Farma e Farma', services: ['redes', 'trafego', 'varejo'] },

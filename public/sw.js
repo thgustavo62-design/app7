@@ -5,7 +5,9 @@
    Para publicar uma versão nova do casco, mude VERSION. */
 const VERSION = 'n7-v1';
 const SHELL = ['/app', '/assets/css/app.css', '/assets/js/boot.js', '/assets/js/store.js', '/assets/js/services.js', '/assets/js/playbook.js', '/assets/js/workflow.js',
-  '/assets/js/charts.js', '/assets/js/sync.js', '/assets/js/ingest.js', '/assets/js/analysis.js', '/assets/js/report.js', '/assets/js/semana.js', '/assets/js/settings.js', '/assets/js/brain.js', '/assets/js/cerebro.js', '/assets/js/pwa.js',
+  '/assets/js/charts.js', '/assets/js/sync.js', '/assets/js/ingest.js', '/assets/js/analysis.js', '/assets/js/report.js', '/assets/js/semana.js', '/assets/js/settings.js', '/assets/js/cerebro-loader.js',
+  '/assets/js/brain/agents/conteudo.mjs', '/assets/js/brain/agents/contexto.mjs', '/assets/js/brain/agents/estrategia.mjs', '/assets/js/brain/agents/index.mjs', '/assets/js/brain/agents/operacao.mjs', '/assets/js/brain/agents/resultado.mjs', '/assets/js/brain/catalog.mjs', '/assets/js/brain/health.mjs', '/assets/js/brain/index.mjs', '/assets/js/brain/memory.mjs', '/assets/js/brain/synapses.mjs', '/assets/js/brain/util.mjs', '/assets/js/cerebro/3d/graph.mjs', '/assets/js/cerebro/3d/panel.mjs', '/assets/js/cerebro/3d/scene.mjs', '/assets/js/cerebro/index.mjs', '/assets/js/cerebro/kit.mjs', '/assets/js/cerebro/views/agentes.mjs', '/assets/js/cerebro/views/clientes.mjs', '/assets/js/cerebro/views/conexoes.mjs', '/assets/js/cerebro/views/hoje.mjs', '/assets/js/cerebro/views/mapa3d.mjs', '/assets/js/cerebro/views/memoria.mjs', '/assets/js/cerebro/views/radar.mjs', '/assets/js/cerebro/views/regras.mjs', '/assets/js/cerebro/views/servicos.mjs',
+  '/assets/js/pwa.js',
   '/assets/js/app.js', '/assets/brand/nova7-simbolo.png', '/assets/icons/icon-192.png', '/assets/icons/apple-touch-icon.png', '/manifest.webmanifest'];
 const HEAVY = /\/assets\/(vendor|icons|brand)\//;                 /* quase nunca mudam: cache primeiro */
 

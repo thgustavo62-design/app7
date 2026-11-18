@@ -148,7 +148,7 @@
     painel: { title: "Painel", render: renderPainel },
     insights: { title: "Insights", render: renderInsights },
     semana: { title: "Semana", render: v => window.N7Semana.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }) },
-    cerebro: { title: "Central de Inteligência", render: v => window.N7CerebroUI.render(v, brainHelpers()) },
+    cerebro: { title: "Central de Inteligência", render: (v, sub) => window.N7Cerebro.render(v, sub, brainHelpers()) },
     calendario: { title: "Calendário Kanban", render: renderKanban },
     alertas: { title: "Alertas", render: renderAlertas },
     fluxo: { title: "Fluxo e horários", render: renderFluxo },
@@ -174,7 +174,7 @@
     const b = await r.json(); REG.clients = b.registry.clients; REG.users = b.registry.users || [];
     setupClients(); route();
   }
-  /* ajudantes da Central de Inteligência: dados do site entregues às funções puras do brain.js */
+  /* ajudantes da Central de Inteligência: dados do site entregues às funções puras do cérebro (assets/js/brain/) */
   const brainHelpers = () => ({ ico, banner, toast, esc, store, canWrite: CAN_WRITE, today: TODAY_ISO,
     input: () => ({ today: TODAY_ISO, clients: CLIENTS.map(c => ({ key: c.key, id: c.id, name: c.name, services: c.services })), posts: posts(), weeks: allWeeks(), gens: store.get("weekGen", []), decisions: store.get("decisions", []),
       ideas: F.getIdeas(), slots: F.getFlow().slots, checks,
@@ -303,7 +303,7 @@
         <p>${ini ? `Última semana com números: ${esc(AN.period("semana", ini).label)}.` : "Ainda não há números de semana."} Cada cliente mostra o que importa para os serviços que a Nova7 presta a ele.</p></div>
         <div class="toolbar">${CAN_WRITE ? `<a class="btn" href="#semana">${ico("file")} Semana</a>` : ""}${anyPosts ? `<a class="btn primary" href="#calendario">${ico("cal")} Abrir calendário</a>` : ""}</div></div>
       <div class="kpis">${kp.slice(0, 4).join("")}</div>
-      ${ACCESS.cerebro() ? window.N7CerebroUI.mini(brainHelpers()) : ""}
+      ${ACCESS.cerebro() ? window.N7Cerebro.mini(brainHelpers()) : ""}
       <div class="section-title"><h2>Clientes</h2><span>clique para abrir a página do cliente</span></div>
       ${CLIENTS.length ? `<div class="grid g4">${CLIENTS.map(c => clientCard(c, ps)).join("")}</div>` : `<div class="empty">Nenhum cliente ativo. ${IS_ADMIN ? `Cadastre em <a href="#config/clientes">Configurações</a>.` : ""}</div>`}
       <div class="grid g2">

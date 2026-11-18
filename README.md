@@ -172,7 +172,7 @@ A raiz do site (`/`) é a **landing page da Nova7**, aberta a qualquer pessoa (s
 
 A tela `#cerebro` responde "o que fazer hoje" **sem nenhuma API de IA**: agentes por função lêem os dados do sistema e o maestro escolhe a **decisão do dia**, sempre com a evidência.
 
-Em 6 passos (`public/assets/js/brain.js`, funções puras testadas em Node):
+Em 6 passos (motor em `public/assets/js/brain/`, funções puras testadas em Node):
 
 1. **Agentes** lêem os dados e devolvem achados com nota e evidência. São **14, em 5 áreas**:
    - *Operação:* Produção (atrasos, pautas que vencem sem começar, calendário vazio), Etapas da produção (prazo de roteiro, gravação, edição, aprovação e agendamento contra o status), Capacidade da equipe (dia com etapas demais), Aprovações.
@@ -188,7 +188,36 @@ Em 6 passos (`public/assets/js/brain.js`, funções puras testadas em Node):
 
 A tela traz ainda o **mapa do cérebro** (os 14 agentes e as conexões que dispararam hoje), a saúde dos clientes e o radar por área. O Painel mostra a decisão do dia num cartão. Usuário cliente não vê a Central de Inteligência.
 
-Para criar um agente novo: escreva a função em `brain.js` que devolve achados (`F(agente, chave, {...})`), registre em `AGENTS`/`AGENT_ORDER` com área e regras, e, se ele conversar com outro, descreva a conexão em `SYNAPSES` e implemente em `connect()`. Os testes conferem o catálogo.
+### Subabas da Central
+
+A barra no topo da Central de Inteligência (`#cerebro/<aba>`) separa o conteúdo: **Hoje** (decisão do dia), **Clientes** (saúde), **Radar** (achados por agente e área), **Agentes 3D**, **Serviços 3D**, **Conexões** (mapa plano e conexões ativas), **Memória** e **Como pensa** (regras). Os números nas abas mostram o que pede atenção.
+
+- **Agentes 3D:** cada agente é uma esfera, agrupada por área; os pontos em órbita são os achados abertos (vermelho = urgente); linhas roxas com pulsos de luz são as conexões que dispararam hoje; losangos rosa são os serviços. Arraste para girar, role/pince para aproximar, toque num ponto para abrir o painel com regras, conexões, serviços atendidos e achados.
+- **Serviços 3D:** serviços no centro, clientes ligados ao que contratam (cor = saúde) e os agentes que trabalham para cada serviço.
+- Se o aparelho não abrir WebGL, a cena some e a lista de botões abaixo dela mostra o mesmo conteúdo (a lista também serve para usar só com teclado). Respeita "reduzir movimento".
+
+### Estrutura em módulos (código)
+
+O cérebro usa **módulos ES nativos** (sem build), carregados só quando a tela é aberta (`cerebro-loader.js` é o único script comum). Isso deixa o início do app mais leve e cada parte pequena e testável.
+
+```
+public/assets/js/
+  cerebro-loader.js        carrega os módulos sob demanda (render e cartão do Painel)
+  brain/                   MOTOR (sem tela, roda também em Node)
+    util.mjs               datas, notas e o molde de achado
+    catalog.mjs            áreas, agentes, conexões e SERVICE_AGENTS (quais agentes servem a cada serviço)
+    agents/                um arquivo por área: operacao, conteudo, resultado, estrategia, contexto; index.mjs lista os agentes
+    memory.mjs  synapses.mjs  health.mjs   memória, conexões entre agentes, saúde por cliente
+    index.mjs              o maestro: run(contexto) -> decisão, achados, clientes, conexões, memória
+  cerebro/                 TELAS
+    index.mjs              barra de subabas (TABS) e cartão do Painel
+    kit.mjs                ajudantes comuns (cartões, botões, marcar feito)
+    views/                 uma subaba por arquivo (hoje, clientes, radar, agentes, servicos, conexoes, memoria, regras)
+    3d/graph.mjs           posições e ligações (puro, testado)  ·  3d/panel.mjs  painel de detalhes  ·  3d/scene.mjs  Three.js
+public/assets/vendor/three.module.min.js   Three.js r160 (MIT), copiado para o projeto: o site não carrega código de outros domínios
+```
+
+**Para criar um agente novo:** escreva a função num arquivo de `brain/agents/` (ela recebe o contexto e devolve achados com `F(agente, chave, {...})`), coloque-a em `agents/index.mjs`, registre em `catalog.mjs` (`AGENTS`, `AGENT_ORDER`, `SERVICE_AGENTS`) e, se ele conversar com outro, descreva a conexão em `SYNAPSES` e implemente em `synapses.mjs`. **Para criar uma subaba:** escreva `cerebro/views/<nome>.mjs` exportando `{ title, render(host, kit) }` e liste em `TABS`. Todo módulo novo precisa entrar na lista `SHELL` de `public/sw.js` (um teste avisa se faltar).
 
 O Claude (API) é opcional e ainda não é usado; se for ligado depois, serve só para explicar em texto, sem mudar as regras. A parte da Meta (Windsor.ai) entra quando for conectada.
 
