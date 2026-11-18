@@ -543,3 +543,47 @@ html.is-offline body::before { content: "Sem conexão"; position: fixed; top: en
   .table-wrap table:has(thead th:nth-child(4)) { min-width: 540px; }
   .table-wrap td, .table-wrap th { padding-left: 12px; padding-right: 12px; }
 }
+
+/* ---------- Central de Inteligência ---------- */
+.brain-hero { position: relative; overflow: hidden; border-radius: 20px; padding: 26px 28px; color: #fff; background: radial-gradient(120% 140% at 0% 0%, #3a1f86 0%, #1a1238 45%, #0d0c1c 100%); border: 1px solid #3b2d78; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 24px 60px -30px rgba(109, 59, 218, .7); }
+.brain-hero::after { content: ""; position: absolute; right: -80px; top: -80px; width: 280px; height: 280px; border-radius: 50%; background: #8b5cf6; opacity: .22; filter: blur(60px); pointer-events: none; }
+.brain-hero > * { position: relative; z-index: 1; }
+.brain-hero .eyebrow { color: #c9b8ff; }
+.brain-hero h2 { font-family: var(--f-head); font-size: clamp(21px, 2.6vw, 29px); line-height: 1.18; letter-spacing: -.02em; }
+.brain-hero .lead { color: #d9d3f0; font-size: 14.5px; max-width: 760px; }
+.brain-hero .col-title { color: #b9a2ff; }
+.brain-hero .plain { color: #e6e1f7; }
+.brain-hero .btn { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .22); color: #fff; }
+.brain-hero .btn:hover { background: rgba(255, 255, 255, .16); border-color: #b9a2ff; color: #fff; }
+.brain-hero.calm { background: linear-gradient(135deg, #123327, #0d1a16); border-color: #1f5a43; }
+.brain-tags { display: flex; gap: 8px; flex-wrap: wrap; }
+.brain-cols { display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; }
+.brain-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow); }
+.brain-card h3 { font-size: 14.5px; line-height: 1.3; }
+.brain-card p { color: var(--text-2); font-size: 12.5px; }
+.brain-agents { display: grid; gap: 10px; }
+.brain-agent > summary, .brain-how > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 13px 18px; }
+.brain-agent > summary::-webkit-details-marker, .brain-how > summary::-webkit-details-marker { display: none; }
+.brain-agent > summary .tile { width: 34px; height: 34px; border-radius: 10px; background: var(--blue-bg); color: var(--violet-d); display: grid; place-items: center; flex: none; }
+.brain-agent > summary .tile svg { width: 17px; height: 17px; }
+.brain-agent > summary > span:nth-child(2) { flex: 1; min-width: 0; }
+.brain-agent > summary b { display: block; }
+.brain-agent > summary small { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.4; }
+.brain-how > summary { padding: 0; }
+.brain-how > summary .panel-banner { width: 100%; }
+.brain-list { list-style: none; display: grid; gap: 12px; }
+.brain-row { border: 1px solid var(--line-soft); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.brain-row-h { display: flex; gap: 10px; align-items: flex-start; }
+.brain-row p { color: var(--text-2); font-size: 12.5px; }
+.brain-mini { display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; border-radius: var(--radius); color: #fff; background: linear-gradient(135deg, #2c1a68, #14102c); border: 1px solid #3b2d78; box-shadow: 0 16px 40px -24px rgba(109, 59, 218, .8); }
+.brain-mini b { font-family: var(--f-head); font-size: 16px; line-height: 1.25; }
+.brain-mini small { color: #cfc8ea; font-size: 12px; }
+.brain-mini .badge { align-self: flex-start; }
+.brain-mini.calm { background: linear-gradient(135deg, #123327, #0d1a16); border-color: #1f5a43; }
+.brain-mini:hover { border-color: #8b5cf6; }
+@media (max-width: 900px) { .brain-cols { grid-template-columns: minmax(0, 1fr); gap: 14px; } .brain-hero { padding: 20px 18px; } .brain-agent > summary small { display: none; } }
+.brain-agent .panel-body { padding-top: 4px; }
+.brain-agent[open] > summary { padding-bottom: 6px; }
+.brain-list { padding: 0; margin: 0; }
+.brain-row .btn, .brain-card .btn { padding: 0 11px; }
+@media (max-width: 900px) { .brain-row .toolbar, .brain-card .toolbar { gap: 6px; } .brain-row .btn.sm, .brain-card .btn.sm { min-height: 34px; padding: 0 9px; font-size: 11.5px; } }

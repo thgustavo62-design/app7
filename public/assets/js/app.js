@@ -143,6 +143,7 @@
     painel: { title: "Painel", render: renderPainel },
     insights: { title: "Insights", render: renderInsights },
     semana: { title: "Semana", render: v => window.N7Semana.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }) },
+    cerebro: { title: "Central de Inteligência", render: v => window.N7CerebroUI.render(v, brainHelpers()) },
     calendario: { title: "Calendário Kanban", render: renderKanban },
     alertas: { title: "Alertas", render: renderAlertas },
     fluxo: { title: "Fluxo e horários", render: renderFluxo },
@@ -155,6 +156,7 @@
     painel: () => true,
     insights: () => !IS_CLIENT && !!CL.M && !!CL.F && !!D.FARMA_DAILY && !!D.MINAS_AUG,
     semana: () => !IS_CLIENT && CLIENTS.length > 0,
+    cerebro: () => !IS_CLIENT && CLIENTS.length > 0,
     calendario: () => anyPostClients(),
     fluxo: () => !IS_CLIENT && anyPostClients(),
     alertas: () => !IS_CLIENT && D.ALERTS.length > 0,
@@ -167,6 +169,11 @@
     const b = await r.json(); REG.clients = b.registry.clients; REG.users = b.registry.users || [];
     setupClients(); route();
   }
+  /* ajudantes da Central de Inteligência: dados do site entregues às funções puras do brain.js */
+  const brainHelpers = () => ({ ico, banner, toast, esc, store, canWrite: CAN_WRITE, today: TODAY_ISO,
+    input: () => ({ today: TODAY_ISO, clients: CLIENTS.map(c => ({ key: c.key, name: c.name, services: c.services })), posts: posts(), weeks: allWeeks(), gens: store.get("weekGen", []), decisions: store.get("decisions", []),
+      needsClient: p => { const st = F.approvalState(p.code, p.b); return st.needs.includes("client") && !st.rec.client; }, planSource: D.PLAN_SOURCE }),
+    go: (route, brand, ideas) => { if (brand) prefs.kbrand = brand; if (ideas) prefs.kview = "ideias"; if (brand || ideas) savePrefs(); location.hash = "#" + route; } });
   const settingsCtx = () => ({ REG, ME, clients: () => CLIENTS, banner, ico, toast, esc, reload: reloadRegistry });
   setupClients();
 
@@ -178,6 +185,7 @@
     $("#nav").innerHTML = `
       <div class="nav-group">Visão</div>
       <a class="nav-item" href="#painel">${ico("home")}<span>Painel</span></a>
+      ${ACCESS.cerebro() ? `<a class="nav-item" href="#cerebro">${ico("target")}<span>Central de Inteligência</span></a>` : ""}
       ${ACCESS.insights() ? `<a class="nav-item" href="#insights">${ico("chart")}<span>Insights</span></a>` : ""}
       ${ACCESS.semana() ? `<a class="nav-item" href="#semana">${ico("file")}<span>Semana</span></a>` : ""}
       ${CLIENTS.length ? `<div class="nav-group">${IS_CLIENT ? "Sua empresa" : "Clientes"}</div>
@@ -191,6 +199,7 @@
     const items = [["painel", "home", "Painel"]];
     if (ACCESS.calendario()) items.push(["calendario", "cal", "Calendário"]);
     if (ACCESS.semana()) items.push(["semana", "file", "Semana"]);
+    if (ACCESS.cerebro()) items.push(["cerebro", "target", "Cérebro"]);
     if (ACCESS.insights()) items.push(["insights", "chart", "Insights"]);
     tb.innerHTML = items.slice(0, 4).map(([id, ic, name]) => `<a class="tab" href="#${id}"${active === id ? ' aria-current="page"' : ""}>${ico(ic)}<span>${name}</span></a>`).join("") +
       `<button type="button" class="tab" data-more aria-label="Abrir o menu completo">${ico("list")}<span>Mais</span></button>`;
@@ -288,6 +297,7 @@
         <p>${ini ? `Última semana com números: ${esc(AN.period("semana", ini).label)}.` : "Ainda não há números de semana."} Cada cliente mostra o que importa para os serviços que a Nova7 presta a ele.</p></div>
         <div class="toolbar">${CAN_WRITE ? `<a class="btn" href="#semana">${ico("file")} Semana</a>` : ""}${anyPosts ? `<a class="btn primary" href="#calendario">${ico("cal")} Abrir calendário</a>` : ""}</div></div>
       <div class="kpis">${kp.slice(0, 4).join("")}</div>
+      ${ACCESS.cerebro() ? window.N7CerebroUI.mini(brainHelpers()) : ""}
       <div class="section-title"><h2>Clientes</h2><span>clique para abrir a página do cliente</span></div>
       ${CLIENTS.length ? `<div class="grid g4">${CLIENTS.map(c => clientCard(c, ps)).join("")}</div>` : `<div class="empty">Nenhum cliente ativo. ${IS_ADMIN ? `Cadastre em <a href="#config/clientes">Configurações</a>.` : ""}</div>`}
       <div class="grid g2">

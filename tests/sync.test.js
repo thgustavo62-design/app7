@@ -89,3 +89,12 @@ test('semanas e decisão da semana: operações por período e marca, com versã
   assert.equal(diffKey('weekGen', [g], [{ ...g, rumo: 'nao' }])[0].t, 'weekgen');
   assert.deepEqual(diffKey('weekGen', [g], []), [{ t: 'weekgen', op: 'delete', tipo: 'semana', inicio: '2026-11-09', v: '1' }]);
 });
+
+test('decisões do cérebro: operação por chave, com versão, e junção na fila', () => {
+  const d = { chave: 'prod-due-F', agente: 'producao', marca: 'F', titulo: 'T', status: 'feita', ate: '2026-11-18', nota: '', v: '1' };
+  assert.deepEqual(diffKey('decisions', [d], [JSON.parse(JSON.stringify(d))]), []);
+  const ops = diffKey('decisions', [d], [{ ...d, status: 'adiada', ate: '2026-11-20', v: undefined }, { chave: 'apr-C', agente: 'aprovacao', marca: 'C', titulo: 'U', status: 'feita', ate: '2026-11-18' }]);
+  assert.equal(ops.length, 2); assert.equal(ops[0].t, 'decision'); assert.equal(ops[0].v, '1'); assert.equal(ops[0].status, 'adiada'); assert.equal(ops[1].v, undefined);
+  assert.deepEqual(diffKey('decisions', [d], []), [{ t: 'decision', op: 'delete', chave: 'prod-due-F', marca: 'F', v: '1' }]);
+  assert.ok(Store.SYNCED.includes('decisions'));
+});

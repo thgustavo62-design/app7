@@ -444,3 +444,22 @@ test('rotas de senha: primeiro acesso bloqueia os dados até criar a senha; depo
     assert.equal((await call('/api/auth?action=password', { email: 'dev@local', senha: 'SenhaNova77' })).json.user.trocar, undefined);
   } finally { srv.close(); db._resetMemory(); }
 });
+
+test('decisões do cérebro: grava feita/adiada/ignorada, valida e respeita escopo e papel', async () => {
+  const seed = require('../lib/seed').build({ devEmail: 'dev@agencia.test' }), repo = () => new Repo(new MemoryDriver(seed));
+  const r = repo(); const ed = { email: 'e@x.com', nome: 'E', papel: 'editor', tipo: 'equipe', empresas: [] };
+  const op = { t: 'decision', op: 'upsert', chave: 'prod-due-F', agente: 'producao', marca: 'F', titulo: 'Farma: pauta vence amanhã', status: 'feita', ate: '2026-11-18' };
+  assert.equal((await model.applyOps(r, [op], ed)).results[0].v, '1');
+  assert.equal((await model.applyOps(new Repo(r.d), [Object.assign({}, op, { status: 'adiada', ate: '2026-11-20', v: '1' })], ed)).results[0].v, '2');
+  const st = await model.loadState(new Repo(r.d)); assert.equal(st.decisions.length, 1); assert.equal(st.decisions[0].status, 'adiada'); assert.ok(st.decisions[0].em);
+  const bad = (o, re, u = ed) => assert.rejects(model.applyOps(repo(), [Object.assign({}, op, o)], u), re);
+  await bad({ chave: 'x' }, /Chave da decisão inválida/); await bad({ agente: 'robo' }, /Agente inválido/); await bad({ status: 'talvez' }, /Situação inválido/);
+  await bad({ ate: '' }, /Data é obrigatória/); await bad({ marca: 'ZZ' }, /Empresa inválida/);
+  await bad({}, /só registram aprovação/, { email: 'c@x.com', nome: 'C', papel: 'cliente', tipo: 'cliente', empresas: ['F'] });
+  await bad({}, /só de leitura/, { email: 'l@x.com', nome: 'L', papel: 'leitura', tipo: 'equipe', empresas: [] });
+  await bad({ marca: 'F' }, /acesso a esta empresa/, { email: 'r@x.com', nome: 'R', papel: 'editor', tipo: 'equipe', empresas: ['C'] });
+  const { scopeState } = require('../lib/scope');
+  const c = scopeState(st, { email: 'c@x.com', papel: 'cliente', tipo: 'cliente', empresas: ['F'] }, () => 'F'); assert.deepEqual(c.decisions, [], 'cliente nunca vê a memória do cérebro');
+  const eq = scopeState(st, { email: 'r@x.com', papel: 'editor', tipo: 'equipe', empresas: ['C'] }, () => 'C'); assert.deepEqual(eq.decisions, [], 'equipe restrita só vê decisões das suas empresas');
+  await model.applyOps(new Repo(r.d), [{ t: 'decision', op: 'delete', chave: 'prod-due-F', v: '2' }], ed); assert.equal((await model.loadState(new Repo(r.d))).decisions.length, 0);
+});

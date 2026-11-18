@@ -167,3 +167,13 @@ A raiz do site (`/`) é a **landing page da Nova7**, aberta a qualquer pessoa (s
 - **Contato:** edite só o objeto `CONTACT` no início de `landing.js` (WhatsApp com DDI e DDD, e-mail, Instagram). Sem WhatsApp, os botões usam o e-mail; sem e-mail, o Instagram.
 - **Clientes:** a landing **não cita clientes nem resultados**, porque a autorização de case ainda está pendente na Central. Um teste automático garante isso.
 - A imagem de compartilhamento (`og:image`) usa o endereço atual da Vercel; ao ligar um domínio próprio, troque a URL em `index.html`.
+
+## Central de Inteligência (o "cérebro")
+
+A tela `#cerebro` responde "o que fazer hoje" **sem nenhuma API de IA**: agentes por função lêem os dados do sistema e o maestro escolhe a **decisão do dia**, sempre com a evidência.
+
+- **Agentes** (`public/assets/js/brain.js`): Produção (atrasos, pautas que vencem sem começar, calendário vazio), Aprovações (peças que publicam em até 3 dias sem aprovação do cliente), Mídia paga, Redes sociais e Vendas (vêm da análise semanal, com as mesmas regras da tela Semana), Qualidade dos dados (semana sem números, decisão da semana em branco, calendário fora da Central) e Datas e feriados.
+- **Nota de 0 a 100** = urgência x impacto x confiança. Urgência: Hoje (80+), Esta semana (60+), Acompanhar. Ganhos (o que está funcionando) aparecem à parte e nunca viram decisão.
+- **Memória:** cada achado pode ser marcado como *Feito* (some hoje), *Adiar 2 dias* ou *Ignorar* (14 dias), gravado na aba `Decisoes` da planilha-banco. Se o problema continuar depois da data, ele volta.
+- **Painel:** mostra a decisão do dia num cartão no alto. Usuário cliente não vê a Central de Inteligência.
+- O Claude (API) é opcional e ainda não é usado; se for ligado depois, serve só para explicar em texto, sem mudar as regras. A parte da Meta (Windsor.ai) entra quando for conectada.

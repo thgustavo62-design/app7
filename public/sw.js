@@ -5,7 +5,7 @@
    Para publicar uma versão nova do casco, mude VERSION. */
 const VERSION = 'n7-v1';
 const SHELL = ['/app', '/assets/css/app.css', '/assets/js/boot.js', '/assets/js/store.js', '/assets/js/services.js', '/assets/js/playbook.js', '/assets/js/workflow.js',
-  '/assets/js/charts.js', '/assets/js/sync.js', '/assets/js/ingest.js', '/assets/js/analysis.js', '/assets/js/report.js', '/assets/js/semana.js', '/assets/js/settings.js', '/assets/js/pwa.js',
+  '/assets/js/charts.js', '/assets/js/sync.js', '/assets/js/ingest.js', '/assets/js/analysis.js', '/assets/js/report.js', '/assets/js/semana.js', '/assets/js/settings.js', '/assets/js/brain.js', '/assets/js/cerebro.js', '/assets/js/pwa.js',
   '/assets/js/app.js', '/assets/brand/nova7-simbolo.png', '/assets/icons/icon-192.png', '/assets/icons/apple-touch-icon.png', '/manifest.webmanifest'];
 const HEAVY = /\/assets\/(vendor|icons|brand)\//;                 /* quase nunca mudam: cache primeiro */
 
