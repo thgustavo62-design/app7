@@ -249,7 +249,7 @@ test('empresas: cadastro com serviços, validações, desativar e uso como marca
   const r = seeded();
   const reg0 = await model.loadRegistry(r, admin);
   assert.deepEqual(reg0.clients.map(c => c.key), ['M', 'F', 'C', 'N']);
-  assert.deepEqual(reg0.clients[0].services, ['redes', 'trafego', 'varejo']); assert.deepEqual(reg0.clients[2].services, ['redes']);
+  assert.deepEqual(reg0.clients[0].services, ['redes', 'trafego', 'varejo', 'promocoes']); assert.deepEqual(reg0.clients[2].services, ['redes']);
   const ok = await model.applyOps(r, [newClient], admin); assert.equal(ok.results[0].v, '1');
   const c = (await model.loadRegistry(new Repo(r.d), admin)).clients.find(x => x.key === 'PBP');
   assert.deepEqual(c.services, ['trafego', 'criativos']); assert.equal(c.active, true);

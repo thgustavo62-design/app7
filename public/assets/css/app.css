@@ -656,3 +656,9 @@ html.is-offline body::before { content: "Sem conexão"; position: fixed; top: en
 .sc-list { display: grid; gap: 12px; margin-top: 6px; }
 @media (max-width: 960px) { .sc-wrap { grid-template-columns: minmax(0, 1fr); } .sc-stage { height: 440px; } .sc-panel { max-height: none; } }
 @media (max-width: 560px) { .sc-stage { height: 400px; } .sc-label { font-size: 10px; } }
+
+/* ---------- central de promoções ---------- */
+.pm-table th, .pm-table td { font-size: 12px; padding: 8px 10px; }
+.pm-table td:first-child { min-width: 240px; max-width: 360px; }
+.pm-table td.num input, td.num input[type="number"] { text-align: right; }
+.paste-res code { font-size: 11px; word-break: break-all; }

@@ -11,6 +11,7 @@ Site de gestão interna da agência Nova7: resultados, metas e produção de con
 | `#painel` | Indicadores da agência, cartões dos clientes com nota de saúde, pautas da semana, alertas P0 e rotina semanal |
 | `#insights` | Vendas, ticket, Instagram e Facebook por janela, Facebook diário da Farma e Farma, cesta, achados e qualidade dos dados. Filtro: duas farmácias, Minas ou Farma |
 | `#relatorios` | Fechamento do mês por cliente, conforme os serviços dele, com PowerPoint para enviar ao cliente |
+| `#promocoes` | Central de Promoções das farmácias: estoque e vendas de 60 e 90 dias, candidatos, preço sugerido com piso e campanhas |
 | `#semana` | Rotina de segunda-feira: digite os números da semana ou do mês (ou cole as tabelas da Meta), veja a análise e baixe o PowerPoint de 6 a 8 slides |
 | `#minas-farma`, `#padaria-bom-pao`... (um por cliente cadastrado) | Página do cliente, **montada conforme os serviços que a Nova7 presta a ele** (veja abaixo): redes sociais, tráfego pago, criativos e análise de varejo |
 | `#config` | Só administradores: subabas **Usuários** e **Clientes e serviços** |
@@ -126,6 +127,17 @@ A tela `#relatorios` (equipe) mostra o fechamento de um mês de um cliente **con
 - **De onde vem o mês:** da linha de mês (busca da Meta pelo mês inteiro) ou da **soma das semanas inteiras dentro do mês** (a semana que atravessa dois meses não entra). A tela diz qual foi a origem e avisa quando só parte das semanas tinha o número.
 - **Honestidade dos números:** alcance e frequência só aparecem com o alcance do mês; campo sem número é "sem dado", nunca zero; variação com base pequena (menos de 20) não vira destaque.
 - **PowerPoint para o cliente:** botão **Baixar PowerPoint** (capa, resumo com destaques, um slide por serviço com número e "Próximos passos" com o texto que você escrever). Nome: `Relatorio_<Cliente>_AAAA-MM.pptx`. O texto dos próximos passos fica salvo neste navegador.
+
+## Central de Promoções (serviço "Promoções e preços")
+
+Para as clientes em que a Nova7 programa promoções e preços (hoje Minas Farma e Farma e Farma), a tela `#promocoes` cruza **estoque** e **vendas de 60 e 90 dias** de cada loja. As lojas nunca se misturam: cada uma tem a sua base, o seu custo e as suas campanhas. O serviço é marcado em Configurações → Clientes e serviços.
+
+- **Importar** (aba Importar): a exportação de estoque do sistema (`.xlsx`, colunas Barras, Descrição, Estoque, Preço de Venda, Últ. Prc. Entrada, Preço de Promoção, Valor Aproximado, Últ. Entrada) e o **PDF "Analítico de vendas" cupom a cupom**. Os arquivos são lidos **no navegador** (pdf.js e JSZip); só a base resumida por produto e por dia sobe para a planilha. A leitura mostra quantas linhas foram lidas (o esperado é 99,9% ou mais), empresa e CNPJ do PDF, e **deixa de fora o dia da emissão** quando o relatório saiu durante o expediente (dia cortado). TAXA DE ENTREGA e "DIVERSOS" não são produto. Um PDF novo **substitui só os dias que cobre**: importar duas vezes o mesmo relatório não conta venda em dobro. Para 90 dias, importe os meses em arquivos separados (ou um por semana, toda segunda). O sistema avisa quando o estoque importado parece ser da outra loja (o custo dos produtos em comum bate com a outra base).
+- **Visão geral:** dinheiro em estoque (custo e preço de venda), parado em 90 dias, encalhado (6 meses ou mais de estoque), margem média ponderada, risco de ruptura, itens sem custo, papel de cada produto (parado, encalhado, isca, giro, margem, cauda), curva ABC, os 10 que mais faturam e **transferência entre lojas** (parado numa, girando na outra). Enquanto o histórico cobrir menos de 90 dias, a tela avisa que o giro de 60 e 90 dias ainda não é confiável.
+- **Candidatos:** listas Queima, Atrair, Margem, Ruptura, Sem custo e Sem desconto real, com giro de 60 e 90 dias, meses de estoque, tendência, margem atual e **preço sugerido**. Regra: **nenhuma promoção fura o piso** (`piso = custo ÷ (1 − margem mínima)`; margem padrão 20%, Limpeza 12%, Corta Preço 10%, Queima 5%); sem concorrente, o preço é custo + R$ 3,00, nunca abaixo do piso, nunca com desconto além do que o papel do produto permite (isca 40%, estoque 50%, giro 20%, margem 15%) e **sempre terminando em ,90**. Item sem custo não tem piso: aparece marcado, nunca aprovado. Item sem estoque não entra em encarte.
+- **Montar campanha:** escolha itens, ajuste o preço POR (o piso e a terminação ,90 são conferidos), veja margem e lucro da cesta **no ritmo de hoje** (giro de 60 dias × dias da campanha: não é previsão de vendas com a promoção), salve na planilha e exporte o **briefing para o designer** (Produto, Apresentação, DE, POR, Campanha, Frase, Selo, Início, Fim), copiado ou em CSV. Só entram itens com estoque, acima do piso e com preço em ,90.
+
+Ainda não entram: comparação com os preços dos concorrentes, incrementalidade (lift) e margem incremental das promoções, e a importação do estoque por API. Dados guardados: abas `PromoBase` (uma linha por produto e loja, com as vendas dia a dia numa só célula, 200 dias), `PromoImportacoes` e `PromoCampanhas`.
 
 ## Nota de saúde e checagem pré-publicação
 

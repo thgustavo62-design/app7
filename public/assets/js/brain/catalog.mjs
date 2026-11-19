@@ -44,7 +44,8 @@ export const SERVICE_AGENTS = {
   redes: ["aprovacao", "producao", "pipeline", "editorial", "qualidade", "redes", "calendario", "dados", "cliente", "oportunidades"],
   trafego: ["midia", "criativo", "redes", "dados", "cliente"],
   criativos: ["producao", "pipeline", "capacidade", "aprovacao", "qualidade", "criativo"],
-  varejo: ["vendas", "midia", "calendario", "dados", "cliente"]
+  varejo: ["vendas", "midia", "calendario", "dados", "cliente"],
+  promocoes: ["vendas", "calendario", "dados", "cliente"]
 };
 /* serviços que um agente atende (inverso de SERVICE_AGENTS) */
 export const servicesOf = agentId => Object.keys(SERVICE_AGENTS).filter(s => SERVICE_AGENTS[s].includes(agentId));

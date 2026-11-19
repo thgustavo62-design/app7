@@ -132,6 +132,7 @@
     cart: '<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l3 12h11l2-8H6"/>',
     ext: '<path d="M14 3h7v7M10 14 21 3M21 14v7H3V3h7"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    tag: '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/>',
     sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
     layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.4c1.9.8 3 2.8 3 5.6"/>',
@@ -148,6 +149,7 @@
     painel: { title: "Painel", render: renderPainel },
     insights: { title: "Insights", render: renderInsights },
     semana: { title: "Semana", render: v => window.N7Semana.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }) },
+    promocoes: { title: "Central de Promoções", render: (v, sub) => window.N7Promocoes.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
     relatorios: { title: "Relatórios", render: v => window.N7Relatorios.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS, posts }) },
     cerebro: { title: "Central de Inteligência", render: (v, sub) => window.N7Cerebro.render(v, sub, brainHelpers()) },
     calendario: { title: "Calendário Kanban", render: renderKanban },
@@ -164,6 +166,7 @@
     semana: () => !IS_CLIENT && CLIENTS.length > 0,
     cerebro: () => !IS_CLIENT && CLIENTS.length > 0,
     relatorios: () => !IS_CLIENT && CLIENTS.some(c => (c.services || []).length),
+    promocoes: () => !IS_CLIENT && CLIENTS.some(c => has(c, "promocoes")),
     calendario: () => anyPostClients(),
     fluxo: () => !IS_CLIENT && anyPostClients(),
     alertas: () => !IS_CLIENT && D.ALERTS.length > 0,
@@ -197,6 +200,7 @@
       ${ACCESS.insights() ? `<a class="nav-item" href="#insights">${ico("chart")}<span>Insights</span></a>` : ""}
       ${ACCESS.semana() ? `<a class="nav-item" href="#semana">${ico("file")}<span>Semana</span></a>` : ""}
       ${ACCESS.relatorios() ? `<a class="nav-item" href="#relatorios">${ico("list")}<span>Relatórios</span></a>` : ""}
+      ${ACCESS.promocoes() ? `<a class="nav-item" href="#promocoes">${ico("tag")}<span>Promoções</span></a>` : ""}
       ${CLIENTS.length ? `<div class="nav-group">${IS_CLIENT ? "Sua empresa" : "Clientes"}</div>
       ${CLIENTS.map(c => `<a class="nav-item" href="#${c.id}"><i class="nav-dot" style="background:var(${c.color})"></i><span>${esc(c.name)}</span>${late(c.id) && !IS_CLIENT ? `<span class="nav-count" title="pautas atrasadas">${late(c.id)}</span>` : ""}</a>`).join("")}` : ""}
       ${ops.length ? `<div class="nav-group">Operação</div>${ops.map(([id, ic, name, extra]) => `<a class="nav-item" href="#${id}">${ico(ic)}<span>${name}</span>${extra}</a>`).join("")}` : ""}
