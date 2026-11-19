@@ -12,11 +12,11 @@ const { send, readJson, query, sameSiteRequest, currentUser, handle } = require(
 
 const same = (a, b) => { const x = crypto.createHash('sha256').update(String(a)).digest(), y = crypto.createHash('sha256').update(String(b)).digest(); return crypto.timingSafeEqual(x, y); };
 
-async function run(repo, { inicio, semanas, dryRun }) {
+async function run(repo, { inicio, semanas, tipo = 'semana', dryRun }) {
   const clients = await activeClients(repo);
-  const n = Math.max(1, Math.min(6, Number(semanas) || 2));
-  const weeks = inicio ? [inicio] : W.lastWeeks(n);
-  return W.sync({ repo, clients, weeks, dryRun, applyOp, weekFromRow });
+  const n = Math.max(1, Math.min(tipo === 'mes' ? 3 : 6, Number(semanas) || (tipo === 'mes' ? 1 : 2)));
+  const weeks = inicio ? [inicio] : W.lastPeriods(tipo, n);
+  return W.sync({ repo, clients, weeks, tipo, dryRun, applyOp, weekFromRow });
 }
 
 module.exports = handle(async (req, res) => {
@@ -24,7 +24,10 @@ module.exports = handle(async (req, res) => {
   if (q.cron === '1') {                                              /* chamada do agendador da Vercel */
     const auth = String(req.headers.authorization || '');
     if (!c.cronSecret || !same(auth, `Bearer ${c.cronSecret}`)) return send(res, 401, { error: 'Não autorizado' });
-    return send(res, 200, { ok: true, report: await run(repo, { semanas: 2 }) });
+    const report = await run(repo, { semanas: 2 });
+    /* nos primeiros dias do mês, fecha também o mês que acabou (o alcance do mês não é a soma das semanas) */
+    if (new Date().getUTCDate() <= 3) report.mes = await run(repo, { tipo: 'mes' });
+    return send(res, 200, { ok: true, report });
   }
   const user = currentUser(req);
   if (!user) return send(res, 401, { error: 'login' });
@@ -41,5 +44,7 @@ module.exports = handle(async (req, res) => {
   const body = await readJson(req);
   if (!['preview', 'sync'].includes(body.action)) return send(res, 400, { error: 'Ação desconhecida' });
   if (body.inicio && !/^\d{4}-\d{2}-\d{2}$/.test(String(body.inicio))) return send(res, 400, { error: 'Data inválida' });
-  send(res, 200, { ok: true, report: await run(repo, { inicio: body.inicio, semanas: body.semanas, dryRun: body.action === 'preview' }) });
+  const tipo = body.tipo === 'mes' ? 'mes' : 'semana';
+  if (body.inicio && tipo === 'mes' && !String(body.inicio).endsWith('-01')) return send(res, 400, { error: 'O mês começa no dia 1' });
+  send(res, 200, { ok: true, report: await run(repo, { inicio: body.inicio, semanas: body.semanas, tipo, dryRun: body.action === 'preview' }) });
 });

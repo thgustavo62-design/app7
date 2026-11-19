@@ -148,6 +148,7 @@
     painel: { title: "Painel", render: renderPainel },
     insights: { title: "Insights", render: renderInsights },
     semana: { title: "Semana", render: v => window.N7Semana.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }) },
+    relatorios: { title: "Relatórios", render: v => window.N7Relatorios.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS, posts }) },
     cerebro: { title: "Central de Inteligência", render: (v, sub) => window.N7Cerebro.render(v, sub, brainHelpers()) },
     calendario: { title: "Calendário Kanban", render: renderKanban },
     alertas: { title: "Alertas", render: renderAlertas },
@@ -162,6 +163,7 @@
     insights: () => !IS_CLIENT && !!CL.M && !!CL.F && !!D.FARMA_DAILY && !!D.MINAS_AUG,
     semana: () => !IS_CLIENT && CLIENTS.length > 0,
     cerebro: () => !IS_CLIENT && CLIENTS.length > 0,
+    relatorios: () => !IS_CLIENT && CLIENTS.some(c => (c.services || []).length),
     calendario: () => anyPostClients(),
     fluxo: () => !IS_CLIENT && anyPostClients(),
     alertas: () => !IS_CLIENT && D.ALERTS.length > 0,
@@ -194,6 +196,7 @@
       ${ACCESS.cerebro() ? `<a class="nav-item" href="#cerebro">${ico("target")}<span>Central de Inteligência</span></a>` : ""}
       ${ACCESS.insights() ? `<a class="nav-item" href="#insights">${ico("chart")}<span>Insights</span></a>` : ""}
       ${ACCESS.semana() ? `<a class="nav-item" href="#semana">${ico("file")}<span>Semana</span></a>` : ""}
+      ${ACCESS.relatorios() ? `<a class="nav-item" href="#relatorios">${ico("list")}<span>Relatórios</span></a>` : ""}
       ${CLIENTS.length ? `<div class="nav-group">${IS_CLIENT ? "Sua empresa" : "Clientes"}</div>
       ${CLIENTS.map(c => `<a class="nav-item" href="#${c.id}"><i class="nav-dot" style="background:var(${c.color})"></i><span>${esc(c.name)}</span>${late(c.id) && !IS_CLIENT ? `<span class="nav-count" title="pautas atrasadas">${late(c.id)}</span>` : ""}</a>`).join("")}` : ""}
       ${ops.length ? `<div class="nav-group">Operação</div>${ops.map(([id, ic, name, extra]) => `<a class="nav-item" href="#${id}">${ico(ic)}<span>${name}</span>${extra}</a>`).join("")}` : ""}

@@ -10,6 +10,7 @@ Site de gestão interna da agência Nova7: resultados, metas e produção de con
 | --- | --- |
 | `#painel` | Indicadores da agência, cartões dos clientes com nota de saúde, pautas da semana, alertas P0 e rotina semanal |
 | `#insights` | Vendas, ticket, Instagram e Facebook por janela, Facebook diário da Farma e Farma, cesta, achados e qualidade dos dados. Filtro: duas farmácias, Minas ou Farma |
+| `#relatorios` | Fechamento do mês por cliente, conforme os serviços dele, com PowerPoint para enviar ao cliente |
 | `#semana` | Rotina de segunda-feira: digite os números da semana ou do mês (ou cole as tabelas da Meta), veja a análise e baixe o PowerPoint de 6 a 8 slides |
 | `#minas-farma`, `#padaria-bom-pao`... (um por cliente cadastrado) | Página do cliente, **montada conforme os serviços que a Nova7 presta a ele** (veja abaixo): redes sociais, tráfego pago, criativos e análise de varejo |
 | `#config` | Só administradores: subabas **Usuários** e **Clientes e serviços** |
@@ -118,6 +119,14 @@ O botão **Baixar PowerPoint** gera, no navegador, um deck editável (tabelas e 
 
 Ainda não entram: margem, lift e margem incremental das promoções, entrega contra balcão e estoque (dependem do PDF por item e da exportação de estoque) e a exportação em Excel.
 
+## Relatórios: fechamento do mês por cliente
+
+A tela `#relatorios` (equipe) mostra o fechamento de um mês de um cliente **conforme os serviços dele**: tráfego pago (investimento, resultados, custo por resultado, CPM, impressões, alcance e frequência), redes sociais (Instagram e Facebook), análise de varejo (vendas, compras, ticket, cestas) e conteúdo publicado (pautas do calendário). Cada indicador vem comparado ao mês anterior, com variação.
+
+- **De onde vem o mês:** da linha de mês (busca da Meta pelo mês inteiro) ou da **soma das semanas inteiras dentro do mês** (a semana que atravessa dois meses não entra). A tela diz qual foi a origem e avisa quando só parte das semanas tinha o número.
+- **Honestidade dos números:** alcance e frequência só aparecem com o alcance do mês; campo sem número é "sem dado", nunca zero; variação com base pequena (menos de 20) não vira destaque.
+- **PowerPoint para o cliente:** botão **Baixar PowerPoint** (capa, resumo com destaques, um slide por serviço com número e "Próximos passos" com o texto que você escrever). Nome: `Relatorio_<Cliente>_AAAA-MM.pptx`. O texto dos próximos passos fica salvo neste navegador.
+
 ## Nota de saúde e checagem pré-publicação
 
 Método adaptado do repositório aberto [digital-marketing-pro](https://github.com/indranilbanerjee/digital-marketing-pro) (MIT). A **nota de saúde (0–100)** soma ritmo de publicação (25%), pipeline (15%), resultados (25%), engajamento (10%) e conformidade (25%). A **checagem pré-publicação** tem 6 critérios com pesos e um checklist de conformidade por setor; a peça só fica pronta com nota 85+ e checklist completo.
@@ -157,6 +166,8 @@ Os resultados da Meta de todos os clientes vêm do **Windsor.ai** pela API de co
 1. Em **Configurações → Fontes de dados**, o botão **Descobrir contas** lista os IDs de cada conta (anúncios, Instagram e página do Facebook).
 2. Em **Configurações → Clientes e serviços**, informe os IDs de cada cliente.
 3. **Testar a última semana** mostra o que veio, sem gravar; **Sincronizar agora** grava na aba `Semanas`. O agendador da Vercel faz isso todo dia às 09:00 UTC (variável `CRON_SECRET`), nas duas últimas semanas fechadas.
+
+**Mês inteiro:** o botão **Buscar Meta do mês**, na tela Relatórios (só administradores), busca o período do mês de uma vez e grava uma linha `mes` na aba `Semanas`. Isso importa porque **o alcance não se soma entre semanas** (as mesmas pessoas se repetem): só o mês buscado inteiro tem alcance e frequência corretos. O agendador também fecha o mês que acabou nos três primeiros dias de cada mês.
 
 Regras: o Windsor só troca os campos que vieram com valor (vendas, anotações e o que você digitou ficam); campo que a conta não tem fica **sem dado, nunca zero**; cada métrica é pedida separadamente, então um campo recusado não derruba os demais. Os campos de cada métrica estão em `MAP` no `lib/windsor.js`. **Confira o alcance** na primeira vez contra o Meta: ele é calculado no período inteiro pelo Windsor, e o resultado do anúncio usa por padrão as conversas iniciadas (`WINDSOR_ADS_RESULT_FIELD` troca o campo).
 

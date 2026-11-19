@@ -110,3 +110,15 @@ test('rotas: o agendador só entra com o segredo; as demais exigem administrador
     assert.equal((await call('/api/windsor', { method: 'POST', headers: Object.assign({ 'x-n7': '' }, adm), body: { action: 'sync' } })).status, 403, 'POST exige o cabeçalho de origem');
   } finally { srv.close(); db._resetMemory(); }
 });
+
+test('sync do mês: pede o período inteiro (alcance do mês não é a soma das semanas) e grava linha de mês sem mexer nas semanas', async () => {
+  const seed = require('../lib/seed').build({ devEmail: 'dev@x.test' });
+  const driver = new MemoryDriver(seed), repo = () => new Repo(driver), log = [];
+  const args = { repo: repo(), clients, weeks: ['2026-10-01'], tipo: 'mes', applyOp: model.applyOp, weekFromRow: model.weekFromRow, fetchFn: fakeFetch({ log }), now: new Date('2026-11-02T12:00:00Z') };
+  const r = await W.sync(args); assert.equal(r.saved, 2); assert.equal(r.weeks[0].from, '2026-10-01'); assert.equal(r.weeks[0].to, '2026-10-31');
+  const q = log.find(u => u.searchParams.get('date_from')); assert.equal(q.searchParams.get('date_from'), '2026-10-01'); assert.equal(q.searchParams.get('date_to'), '2026-10-31');
+  const rows = await repo().rows('Semanas'), m = rows.find(x => x.tipo === 'mes' && x.inicio === '2026-10-01' && x.marca === 'M');
+  assert.equal(m.fim, '2026-10-31'); assert.equal(m.ads_alcance, '5000'); assert.equal(m.ads_gasto, '100.5'); assert.equal(m.vendas, '', 'vendas do mês não são inventadas');
+  assert.equal(rows.filter(x => x.tipo === 'semana').length, 6, 'as semanas continuam como estavam');
+  assert.equal(W.lastMonths(2, new Date('2026-11-18T12:00:00Z')).join(), '2026-09-01,2026-10-01');
+});

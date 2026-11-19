@@ -217,8 +217,48 @@
     for (let i = 0; i < k; i++) { const row = weeks.find(r => r.tipo === tipo && r.inicio === s && r.marca === marca); out.unshift({ inicio: s, valor: row ? pick(norm(row), derive(norm(row))) : null }); s = prevStart(tipo, s); }
     return out;
   }
+  /* ---------- fechamento do mês a partir das semanas ---------- */
+  /* Campos que se somam entre semanas. Alcance não entra: pessoas se repetem de uma semana para a outra, então o
+     alcance do mês só vale quando vem de uma linha de mês (a busca da Meta pelo mês inteiro). */
+  const ADD = { vendas: ["vendas"], compras: ["compras"], c100n: ["c100n"], c100rs: ["c100rs"], ig: ["views", "interacoes", "cliques", "visitas", "seguidores"], fb: ["views", "interacoes", "cliques", "visitas", "seguidores"], ads: ["gasto", "impressoes", "resultados"] };
+  const NOADD = { ig: ["alcance"], fb: ["alcance"], ads: ["alcance"] };
+  function weeksInside(inicio) {            /* segundas-feiras cujas semanas cabem inteiras no mês */
+    const per = period("mes", inicio), out = [];
+    for (let d = mondayOf(parse(per.inicio)); iso(d) <= per.fim; d = addDays(d, 7)) if (iso(d) >= per.inicio && iso(addDays(d, 6)) <= per.fim) out.push(iso(d));
+    return out;
+  }
+  /* devolve { row, origem, semanas, esperadas, fonte }: origem[campo] = "mes" | "semanas" | "parcial" (só parte das semanas tinha o dado) */
+  function rollupMonth(weeks, inicio, marca) {
+    const per = period("mes", inicio), esperadas = weeksInside(inicio);
+    const own = weeks.find(r => r.tipo === "mes" && r.inicio === inicio && r.marca === marca);
+    const mrow = own ? norm(own) : null;
+    const wk = weeks.filter(r => r.tipo === "semana" && r.marca === marca && esperadas.includes(r.inicio)).map(r => ({ inicio: r.inicio, n: norm(r) }));
+    const row = norm({}), origem = {};
+    const take = (path, get, set, additive) => {
+      const mv = mrow ? get(mrow) : null;
+      if (mv != null) { set(mv); origem[path] = "mes"; return; }
+      if (!additive) return;
+      const vals = wk.map(w => get(w.n)).filter(v => v != null);
+      if (!vals.length) return;
+      set(sum(vals)); origem[path] = vals.length === esperadas.length ? "semanas" : "parcial";
+    };
+    ["vendas", "compras", "c100n", "c100rs"].forEach(f => take(f, r => r[f], v => { row[f] = v; }, true));
+    ["ig", "fb", "ads"].forEach(g => {
+      ADD[g].forEach(f => take(g + "." + f, r => r[g][f], v => { row[g][f] = v; }, true));
+      NOADD[g].forEach(f => take(g + "." + f, r => r[g][f], v => { row[g][f] = v; }, false));
+    });
+    const vals = Object.values(origem), fonte = !vals.length ? "vazio" : vals.every(x => x === "mes") ? "mes" : vals.every(x => x === "semanas") ? "semanas" : "misto";
+    if (mrow) { row.janela = mrow.janela; row.fonte = mrow.fonte; row.obs = mrow.obs; }
+    return { row, origem, semanas: wk.map(w => w.inicio), esperadas, fonte, period: per };
+  }
+  /* mês e mês anterior lado a lado, com as derivadas de cada um */
+  function monthPair(weeks, inicio, marca) {
+    const cur = rollupMonth(weeks, inicio, marca), prev = rollupMonth(weeks, prevStart("mes", inicio), marca);
+    return { cur, prev, d: derive(cur.row), dp: derive(prev.row), temPrev: hasData(prev.row) };
+  }
+
   const periodsWith = (weeks, tipo) => [...new Set(weeks.filter(r => r.tipo === tipo).map(r => r.inicio))].sort();
 
-  root.N7Analysis = { period, prevStart, nextStart, lastClosed, holidaysIn, norm, derive, sameWeekdays, analyze, series, periodsWith, hasData,
+  root.N7Analysis = { rollupMonth, monthPair, weeksInside, period, prevStart, nextStart, lastClosed, holidaysIn, norm, derive, sameWeekdays, analyze, series, periodsWith, hasData,
     fmt: { brl, int, dec, pctTxt, short, dm }, NAMES, DEFAULT_CLIENTS, SOCIAL, SOCIAL_NAME, ADS, ADS_NAME, PHARMA, DOW, POP, HOLIDAYS, mondayOf, parse, iso, addDays };
 })(typeof window !== "undefined" ? window : globalThis);

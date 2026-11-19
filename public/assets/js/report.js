@@ -153,7 +153,7 @@
     return pres;
   }
 
-  const slugName = n => String(n).split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join("").replace(/[^A-Za-z0-9]/g, "");
+  const slugName = n => String(n).normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join("").replace(/[^A-Za-z0-9]/g, "");
   const fileName = an => {
     const ph = an.clients.filter(c => c.farmacia), nomes = ph.length ? ph.map(c => slugName(c.nome)).join("_") : "Nova7";
     return `${an.period.tipo === "mes" ? "Mensal" : "Semanal"}_${nomes}_${an.period.inicio}.pptx`;
