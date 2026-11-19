@@ -18,8 +18,10 @@ test('deck: sem Meta Ads são 7 slides; frase da capa usa os mesmos dias da sema
   const an = analyze(), pres = R.build(an);
   assert.equal(pres.slides.length, 7);
   const h = R.headline(an);
-  assert.match(h, /R\$\s159\.153,93/); assert.match(h, /Minas Farma \+18,4%/); assert.match(h, /Farma e Farma \+5,5%/);
+  assert.match(h, /Minas Farma vendeu R\$\s109\.842,42 \(\+18,4% nos mesmos dias da semana\)/); assert.match(h, /Farma e Farma vendeu R\$\s49\.311,51 \(\+5,5% nos mesmos dias da semana\)/);
+  assert.doesNotMatch(h, /159\.153/, 'as duas farmácias nunca são somadas');
   const t = texts(pres);
+  assert.doesNotMatch(t, /Total das lojas|159\.153/, 'o deck não traz total combinado');
   assert.match(t, /Promoção do período: Black Friday/);
   assert.match(t, /sem dado/, 'o que falta aparece como "sem dado"');
   assert.match(t, /Meta Ads/, 'Meta Ads aparece na lista do que não pôde ser respondido');

@@ -27,6 +27,16 @@ export function connect(open, ctx, allKeys) {
   const hol = open.filter(f => f.agente === "calendario" && (f.tags[0] || "").startsWith("feriado:") && +f.tags[0].slice(8) <= 3)[0];
   if (hol) brands.forEach(k => { const hit = by(k, f => (f.agente === "producao" && f.chave !== `prod-empty-${k}`) || f.agente === "pipeline"); hit.forEach(f => { add(f, 6); f.evidencia.push(`Feriado em breve (${hol.titulo}): falta dia útil para recuperar`); rel(f, hol, "feriado-prazo", "Feriado perto do prazo"); }); if (hit.length) fire("feriado-prazo", k, `${hit.length} achado(s) apertados pelo feriado`); });
 
+  /* promoções: base velha baixa a confiança; estoque parado + falta de campanha; ruptura com anúncio no ar */
+  brands.forEach(k => {
+    const stale = by(k, f => f.agente === "dados" && f.tags.includes("stale"))[0];
+    if (stale) { const hit = by(k, f => ["estoque", "ruptura", "margem", "campanha"].includes(f.agente) && f.kind === "acao"); hit.forEach(f => { f.score = clamp(f.score * .85); f.evidencia.push("A base de estoque ou vendas desta loja está velha: confirme antes de agir"); rel(f, stale, "promo-dados-confianca", "Base velha"); }); if (hit.length) fire("promo-dados-confianca", k, `${hit.length} achado(s) de promoção com confiança menor`); }
+    const est = by(k, "estoque")[0], falta = by(k, f => f.agente === "campanha" && f.tags.includes("campanha_falta"))[0];
+    if (est && falta) { add(falta, 6); falta.detalhe += ` A loja tem ${est.titulo.split(": ")[1]}: use a campanha para queimar esses itens.`; falta.acao = "Montar a campanha do dia com itens de queima (Candidatos > Queima) e mandar o briefing para a arte."; falta.evidencia.push("Há estoque parado: a campanha é a chance de queimar"); rel(falta, est, "estoque-campanha", est.titulo); rel(est, falta, "estoque-campanha", falta.titulo); fire("estoque-campanha", k, `${est.titulo} + ${falta.titulo.replace(/^.*?: /, "")}`); }
+    const rup = by(k, "ruptura")[0], cl = ctx.analysis && ctx.analysis.clients.find(x => x.marca === k), gasto = cl && cl.row && cl.row.ads ? cl.row.ads.gasto : null;
+    if (rup && gasto > 0) { add(rup, 6); rup.evidencia.push(`Anúncio no ar na semana (R$ ${Math.round(gasto)}): confira se ele não leva cliente a prateleira vazia`); fire("ruptura-midia", k, `${rup.titulo} com anúncio ativo`); }
+  });
+
   const extra = [];
   brands.forEach(k => {
     const mid = by(k, f => f.agente === "midia" && f.kind === "acao" && f.tags.some(t => ["freq", "saturacao", "cpr_up"].includes(t)));

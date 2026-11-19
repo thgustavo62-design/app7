@@ -24,7 +24,7 @@ export function makeKit(H, rerender) {
     H.store.set("decisions", list);
     H.toast({ feita: "Marcado como feito. Volta amanhã se ainda for um problema.", adiada: "Adiado por 2 dias.", ignorada: "Ignorado por 14 dias." }[status]);
   }
-  const goBtn = f => f.link ? `<button type="button" class="btn sm" data-go="${esc(f.link.route)}" data-brand="${esc(f.link.brand || "")}" ${f.link.ideas ? 'data-ideas="1"' : ""}>Abrir</button>` : "";
+  const goBtn = f => f.link ? `<button type="button" class="btn sm" data-go="${esc(f.link.route)}" data-brand="${esc(f.link.brand || "")}" ${f.link.ideas ? 'data-ideas="1"' : ""} ${f.link.lista ? `data-lista="${esc(f.link.lista)}"` : ""} ${f.link.tipo ? `data-tipo="${esc(f.link.tipo)}"` : ""} ${f.link.dia ? `data-dia="${esc(f.link.dia)}"` : ""}>Abrir</button>` : "";
   const acts = f => `${goBtn(f)}${H.canWrite ? `<button type="button" class="btn sm" data-mark="feita" data-key="${esc(f.chave)}">Feito</button><button type="button" class="btn sm" data-mark="adiada" data-key="${esc(f.chave)}">Adiar 2 dias</button><button type="button" class="btn sm" data-mark="ignorada" data-key="${esc(f.chave)}">Ignorar</button>` : ""}`;
   const flag = f => (f.reincidente ? `<span class="badge p0" title="Marcado como tratado e o problema continua">reincidente</span>` : "");
   const links = f => (f.rel && f.rel.length ? `<p class="src"><b>Ligado a:</b> ${f.rel.slice(0, 3).map(x => esc(agentName(x.agente) + ": " + x.titulo.replace(/^.*? · /, ""))).join(" · ")}</p>` : "");
@@ -35,7 +35,7 @@ export function makeKit(H, rerender) {
   /* liga os botões de uma área da tela: marcar achado e abrir a tela relacionada */
   function wire(root) {
     root.querySelectorAll("[data-mark]").forEach(b => b.addEventListener("click", () => { const f = everyFinding().find(x => x.chave === b.dataset.key); if (f) { mark(f, b.dataset.mark); rerender(); } }));
-    root.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => H.go(b.dataset.go, b.dataset.brand, !!b.dataset.ideas)));
+    root.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => H.go(b.dataset.go, b.dataset.brand, !!b.dataset.ideas, { lista: b.dataset.lista, tipo: b.dataset.tipo, dia: b.dataset.dia })));
   }
   return { H, B, A, r, input, esc, agentName, services: svc, tone, flag, links, goBtn, acts, row, smallCard, wire, mark, rerender, LEVEL, dm, dateTxt, moduleName };
 }

@@ -217,5 +217,27 @@
     return { head, rows, ok, problemas, tsv: [head].concat(rows).map(r => r.join("\t")).join("\n") };
   }
 
-  root.N7Promo = { CAMPANHAS, lojaProvavel, frasePadrao, briefing, REGRAS, DESC_MAX, PAPEL, CATS: CATS.map(c => c[0]).concat("Outros"), ceil90, categoria, janela, enrich, classify, abc, suggest, analyze, candidatos, campaignTotals, cruzarLojas, day, iso };
+  /* cadência semanal de campanhas de cada loja (calendário de marketing). Dia da semana: 0 domingo a 6 sábado. Chave = empresa. */
+  const CADENCIA = {
+    M: { 1: ["Segunda do Bebê"], 2: ["Dias do Leite"], 3: ["Dias do Leite"], 4: ["Quinta dos Suplementos"], 5: ["Perfumaria & Cuidado Barato"], 6: ["Perfumaria & Cuidado Barato", "Fim de Semana da Limpeza"], 0: ["Fim de Semana da Limpeza"] },
+    F: { 3: ["Atacadão do Bebê"], 4: ["Atacadão do Bebê"] }
+  };
+
+  /* resumo compacto de uma loja para o cérebro (só números e poucos itens; nada de base inteira) */
+  function brainSummary(key, name, data, a) {
+    const base = { key, name, estoqueEm: data.estoqueEm || "", importacoes: data.importacoes.length, campanhas: data.campanhas.map(c => ({ id: c.id, nome: c.nome, tipo: c.tipo, inicio: c.inicio, fim: c.fim, status: c.status, itens: c.itens.length })) };
+    if (!a.resumo) return Object.assign(base, { vazio: true });
+    const r = a.resumo, cand = candidatos(a, REGRAS.padrao);
+    const baixa = a.items.filter(i => i.estoque > 0 && i.custo > 0 && i.preco > 0 && i.margem != null && i.margem < 0.12 && i.v90 > 0).sort((x, y) => y.v90 - x.v90);
+    const porCat = {}; cand.queima.concat(cand.atrair).forEach(i => { porCat[i.cat] = (porCat[i.cat] || 0) + 1; });
+    return Object.assign(base, {
+      vazio: false, cobertura: r.cobertura, comEstoque: r.comEstoque, semCusto: r.semCusto, capitalCusto: r.capitalCusto, capitalParado: r.capitalParado, capitalQueima: r.capitalQueima, parados: r.parados, queima: r.queima, ruptura: r.ruptura, margemMedia: r.margemMedia,
+      topQueima: cand.queima.slice(0, 3).map(i => ({ desc: i.desc, estoque: i.estoque, capital: i.capitalCusto, por: i.sug.por, desconto: i.sug.desconto })),
+      topRuptura: cand.ruptura.slice(0, 5).map(i => ({ desc: i.desc, estoque: i.estoque, dias: i.coberturaDias, abc: i.abc, q60: i.q60 })),
+      margemBaixa: { n: baixa.length, abaixoCusto: baixa.filter(i => i.margem <= 0).length, itens: baixa.slice(0, 3).map(i => ({ desc: i.desc, margem: i.margem, v90: i.v90 })) },
+      candidatosPorCat: porCat, nQueima: cand.queima.length, nAtrair: cand.atrair.length
+    });
+  }
+
+  root.N7Promo = { CADENCIA, brainSummary, CAMPANHAS, lojaProvavel, frasePadrao, briefing, REGRAS, DESC_MAX, PAPEL, CATS: CATS.map(c => c[0]).concat("Outros"), ceil90, categoria, janela, enrich, classify, abc, suggest, analyze, candidatos, campaignTotals, cruzarLojas, day, iso };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -128,6 +128,10 @@ A tela `#relatorios` (equipe) mostra o fechamento de um mês de um cliente **con
 - **Honestidade dos números:** alcance e frequência só aparecem com o alcance do mês; campo sem número é "sem dado", nunca zero; variação com base pequena (menos de 20) não vira destaque.
 - **PowerPoint para o cliente:** botão **Baixar PowerPoint** (capa, resumo com destaques, um slide por serviço com número e "Próximos passos" com o texto que você escrever). Nome: `Relatorio_<Cliente>_AAAA-MM.pptx`. O texto dos próximos passos fica salvo neste navegador.
 
+## As farmácias sempre separadas
+
+Nenhuma análise soma ou mistura a Minas Farma com a Farma e Farma. O Painel mostra as vendas de cada uma em indicadores próprios; a tela Semana e o PowerPoint semanal falam de uma loja por vez (sem "total das lojas" nem participação de uma na outra); o Insights tem um filtro por loja (sem a opção "duas farmácias"); a Central de Promoções tem base, custo, estoque e campanhas por loja; o cérebro gera achados por loja, com saúde por loja. A única comparação entre lojas (produto parado numa e girando na outra) fica escondida na visão geral das Promoções e só aparece quando você clica em **Comparar com a outra loja**.
+
 ## Central de Promoções (serviço "Promoções e preços")
 
 Para as clientes em que a Nova7 programa promoções e preços (hoje Minas Farma e Farma e Farma), a tela `#promocoes` cruza **estoque** e **vendas de 60 e 90 dias** de cada loja. As lojas nunca se misturam: cada uma tem a sua base, o seu custo e as suas campanhas. O serviço é marcado em Configurações → Clientes e serviços.
@@ -197,19 +201,20 @@ A tela `#cerebro` responde "o que fazer hoje" **sem nenhuma API de IA**: agentes
 
 Em 6 passos (motor em `public/assets/js/brain/`, funções puras testadas em Node):
 
-1. **Agentes** lêem os dados e devolvem achados com nota e evidência. São **14, em 5 áreas**:
+1. **Agentes** lêem os dados e devolvem achados com nota e evidência. São **18, em 6 áreas**:
    - *Operação:* Produção (atrasos, pautas que vencem sem começar, calendário vazio), Etapas da produção (prazo de roteiro, gravação, edição, aprovação e agendamento contra o status), Capacidade da equipe (dia com etapas demais), Aprovações.
    - *Conteúdo:* Ritmo editorial (horários fixos, variedade de formato, ideias aprovadas paradas), Qualidade (peça pronta sem checagem), Criativos (nasce da conversa entre Mídia e Redes).
    - *Resultado:* Mídia paga, Redes sociais e Vendas (da análise semanal, mesmas regras da tela Semana).
+   - *Promoções* (só farmácias com o serviço Promoções e preços; **cada loja é lida à parte, nunca somada à outra**): Estoque parado (dinheiro sem venda em 90 dias e encalhado há 6 meses ou mais), Ruptura (itens classe A ou B com estoque para 15 dias), Preço e margem (venda no custo ou abaixo e margem abaixo de 12%) e Campanha da semana (a cadência de cada loja contra as campanhas salvas e aprovadas para hoje e os 2 próximos dias). O resumo vem da Central de Promoções (`promo.js`), carregado em segundo plano; a tela se atualiza quando chega. O botão *Abrir* de cada achado leva à loja e à lista certas, e a campanha da cadência já vem preparada.
    - *Estratégia:* Gestão de contas (saúde por cliente) e Oportunidades (orgânico forte em cliente sem tráfego pago).
-   - *Contexto:* Qualidade dos dados e Datas e feriados.
+   - *Contexto:* Qualidade dos dados (inclui base de promoções sem importar, estoque ou vendas velhos, histórico curto e muito item sem custo) e Datas e feriados.
 2. **Memória:** o que foi marcado como feito, adiado ou ignorado e continua aparecendo volta como **reincidente** (+4 a +10 pontos). O que foi feito e deixou de aparecer conta como resolvido.
-3. **Sinapses** (conexões entre agentes, listadas na tela "Como o cérebro pensa"): aprovação trava a produção; dado velho baixa a confiança; feriado aperta o prazo; anúncio cansado + redes em queda = criativos desgastados; falta de publicação + queda de alcance; vendas caindo + anúncio com problema; sobrecarga + atraso; calendário vazio + ideia parada; memória.
+3. **Sinapses** (conexões entre agentes, listadas na tela "Como o cérebro pensa"): aprovação trava a produção; dado velho baixa a confiança; feriado aperta o prazo; anúncio cansado + redes em queda = criativos desgastados; dado de promoção velho baixa a nota dos achados da loja; estoque parado + falta de campanha vira oportunidade de queima; ruptura com anúncio no ar; falta de publicação + queda de alcance; vendas caindo + anúncio com problema; sobrecarga + atraso; calendário vazio + ideia parada; memória.
 4. **Gestão de contas:** soma o que todos disseram de cada cliente numa **saúde de 0 a 100** (80+ em ordem, 60 a 79 atenção, abaixo de 60 em risco) e avisa quando várias frentes pioram juntas.
 5. **Maestro:** escolhe a **decisão do dia** e até 2 "também hoje" (agentes e clientes diferentes). Nota de 0 a 100 = urgência x impacto x confiança; Hoje (80+), Esta semana (60+), Acompanhar. Ganhos aparecem à parte e nunca viram decisão.
 6. **Tratar:** *Feito* (some hoje), *Adiar 2 dias* ou *Ignorar* (14 dias), gravado na aba `Decisoes` da planilha-banco.
 
-A tela traz ainda o **mapa do cérebro** (os 14 agentes e as conexões que dispararam hoje), a saúde dos clientes e o radar por área. O Painel mostra a decisão do dia num cartão. Usuário cliente não vê a Central de Inteligência.
+A tela traz ainda o **mapa do cérebro** (os 18 agentes e as conexões que dispararam hoje), a saúde dos clientes e o radar por área. O Painel mostra a decisão do dia num cartão. Usuário cliente não vê a Central de Inteligência.
 
 ### Subabas da Central
 

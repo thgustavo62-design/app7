@@ -182,9 +182,9 @@
   /* ajudantes da Central de Inteligência: dados do site entregues às funções puras do cérebro (assets/js/brain/) */
   const brainHelpers = () => ({ ico, banner, toast, esc, store, canWrite: CAN_WRITE, today: TODAY_ISO,
     input: () => ({ today: TODAY_ISO, clients: CLIENTS.map(c => ({ key: c.key, id: c.id, name: c.name, services: c.services })), posts: posts(), weeks: allWeeks(), gens: store.get("weekGen", []), decisions: store.get("decisions", []),
-      ideas: F.getIdeas(), slots: F.getFlow().slots, checks,
+      promo: window.N7PromoBrain ? window.N7PromoBrain.summaries() : {}, ideas: F.getIdeas(), slots: F.getFlow().slots, checks,
       needsClient: p => { const st = F.approvalState(p.code, p.b); return st.needs.includes("client") && !st.rec.client; }, planSource: D.PLAN_SOURCE }),
-    go: (route, brand, ideas) => { if (brand) prefs.kbrand = brand; if (ideas) prefs.kview = "ideias"; if (brand || ideas) savePrefs(); location.hash = "#" + route; } });
+    go: (route, brand, ideas, extra) => { if (brand) prefs.kbrand = brand; if (ideas) prefs.kview = "ideias"; if (brand || ideas) savePrefs(); if (/^promocoes/.test(route) && window.N7Promocoes) window.N7Promocoes.focus(Object.assign({ loja: brand }, extra || {})); location.hash = "#" + route; } });
   const settingsCtx = () => ({ REG, ME, clients: () => CLIENTS, banner, ico, toast, esc, reload: reloadRegistry });
   setupClients();
 
@@ -228,6 +228,8 @@
     C.hideTip();
     const view = $("#view");
     view.innerHTML = "";
+    /* o cérebro lê o resumo das promoções de cada farmácia; carrega em segundo plano e atualiza a tela quando chega */
+    if (ACCESS.cerebro() && CLIENTS.some(c => has(c, "promocoes")) && window.N7PromoBrain) window.N7PromoBrain.ensure(() => { if (current === "cerebro" || current === "painel") route(); });
     ROUTES[r].render(view, sub);
     scrollTo(0, 0);
     current = r;
@@ -302,8 +304,8 @@
     const an = ini ? analyzeAt(ini) : null;
     const kp = [kpi("Clientes ativos", String(CLIENTS.length), SVC.ORDER.map(s => [s, CLIENTS.filter(c => has(c, s)).length]).filter(x => x[1]).map(([s, n]) => `${n} ${SVC.SERVICES[s].short.toLowerCase()}`).join(" · ") || "cadastre em Configurações", "list")];
     if (anyPosts) kp.push(kpi("Pautas publicadas", `${pub} de ${ps.length}`, `plano Nov–Dez · <b class="tnum" style="color:var(--red)">${late}</b> atrasadas`, "cal", "amber"));
-    if (an && an.total) { const ph = an.clients.filter(c => c.farmacia), md = ph.length && ph.every(c => c.mesmosDias) ? (ph.reduce((x, c) => x + c.mesmosDias.atual, 0) / ph.reduce((x, c) => x + c.mesmosDias.anterior, 0) - 1) * 100 : null; kp.push(kpi(`Vendas · lojas ${periodTxt(ini)}`, brl(an.total.vendas), md != null ? `${delta(md)} nos mesmos dias da semana` : "sem base de comparação", "money", "green")); }
-    if (an) { const g = trafego.map(c => clientAt(an, c)).filter(c => c && c.row.ads.gasto != null); if (g.length) kp.push(kpi(`Meta Ads ${periodTxt(ini)}`, brl(g.reduce((x, c) => x + c.row.ads.gasto, 0)), `${g.length} cliente(s) com anúncio informado`, "target", "red")); }
+    /* cada farmácia à parte: nunca somamos vendas nem anúncios de lojas diferentes */
+    if (an) varejo.forEach(c => { const cc = clientAt(an, c); if (cc && cc.row.vendas != null) kp.push(kpi(`Vendas · ${c.short} ${periodTxt(ini)}`, brl(cc.row.vendas), cc.mesmosDias && cc.mesmosDias.pct != null ? `${delta(cc.mesmosDias.pct)} nos mesmos dias da semana` : "sem base de comparação", "money", "green")); });
     if (kp.length < 4 && anyPosts) kp.push(kpi("Aguardando aprovação", String(ps.filter(p => p.status === "apr").length), "pautas na etapa de aprovação", "list", "amber"));
     v.innerHTML = `
       <div class="page-head"><div><div class="eyebrow">Gestão interna · ${CLIENTS.length} contas</div><h1>Painel da agência</h1>
@@ -386,8 +388,9 @@
      INSIGHTS
      ==================================================================== */
   function renderInsights(v) {
-    const f = prefs.ins; // all | M | F
-    const keys = f === "all" ? ["M", "F"] : [f];
+    if (prefs.ins !== "M" && prefs.ins !== "F") { prefs.ins = "M"; savePrefs(); }     /* uma farmácia por vez, nunca as duas somadas */
+    const f = prefs.ins; // M | F
+    const keys = [f];
     const W = D.WEEKLY, L = 2;
     const sum = (m, i) => keys.reduce((a, b) => a + (W[b][m][i] ?? 0), 0);
     const ser = m => keys.map(b => ({ name: CL[b].name, short: CL[b].short, color: CL[b].color, values: W[b][m] }));
@@ -395,7 +398,7 @@
     v.innerHTML = `
       <div class="page-head"><div><div class="eyebrow">Farmácias · Baixo Guandu-ES · 14/08 a 14/11/2026</div><h1>Insights</h1>
         <p>Vendas vêm dos PDFs do sistema das lojas; redes, dos relatórios semanais e da Meta Business Suite. Visualizações, cliques e visitas não são vendas atribuídas. Campo em branco é falta de dado, não zero.</p></div>
-        <div class="seg" id="ins-f" role="group" aria-label="Empresa">${[["all", "Duas farmácias"], ["M", "Minas Farma"], ["F", "Farma e Farma"]].map(([k2, n]) => `<button type="button" data-v="${k2}" aria-pressed="${f === k2}">${n}</button>`).join("")}</div></div>
+        <div class="seg" id="ins-f" role="group" aria-label="Empresa">${[["M", "Minas Farma"], ["F", "Farma e Farma"]].map(([k2, n]) => `<button type="button" data-v="${k2}" aria-pressed="${f === k2}">${n}</button>`).join("")}</div></div>
       <div class="kpis">
         ${kpi("Vendas líquidas 02–08/11", brl(sum("sales", L)), f === "M" ? delta(18.4) + " ter–dom" : f === "F" ? delta(5.5) + " ter–dom" : delta(14.1) + " ter–dom", "money", "green")}
         ${kpi("Compras", int(sum("orders", L)), `ticket ${brl(sum("sales", L) / sum("orders", L))}`, "cart")}

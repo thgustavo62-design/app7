@@ -10,7 +10,7 @@
   const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const TABS = [["visao", "Visão geral"], ["candidatos", "Candidatos"], ["campanha", "Montar campanha"], ["campanhas", "Campanhas"], ["importar", "Importar"]];
   const LISTAS = [["queima", "Queima", "Estoque parado ou encalhado com preço que respeita o piso"], ["atrair", "Atrair", "Isca e giro: itens que puxam cliente"], ["margem", "Margem", "Proteger: vendem bem com boa margem"], ["ruptura", "Ruptura", "Vendem bem e o estoque acaba em poucos dias"], ["semCusto", "Sem custo", "Sem custo não existe piso"], ["semDescontoReal", "Sem desconto real", "O piso fica igual ou acima do preço atual"]];
-  const ui = Object.assign({ loja: "", regra: "padrao", lista: "queima", cat: "all", q: "", limit: 50, ord: "" }, (() => { try { return S.get("promoui", {}) || {}; } catch (e) { return {}; } })());
+  const ui = Object.assign({ loja: "", regra: "padrao", lista: "queima", cat: "all", q: "", limit: 50, ord: "", compare: false }, (() => { try { return S.get("promoui", {}) || {}; } catch (e) { return {}; } })());
   const cache = {};                                  /* loja -> { data, a } */
   let H = null, lojas = [], podeEditar = false, pend = { estoque: null, vendas: [] };
   const saveUi = () => { try { S.set("promoui", { loja: ui.loja, regra: ui.regra, lista: ui.lista }); } catch (e) { /* sem armazenamento */ } };
@@ -28,6 +28,7 @@
     if (!r.ok) throw new Error(b.error || "Não foi possível concluir.");
     return b;
   };
+  const bust = k => { delete cache[k]; if (root.N7PromoBrain) root.N7PromoBrain.invalidate(); };   /* dados mudaram: o cérebro também relê */
   const clientOf = k => lojas.find(l => l.key === k) || { name: k, color: "--c1" };
 
   async function loadLoja(k, force) {
@@ -45,7 +46,7 @@
     const cob = r.cobertura, so = data.items.filter(i => !i.estoqueConhecido).length;
     const papeis = Object.entries(P.PAPEL).map(([id, nome]) => [nome, r.porPapel[id] || 0]).filter(x => x[1]);
     const top = a.items.filter(i => i.v90 > 0).sort((x, y) => y.v90 - x.v90).slice(0, 10);
-    const outra = lojas.find(l => l.key !== ui.loja), oc = outra && cache[outra.key];
+    const outra = lojas.find(l => l.key !== ui.loja), oc = ui.compare && outra && cache[outra.key];
     const trans = oc && oc.a.resumo ? P.cruzarLojas(a, oc.a) : [];
     return `
       ${a.avisos.map(t => `<p class="notice"><b>Atenção:</b> ${esc(t)}</p>`).join("")}
@@ -69,6 +70,7 @@
         <div class="panel">${H.banner("money", "Os 10 que mais faturam em 90 dias", "ficam de fora de queima; são a base do caixa")}
           <div class="table-wrap"><table><thead><tr><th>Produto</th><th class="num">Receita 90d</th><th class="num">Estoque</th></tr></thead><tbody>${top.map(i => `<tr><td>${esc(i.desc)}</td><td class="num">${brl(i.v90)}</td><td class="num">${int(i.estoque)}</td></tr>`).join("")}</tbody></table></div></div>
       </div>
+      ${lojas.length > 1 ? `<div class="toolbar"><button type="button" class="btn sm" id="pm-cmp">${ui.compare ? "Esconder a comparação entre lojas" : "Comparar com a outra loja"}</button><span class="src">As análises ficam separadas por loja. A comparação (produto parado numa e girando na outra) só aparece quando você pede.</span></div>` : ""}
       ${trans.length ? `<div class="panel">${H.banner("cart", "Transferência entre lojas", `parado aqui e girando na outra loja (${esc(oc ? outra.name : "")})`)}
         <div class="table-wrap"><table><thead><tr><th>Produto</th><th>Sai de</th><th class="num">Estoque parado</th><th class="num">Vendas 90d na outra</th><th class="num">Dinheiro parado</th></tr></thead><tbody>${trans.slice(0, 15).map(t => { const deNome = t.de === "a" ? clientOf(ui.loja).name : outra.name; return `<tr><td>${esc(t.desc)}</td><td>${esc(deNome)}</td><td class="num">${int(t.estoqueDe)}</td><td class="num">${int(t.giroPara)}</td><td class="num">${t.capital == null ? "—" : brl(t.capital)}</td></tr>`; }).join("")}</tbody></table></div></div>` : ""}`;
   }
@@ -222,7 +224,7 @@
   }
   async function commit(v, btn, fn) {
     btn.disabled = true; const t0 = btn.textContent;
-    try { const msg = await fn(); delete cache[ui.loja]; H.toast(msg); pend = { estoque: null, vendas: [] }; await draw(v, "importar"); }
+    try { const msg = await fn(); bust(ui.loja); H.toast(msg); pend = { estoque: null, vendas: [] }; await draw(v, "importar"); }
     catch (e) { H.toast(e.message); btn.disabled = false; btn.textContent = t0; }
   }
 
@@ -232,7 +234,7 @@
     let c;
     try {
       c = await loadLoja(ui.loja);
-      const outra = lojas.find(l => l.key !== ui.loja); if (outra && tab === "visao" && !cache[outra.key]) { try { await loadLoja(outra.key); } catch (e) { /* sem a outra loja */ } }
+      const outra = lojas.find(l => l.key !== ui.loja); if (outra && tab === "visao" && ui.compare && !cache[outra.key]) { try { await loadLoja(outra.key); } catch (e) { /* sem a outra loja */ } }
     } catch (e) { host.innerHTML = `<p class="notice">${esc(e.message)} <button type="button" class="btn sm" id="pm-retry">Tentar de novo</button></p>`; $("#pm-retry", view).onclick = () => draw(view, tab); return; }
     host.innerHTML = tab === "visao" ? await overview(view, c) : tab === "candidatos" ? candidatesView(c) : tab === "campanha" ? campaignView(c) : tab === "campanhas" ? savedView(c) : importView(c);
     wire(view, tab, c);
@@ -240,6 +242,7 @@
 
   function wire(view, tab, c) {
     const redraw = () => draw(view, tab);
+    if (tab === "visao") { const cb = $("#pm-cmp", view); if (cb) cb.onclick = () => { ui.compare = !ui.compare; redraw(); }; }
     if (tab === "candidatos") {
       $$("#pm-listas button", view).forEach(b => { b.onclick = () => { ui.lista = b.dataset.v; ui.limit = 50; saveUi(); redraw(); }; });
       $("#pm-cat", view).onchange = e => { ui.cat = e.target.value; ui.limit = 50; redraw(); };
@@ -272,7 +275,7 @@
         try {
           const r = await api("/api/promo", { action: "campanha", loja: ui.loja, id: camp.id || undefined, v: camp.v || undefined, nome: camp.nome, tipo: camp.tipo, regra: camp.regra, inicio: camp.inicio, fim: camp.fim, status: camp.status, totais: tot,
             itens: l.map(x => ({ b: x.item.barras, d: x.item.desc, cat: x.item.cat, de: x.item.preco, por: x.por, c: x.item.custo, papel: x.item.papel })) });
-          camp.id = r.id; camp.v = r.v; saveCart(ui.loja, cart); delete cache[ui.loja]; H.toast("Campanha salva na planilha."); redraw();
+          camp.id = r.id; camp.v = r.v; saveCart(ui.loja, cart); bust(ui.loja); H.toast("Campanha salva na planilha."); redraw();
         } catch (e) { H.toast(e.message); sv.disabled = false; }
       };
     }
@@ -284,7 +287,7 @@
       }; });
       $$("[data-del]", view).forEach(b => { let armed = false; b.onclick = async () => {
         if (!armed) { armed = true; b.textContent = "Confirmar"; setTimeout(() => { armed = false; b.textContent = "Apagar"; }, 3500); return; }
-        try { await api("/api/promo", { action: "campanha_apagar", loja: ui.loja, id: b.dataset.del }); delete cache[ui.loja]; H.toast("Campanha apagada."); redraw(); } catch (e) { H.toast(e.message); }
+        try { await api("/api/promo", { action: "campanha_apagar", loja: ui.loja, id: b.dataset.del }); bust(ui.loja); H.toast("Campanha apagada."); redraw(); } catch (e) { H.toast(e.message); }
       }; });
     }
     if (tab === "importar") {
@@ -312,5 +315,15 @@
     await draw(view, tab);
   }
 
-  root.N7Promocoes = { render, _ui: ui };
+  /* chamado pelo cérebro: abre a loja certa na lista certa, ou já com a campanha da cadência preparada */
+  function focus(o) {
+    if (o.loja) ui.loja = o.loja;
+    if (o.lista) { ui.lista = o.lista; ui.limit = 50; ui.cat = "all"; ui.q = ""; }
+    if (o.tipo) {
+      const t = P.CAMPANHAS.find(x => x.tipo === o.tipo), cart = cartOf(ui.loja);
+      if (!cart.camp.id && !cart.linhas.length) { Object.assign(cart.camp, { tipo: o.tipo, regra: t ? t.regra : "padrao", nome: o.tipo + (o.dia ? " · " + dm(o.dia) : ""), inicio: o.dia || "", fim: o.dia || "" }); saveCart(ui.loja, cart); }
+    }
+    saveUi();
+  }
+  root.N7Promocoes = { render, focus, _ui: ui };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -10,15 +10,15 @@
   const sem = v => (v == null ? "sem dado" : v);
   const pctOrNa = p => (p == null ? "sem base" : pctTxt(p));
 
+  /* cada farmácia à parte: a frase da capa fala de uma loja por vez, sem somar as duas */
   function headline(an) {
-    const ph = an.clients.filter(c => c.farmacia), t = an.total;
-    if (!t) return "Período com dados incompletos: veja o que faltou para fechar a análise.";
-    const base = ph.length > 1 ? `${ph.map(c => c.nome).join(" e ")} somaram ${brl(t.vendas)}` : `${ph[0].nome} vendeu ${brl(t.vendas)}`;
-    const prev = ph.every(c => c.prev && c.prev.vendas != null) ? ph.reduce((s, c) => s + c.prev.vendas, 0) : null;
-    if (prev != null) return `${base}, ${pctTxt((t.vendas / prev - 1) * 100)} sobre o período anterior.`;
-    const md = ph.filter(c => c.mesmosDias && c.mesmosDias.pct != null);
-    if (md.length) return `${base}. Nos mesmos dias da semana do período anterior: ${md.map(c => `${c.nome} ${pctTxt(c.mesmosDias.pct)}`).join(", ")}.`;
-    return `${base}. Sem período anterior comparável registrado.`;
+    const ph = an.clients.filter(c => c.farmacia);
+    if (!ph.length || ph.every(c => c.row.vendas == null)) return "Período com dados incompletos: veja o que faltou para fechar a análise.";
+    return ph.map(c => {
+      if (c.row.vendas == null) return `${c.nome}: sem total de vendas informado`;
+      const md = c.mesmosDias && c.mesmosDias.pct != null ? `${pctTxt(c.mesmosDias.pct)} nos mesmos dias da semana` : c.cmp.vendas.pct != null ? `${pctTxt(c.cmp.vendas.pct)} sobre o período anterior` : "sem período anterior para comparar";
+      return `${c.nome} vendeu ${brl(c.row.vendas)} (${md})`;
+    }).join(". ") + ".";
   }
 
   function build(an, opts = {}) {
@@ -72,8 +72,6 @@
         row("Cestas acima de R$ 100", c => c.d.c100Compras == null ? "sem dado" : `${dec(c.d.c100Compras, 1)}% das compras`)
       ];
       s.addTable(rows, { x: 0.6, y: 1.7, w: 12.1, colW: [3.7, 4.2, 4.2], rowH: 0.5, border: { type: "solid", pt: 0.75, color: LINE } });
-      const t = an.total;
-      if (t) s.addText(`Total das lojas: ${brl(t.vendas)}${t.compras != null ? ` · ${int(t.compras)} compras · ticket ${brl(t.ticket)}` : ""}${t.shareMinas != null ? ` · Minas Farma ${dec(t.shareMinas, 1)}% das vendas` : ""}.`, { x: 0.6, y: 6.1, w: 12.1, h: 0.5, fontFace: FONT, fontSize: 14, bold: true, color: INK, margin: 0 });
       s.addText(`${an.gen && an.gen.promocao ? `Promoção do período: ${an.gen.promocao}. ` : ""}Comparação descritiva: não isola efeito de promoção, mídia ou calendário.`, { x: 0.6, y: 6.6, w: 12.1, h: 0.35, fontFace: FONT, fontSize: 12, color: MUTED, margin: 0 });
     }
 

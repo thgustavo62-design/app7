@@ -177,15 +177,8 @@
   const val = (v, f) => (v == null ? `<span class="na">sem dado</span>` : f(v));
   function analysisHtml(a) {
     const clients = a.clients, ph = clients.filter(c => c.farmacia);
-    const prevTotal = ph.every(c => c.prev && c.prev.vendas != null) ? ph.reduce((s, c) => s + c.prev.vendas, 0) : null;
-    const t = a.total;
-    const md = ph.length && ph.every(c => c.mesmosDias);
-    const mdPct = md ? (ph.reduce((x, c) => x + c.mesmosDias.atual, 0) / ph.reduce((x, c) => x + c.mesmosDias.anterior, 0) - 1) * 100 : null;
-    const totalSub = !t ? "" : prevTotal != null ? dlt((t.vendas / prevTotal - 1) * 100) + " vs anterior" : mdPct != null ? dlt(mdPct) + " nos mesmos dias da semana" : "sem base de comparação";
     const kpis = `<div class="kpis">
-      ${H.kpi("Vendas · duas farmácias", t ? brl(t.vendas) : "sem dado", totalSub, "money", "green")}
-      ${H.kpi("Compras", t && t.compras != null ? int(t.compras) : "sem dado", t && t.ticket != null ? `ticket ${brl(t.ticket)}` : "", "cart")}
-      ${H.kpi("Participação da Minas Farma", t && t.shareMinas != null ? dec(t.shareMinas, 1) + "%" : "sem dado", "das vendas das duas lojas", "chart")}
+      ${ph.slice(0, 3).map(c => H.kpi(`Vendas · ${esc(c.nome)}`, c.row.vendas == null ? "sem dado" : brl(c.row.vendas), c.mesmosDias && c.mesmosDias.pct != null ? dlt(c.mesmosDias.pct) + " nos mesmos dias da semana" : c.cmp.vendas.pct != null ? dlt(c.cmp.vendas.pct) + " vs anterior" : "sem base de comparação", "money", "green")).join("")}
       ${H.kpi("Sinais para agir", String(a.signals.filter(s => s.classe === "CORRIGIR" || s.classe === "TESTAR").length), `${a.signals.length} no total`, "bell", "red")}
     </div>`;
     const row = (label, fn) => `<tr><td>${label}</td>${ph.map(c => `<td class="num">${fn(c)}</td>`).join("")}</tr>`;

@@ -5,5 +5,6 @@ import { editorial, qualidade } from "./conteudo.mjs";
 import { fromAnalysis } from "./resultado.mjs";
 import { oportunidades } from "./estrategia.mjs";
 import { dados, calendario } from "./contexto.mjs";
+import { estoque, ruptura, margem, campanha, dadosPromo } from "./promocao.mjs";
 
-export const RUNNERS = [aprovacao, producao, pipeline, capacidade, editorial, qualidade, fromAnalysis, oportunidades, dados, calendario];
+export const RUNNERS = [aprovacao, producao, pipeline, capacidade, editorial, qualidade, fromAnalysis, estoque, ruptura, margem, campanha, oportunidades, dados, dadosPromo, calendario];
