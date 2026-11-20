@@ -155,3 +155,12 @@ test('resultado da campanha: sem relatório nos dias da campanha, base pequena o
   const long = P.resultadoCampanha({ inicio: '2026-11-11', fim: '2026-11-18', itens: camp.itens }, [it], [['2026-10-01', '2026-11-18', '']]);
   assert.ok(long.dias <= 8);
 });
+
+test('janelas de 60 e 90 dias numa passada dão o mesmo que as janelas separadas e a última venda correta', () => {
+  const dias = { '2026-08-10': [3, 30], '2026-08-20': [1, 10], '2026-09-20': [2, 20], '2026-10-10': [4, 40], '2026-11-10': [5, 50], '2026-11-17': [0, 0], '2026-11-18': [1, 9], '2026-11-25': [9, 9] };
+  const e = P.enrich(item('1', { dias }), '2026-11-18', { mesesQueima: 6, rupturaDias: 15 });
+  const w60 = P.janela(dias, '2026-11-18', 60), w90 = P.janela(dias, '2026-11-18', 90);
+  assert.equal(e.q60, w60.q); assert.equal(e.v60, w60.v); assert.equal(e.q90, w90.q); assert.equal(e.v90, w90.v); assert.equal(e.dias90, w90.com);
+  assert.equal(e.ultVenda, '2026-11-25', 'a última venda é a última data com venda positiva, mesmo depois da referência');
+  assert.equal(P.enrich(item('2', { dias: {} }), '2026-11-18', {}).ultVenda, '');
+});

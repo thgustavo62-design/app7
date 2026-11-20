@@ -5,7 +5,8 @@
    abaixo do piso; sem custo não existe piso (o item é marcado, nunca "aprovado"); margem é sobre a VENDA; lojas nunca se misturam. */
 (function (root) {
   const DAY = 86400000;
-  const day = iso => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / DAY;
+  const dayMemo = new Map();                                        /* as mesmas datas se repetem em milhares de itens: converte uma vez */
+  const day = iso => { let v = dayMemo.get(iso); if (v === undefined) { v = Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / DAY; if (dayMemo.size > 5000) dayMemo.clear(); dayMemo.set(iso, v); } return v; };
   const iso = n => new Date(n * DAY).toISOString().slice(0, 10);
   const r2 = v => Math.round(v * 100) / 100;
   const sum = a => a.reduce((x, y) => x + y, 0);
@@ -42,12 +43,24 @@
     for (const [d, [dq, dv]] of Object.entries(dias || {})) { const x = day(d); if (x >= ini && x <= fim) { q += dq; v += dv; com++; if (d > ult) ult = d; } }
     return { q, v: r2(v), com, ult };
   }
-  const ultimaVenda = dias => Object.keys(dias || {}).filter(d => (dias[d][0] || 0) > 0).sort().pop() || "";
+  const ultimaVenda = dias => { let u = ""; for (const d in dias) if ((dias[d][0] || 0) > 0 && d > u) u = d; return u; };
+  /* as janelas de 60 e de 90 dias e a última venda numa passada só (é o laço mais quente da análise) */
+  function janelas(dias, ref) {
+    const fim = day(ref), i60 = fim - 59, i90 = fim - 89; let q6 = 0, v6 = 0, c6 = 0, u6 = "", q9 = 0, v9 = 0, c9 = 0, u9 = "", ult = "";
+    for (const d in dias) {
+      const e = dias[d], x = day(d);
+      if (e[0] > 0 && d > ult) ult = d;
+      if (x < i90 || x > fim) continue;
+      q9 += e[0]; v9 += e[1]; c9++; if (d > u9) u9 = d;
+      if (x >= i60) { q6 += e[0]; v6 += e[1]; c6++; if (d > u6) u6 = d; }
+    }
+    return { w60: { q: q6, v: r2(v6), com: c6, ult: u6 }, w90: { q: q9, v: r2(v9), com: c9, ult: u9 }, ult };
+  }
 
   /* uma linha enriquecida por item */
   /* n60 e n90: dias realmente cobertos pelas vendas importadas (menos que 60 ou 90 quando o histórico é curto) */
   function enrich(it, ref, p, n60 = 60, n90 = 90) {
-    const w60 = janela(it.dias, ref, 60), w90 = janela(it.dias, ref, 90);
+    const jj = janelas(it.dias, ref), w60 = jj.w60, w90 = jj.w90;
     const rate60 = w60.q / n60, rate90 = w90.q / n90;
     const mesesEstoque = it.estoque > 0 ? (w90.q > 0 ? it.estoque / (w90.q / (n90 / 30)) : Infinity) : 0;
     /* preço praticado: se o sistema já tem preço de promoção abaixo do de venda, é ele que está valendo na loja */
@@ -55,7 +68,7 @@
     const margem = it.custo > 0 && pp > 0 ? (pp - it.custo) / pp : null;
     const taxa = rate90 > 0 ? rate60 / rate90 : null;
     return Object.assign({}, it, {
-      cat: categoria(it.desc), q60: w60.q, v60: w60.v, q90: w90.q, v90: w90.v, dias90: w90.com, ultVenda: ultimaVenda(it.dias),
+      cat: categoria(it.desc), q60: w60.q, v60: w60.v, q90: w90.q, v90: w90.v, dias90: w90.com, ultVenda: jj.ult,
       rate60: r2(rate60 * 100) / 100, rate90: r2(rate90 * 100) / 100, tendencia: taxa == null ? null : r2(taxa * 100) / 100,
       mesesEstoque, coberturaDias: it.estoque > 0 && Math.max(rate60, rate90) > 0 ? Math.round(it.estoque / (rate60 > 0 ? rate60 : rate90)) : (it.estoque > 0 ? Infinity : 0),
       capitalCusto: it.custo > 0 ? r2(it.estoque * it.custo) : null, capitalVenda: pp > 0 ? r2(it.estoque * pp) : null, preco: pp, precoLista: it.preco, promoAtiva: pp !== it.preco, margem
