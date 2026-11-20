@@ -13,8 +13,8 @@
     /* cartão do Painel: aparece já com "Analisando…" e troca quando o módulo chega */
     mini(H) {
       const id = "bm" + (++seq);
-      load().then(m => setTimeout(() => { const el = document.getElementById(id); if (el) el.outerHTML = m.mini(H); }, 0)).catch(e => console.error(e));
-      return `<a class="brain-mini" id="${id}" href="#cerebro"><span class="badge">Central de Inteligência</span><b>Analisando…</b><small>Lendo o que os agentes encontraram hoje.</small></a>`;
+      load().then(m => setTimeout(() => { const el = document.getElementById(id); if (el) { el.outerHTML = m.mini(H); const t = document.getElementById("today"); if (t) m.wireToday(t, H); } }, 0)).catch(e => console.error(e));
+      return `<section class="today" id="${id}"><div class="today-h"><h2>O que resolver hoje</h2></div><p class="src">Analisando: lendo o que os agentes encontraram hoje…</p></section>`;
     }
   };
 })(window);

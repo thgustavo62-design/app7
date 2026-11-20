@@ -115,6 +115,7 @@ label.lbl { display: block; font-size: 11.5px; font-weight: 600; color: var(--te
 .kpis.k3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; position: relative; box-shadow: var(--shadow); min-width: 0; }
 .kpi small { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-2); font-weight: 700; padding-right: 44px; }
+.kpi-src { display: block; margin-top: 6px; font-size: 10.5px; color: var(--text-3, var(--text-2)); letter-spacing: .01em; opacity: .85; }
 .kpi strong { display: block; font-family: var(--f-head); font-size: 23px; font-weight: 700; letter-spacing: -.02em; margin-top: 6px; font-variant-numeric: tabular-nums; }
 .kpi strong.na { font-size: 15px; color: var(--muted); font-weight: 600; font-family: var(--f-ui); }
 .kpi em { display: block; font-style: normal; font-size: 11.5px; color: var(--muted); margin-top: 4px; }
@@ -580,6 +581,16 @@ html.is-offline body::before { content: "Sem conexão"; position: fixed; top: en
 .brain-row { border: 1px solid var(--line-soft); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
 .brain-row-h { display: flex; gap: 10px; align-items: flex-start; }
 .brain-row p { color: var(--text-2); font-size: 12.5px; }
+.today { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.today.calm { border-color: #1f5a43; }
+.today-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.today-h h2 { font-size: 17px; }
+.today-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.today-row { display: flex; gap: 14px; align-items: flex-start; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--line); }
+.today-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; } .today-main b { font-size: 14.5px; line-height: 1.3; } .today-main p { margin: 0; font-size: 12.5px; }
+.today-go { flex: none; }
+.today-more { font-size: 12.5px; font-weight: 600; } .today-src { margin: 0; }
+@media (max-width: 720px) { .today-row { flex-direction: column; gap: 8px; } }
 .brain-mini { display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; border-radius: var(--radius); color: #fff; background: linear-gradient(135deg, #2c1a68, #14102c); border: 1px solid #3b2d78; box-shadow: 0 16px 40px -24px rgba(109, 59, 218, .8); }
 .brain-mini b { font-family: var(--f-head); font-size: 16px; line-height: 1.25; }
 .brain-mini small { color: #cfc8ea; font-size: 12px; }

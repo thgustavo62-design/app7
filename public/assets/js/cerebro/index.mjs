@@ -28,9 +28,17 @@ export async function render(view, sub, H) {
   await mod.render(body, k);
 }
 
-/* cartão resumido para o Painel */
+/* "O que precisa ser resolvido hoje": abre o Painel com os 5 itens mais importantes (cliente, problema, por quê, próxima ação e fonte) */
 export function mini(H) {
-  const k = makeKit(H, () => {}), r = k.r, d = r.decision, esc = k.esc;
-  if (!d) return `<a class="brain-mini calm" href="#cerebro"><span class="badge st-pub">Central de Inteligência</span><b>Tudo tranquilo por enquanto.</b><small>Nenhum agente pede ação hoje.</small></a>`;
-  return `<a class="brain-mini" href="#cerebro"><span class="badge ${k.tone(d.score)}">Decisão do dia · ${esc(d.urgencia)}</span><b>${esc(d.titulo)}</b><small>${esc(d.acao)} ${r.also.length ? `Mais ${r.also.length} para hoje.` : ""}${r.risk ? ` ${r.risk} cliente(s) em risco.` : ""}</small></a>`;
+  const k = makeKit(H, () => {}), r = k.r, esc = k.esc;
+  const seen = new Set(), list = [r.decision, ...r.also, ...(r.radar || []).slice().sort((a, b) => b.score - a.score)].filter(f => f && f.kind !== "ganho" && !seen.has(f.chave) && seen.add(f.chave)).slice(0, 5);
+  if (!list.length) return `<section class="today calm" id="today"><div class="today-h"><h2>O que resolver hoje</h2><span class="badge st-pub">tudo tranquilo</span></div><p class="src">Nenhum agente pede ação hoje${r.resolved ? `, e ${r.resolved} item(ns) já foram resolvidos` : ""}. Fontes: calendário (${esc(r.sources.calendario)}) · semana analisada: ${esc(r.sources.semana)}.</p></section>`;
+  const row = f => `<li class="today-row"><div class="today-main"><div class="brain-tags"><span class="badge ${k.tone(f.score)}">${esc(f.urgencia || k.B.urgencia(f.score))} · ${f.score}</span>${f.nome ? `<span class="badge">${esc(f.nome)}</span>` : ""}<span class="badge" title="Agente que encontrou">${esc(k.agentName(f.agente))}</span>${k.flag(f)}</div>
+    <b>${esc(f.titulo)}</b>${f.evidencia && f.evidencia[0] ? `<p class="src">Por quê: ${esc(f.evidencia[0])}</p>` : ""}<p><span class="src">Próxima ação:</span> ${esc(f.acao)}</p></div><div class="today-go">${k.goBtn(f)}</div></li>`;
+  const mais = r.total > list.length ? `<a class="today-more" href="#cerebro/radar">Ver os outros ${r.total - list.length} no Radar</a>` : "";
+  return `<section class="today" id="today"><div class="today-h"><h2>O que resolver hoje</h2><span class="src">${r.total} item(ns) em aberto${r.risk ? ` · ${r.risk} cliente(s) em risco` : ""}</span></div><ol class="today-list">${list.map(row).join("")}</ol>${mais}
+    <p class="src today-src">Fontes: calendário (${esc(r.sources.calendario)}) · semana analisada: ${esc(r.sources.semana)} · ${r.sources.clientes} cliente(s). Cada item mostra o agente e a evidência; o detalhe está na <a href="#cerebro">Central de Inteligência</a>.</p></section>`;
+}
+export function wireToday(root, H) {
+  root.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => H.go(b.dataset.go, b.dataset.brand, !!b.dataset.ideas, { lista: b.dataset.lista, tipo: b.dataset.tipo, dia: b.dataset.dia })));
 }

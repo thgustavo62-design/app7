@@ -143,7 +143,13 @@
   };
   const ico = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]}</svg>`;
   const banner = (icon, title, sub, right = "") => `<div class="panel-banner"><span class="tile">${ico(icon)}</span><div><h3>${title}</h3>${sub ? `<small>${sub}</small>` : ""}</div>${right ? `<div class="right">${right}</div>` : ""}</div>`;
-  const kpi = (label, value, sub, icon, tone = "") => `<div class="kpi"><small>${label}</small><strong class="${value === "sem dado" ? "na" : ""}">${value}</strong><em>${sub || ""}</em>${icon ? `<span class="ico ${tone}">${ico(icon)}</span>` : ""}</div>`;
+  /* src: de onde vem o número e de quando é ("Planilha Semanas · 26/10–01/11"); sem ela o indicador não diz a origem */
+  const kpi = (label, value, sub, icon, tone = "", src = "") => `<div class="kpi"><small>${label}</small><strong class="${value === "sem dado" ? "na" : ""}">${value}</strong><em>${sub || ""}</em>${src ? `<span class="kpi-src" title="Origem do número">${src}</span>` : ""}${icon ? `<span class="ico ${tone}">${ico(icon)}</span>` : ""}</div>`;
+
+  /* origem dos números nos indicadores */
+  const kpiS = src => (label, ...a) => kpi(label, a[0], a[1], a[2], a[3], src);
+  const srcPlan = () => { const s = D.PLAN_SOURCE; if (!s) return "Calendário embutido"; if (s.source === "central") { const d = new Date(s.at); return `Central editorial · lida às ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; } return "Calendário: cópia embutida de 18/11"; };
+  const srcWeek = r => `Planilha Semanas · ${periodTxt(r.inicio)}${r.fonte ? " · " + esc(String(r.fonte).slice(0, 34)) : ""}`;
 
   /* ---------- navegação ---------- */
   const ROUTES = {
@@ -288,35 +294,35 @@
     const out = {};
     const pub = ps.filter(p => p.status === "pub").length, late = ps.filter(p => p.late).length, reels = ps.filter(p => p.format === "Reels").length;
     if (has(c, "redes")) {
-      const hl = health(c, posts()), list = [kpi("Plano Nov–Dez", ps.length ? `${pub} de ${ps.length}` : "sem pautas", ps.length ? `${reels} Reels · ${ps.length - reels} carrosséis · <b style="color:var(--red)">${late}</b> atrasadas` : "crie ideias no Calendário", "list", "amber")];
-      list.push(kpi("Nota de saúde", ps.length ? String(hl.score) : "sem dado", ps.length ? hl.light.name : "precisa de pautas no plano", "target", hl.light.tone === "green" ? "green" : hl.light.tone === "amber" ? "amber" : "red"));
+      const hl = health(c, posts()), list = [kpiS(srcPlan())("Plano Nov–Dez", ps.length ? `${pub} de ${ps.length}` : "sem pautas", ps.length ? `${reels} Reels · ${ps.length - reels} carrosséis · <b style="color:var(--red)">${late}</b> atrasadas` : "crie ideias no Calendário", "list", "amber")];
+      list.push(kpiS("Calculada agora: calendário e alertas")("Nota de saúde", ps.length ? String(hl.score) : "sem dado", ps.length ? hl.light.name : "precisa de pautas no plano", "target", hl.light.tone === "green" ? "green" : hl.light.tone === "amber" ? "amber" : "red"));
       const lw = latestWith(c, hasIg);
-      if (lw) { const prev = allWeeks().find(r => r.marca === c.key && r.tipo === "semana" && r.inicio === AN.prevStart("semana", lw.inicio)); list.push(kpi("Instagram · visualizações", int(lw.ig.views), `${prev && prev.ig.views != null && lw.ig.views != null ? delta(pct(prev.ig.views, lw.ig.views)) + " vs anterior" : periodTxt(lw.inicio)}`, "ig", "red")); }
+      if (lw) { const prev = allWeeks().find(r => r.marca === c.key && r.tipo === "semana" && r.inicio === AN.prevStart("semana", lw.inicio)); list.push(kpiS(srcWeek(lw))("Instagram · visualizações", int(lw.ig.views), `${prev && prev.ig.views != null && lw.ig.views != null ? delta(pct(prev.ig.views, lw.ig.views)) + " vs anterior" : periodTxt(lw.inicio)}`, "ig", "red")); }
       out.redes = list;
     }
     if (has(c, "varejo")) {
       const lw = latestWith(c, hasSales), list = [];
-      if (lw) { const cc = clientAt(analyzeAt(lw.inicio), c); list.push(kpi(`Vendas ${periodTxt(lw.inicio)}`, cc.row.vendas == null ? "sem total" : brl(cc.row.vendas), cc.mesmosDias && cc.mesmosDias.pct != null ? `${delta(cc.mesmosDias.pct)} nos mesmos dias da semana` : "sem base de comparação", "money", "green"), kpi("Ticket médio", cc.d.ticket == null ? "sem dado" : brl(cc.d.ticket), cc.row.compras != null ? `${int(cc.row.compras)} compras` : "", "cart")); }
+      if (lw) { const cc = clientAt(analyzeAt(lw.inicio), c); list.push(kpiS(srcWeek(lw))(`Vendas ${periodTxt(lw.inicio)}`, cc.row.vendas == null ? "sem total" : brl(cc.row.vendas), cc.mesmosDias && cc.mesmosDias.pct != null ? `${delta(cc.mesmosDias.pct)} nos mesmos dias da semana` : "sem base de comparação", "money", "green"), kpi("Ticket médio", cc.d.ticket == null ? "sem dado" : brl(cc.d.ticket), cc.row.compras != null ? `${int(cc.row.compras)} compras` : "", "cart")); }
       else list.push(kpi("Vendas", "sem dado", "informe na tela Semana", "money", "green"));
       out.varejo = list;
     }
     if (has(c, "trafego")) {
       const lw = latestWith(c, hasAds), list = [];
-      if (lw) { const n = AN.norm(lw), d = AN.derive(n); list.push(kpi(`Meta Ads ${periodTxt(lw.inicio)}`, n.ads.gasto == null ? "sem gasto" : brl(n.ads.gasto), d.adsCusto != null ? `custo por resultado ${brl(d.adsCusto)}` : "sem resultado informado", "target", "amber"), kpi("Frequência", d.adsFreq == null ? "sem dado" : dec(d.adsFreq, 2), d.adsFreq != null && d.adsFreq > 1.5 ? "acima de 1,5: saturação" : "limite saudável: 1,5", "eye", d.adsFreq != null && d.adsFreq > 1.5 ? "red" : "green")); }
+      if (lw) { const n = AN.norm(lw), d = AN.derive(n); list.push(kpiS(srcWeek(lw))(`Meta Ads ${periodTxt(lw.inicio)}`, n.ads.gasto == null ? "sem gasto" : brl(n.ads.gasto), d.adsCusto != null ? `custo por resultado ${brl(d.adsCusto)}` : "sem resultado informado", "target", "amber"), kpi("Frequência", d.adsFreq == null ? "sem dado" : dec(d.adsFreq, 2), d.adsFreq != null && d.adsFreq > 1.5 ? "acima de 1,5: saturação" : "limite saudável: 1,5", "eye", d.adsFreq != null && d.adsFreq > 1.5 ? "red" : "green")); }
       else list.push(kpi("Meta Ads", "sem dado", "informe na tela Semana", "target", "amber"));
       out.trafego = list;
     }
     if (has(c, "autoridade")) {
       const ini = AU.periodsWith(store.get("authority", []), c.key).filter(i => i <= lastClosedIso()).pop(), list = [];
       if (ini) { const a = AU.analyze({ rows: store.get("authority", []), client: c, inicio: ini, metaPosts: authMeta(c) });
-        list.push(kpi(`Publicações ${periodTxt(ini)}`, a.posts.atual == null ? "sem dado" : `${int(a.posts.atual)} de ${int(a.posts.meta)}`, a.posts.atual != null && a.posts.atual >= a.posts.meta ? "meta cumprida" : "regularidade é a base da autoridade", "cal", a.posts.atual != null && a.posts.atual < a.posts.meta ? "amber" : "green"));
-        a.canais.filter(x => x.row).slice(0, 2).forEach(x => list.push(kpi(`${x.nome} · alcance`, x.row.alcance == null ? "sem dado" : int(x.row.alcance), x.cmp.alcance.pct != null ? delta(x.cmp.alcance.pct) + " vs anterior" : "sem semana anterior", x.canal === "li" ? "target" : "ig", "red"))); }
+        list.push(kpiS(`Planilha Autoridade · ${periodTxt(ini)}`)(`Publicações ${periodTxt(ini)}`, a.posts.atual == null ? "sem dado" : `${int(a.posts.atual)} de ${int(a.posts.meta)}`, a.posts.atual != null && a.posts.atual >= a.posts.meta ? "meta cumprida" : "regularidade é a base da autoridade", "cal", a.posts.atual != null && a.posts.atual < a.posts.meta ? "amber" : "green"));
+        a.canais.filter(x => x.row).slice(0, 2).forEach(x => list.push(kpiS(`Planilha Autoridade · ${periodTxt(ini)}`)(`${x.nome} · alcance`, x.row.alcance == null ? "sem dado" : int(x.row.alcance), x.cmp.alcance.pct != null ? delta(x.cmp.alcance.pct) + " vs anterior" : "sem semana anterior", x.canal === "li" ? "target" : "ig", "red"))); }
       else list.push(kpi("Autoridade", "sem dado", "informe na tela Autoridade", "eye", "amber"));
       out.autoridade = list;
     }
     if (has(c, "criativos")) {
       const n = s => ps.filter(p => p.status === s).length;
-      out.criativos = [kpi("Peças em produção", String(n("prod") + n("plan")), `${n("prop")} propostas`, "file"), kpi("Em aprovação", String(n("apr")), `${n("agd")} prontas · ${n("pub")} publicadas`, "list", "amber")];
+      out.criativos = [kpiS(srcPlan())("Peças em produção", String(n("prod") + n("plan")), `${n("prop")} propostas`, "file"), kpiS(srcPlan())("Em aprovação", String(n("apr")), `${n("agd")} prontas · ${n("pub")} publicadas`, "list", "amber")];
       if (!has(c, "redes")) out.criativos.push(kpi("Atrasadas", String(late), late ? "revisar prazos" : "tudo no prazo", "alert", late ? "red" : "green"));
     }
     return out;
@@ -340,17 +346,17 @@
     const varejo = CLIENTS.filter(c => has(c, "varejo")), trafego = CLIENTS.filter(c => has(c, "trafego"));
     const ini = AN.periodsWith(allWeeks().filter(r => r.inicio <= lastClosedIso()), "semana").pop();
     const an = ini ? analyzeAt(ini) : null;
-    const kp = [kpi("Clientes ativos", String(CLIENTS.length), SVC.ORDER.map(s => [s, CLIENTS.filter(c => has(c, s)).length]).filter(x => x[1]).map(([s, n]) => `${n} ${SVC.SERVICES[s].short.toLowerCase()}`).join(" · ") || "cadastre em Configurações", "list")];
-    if (anyPosts) kp.push(kpi("Pautas publicadas", `${pub} de ${ps.length}`, `plano Nov–Dez · <b class="tnum" style="color:var(--red)">${late}</b> atrasadas`, "cal", "amber"));
+    const kp = [kpiS("Cadastro do site")("Clientes ativos", String(CLIENTS.length), SVC.ORDER.map(s => [s, CLIENTS.filter(c => has(c, s)).length]).filter(x => x[1]).map(([s, n]) => `${n} ${SVC.SERVICES[s].short.toLowerCase()}`).join(" · ") || "cadastre em Configurações", "list")];
+    if (anyPosts) kp.push(kpiS(srcPlan())("Pautas publicadas", `${pub} de ${ps.length}`, `plano Nov–Dez · <b class="tnum" style="color:var(--red)">${late}</b> atrasadas`, "cal", "amber"));
     /* cada farmácia à parte: nunca somamos vendas nem anúncios de lojas diferentes */
-    if (an) varejo.forEach(c => { const cc = clientAt(an, c); if (cc && cc.row.vendas != null) kp.push(kpi(`Vendas · ${c.short} ${periodTxt(ini)}`, brl(cc.row.vendas), cc.mesmosDias && cc.mesmosDias.pct != null ? `${delta(cc.mesmosDias.pct)} nos mesmos dias da semana` : "sem base de comparação", "money", "green")); });
-    if (kp.length < 4 && anyPosts) kp.push(kpi("Aguardando aprovação", String(ps.filter(p => p.status === "apr").length), "pautas na etapa de aprovação", "list", "amber"));
+    if (an) varejo.forEach(c => { const cc = clientAt(an, c); if (cc && cc.row.vendas != null) kp.push(kpiS(`Planilha Semanas · ${periodTxt(ini)}`)(`Vendas · ${c.short} ${periodTxt(ini)}`, brl(cc.row.vendas), cc.mesmosDias && cc.mesmosDias.pct != null ? `${delta(cc.mesmosDias.pct)} nos mesmos dias da semana` : "sem base de comparação", "money", "green")); });
+    if (kp.length < 4 && anyPosts) kp.push(kpiS(srcPlan())("Aguardando aprovação", String(ps.filter(p => p.status === "apr").length), "pautas na etapa de aprovação", "list", "amber"));
     v.innerHTML = `
       <div class="page-head"><div><div class="eyebrow">Gestão interna · ${CLIENTS.length} contas</div><h1>Painel da agência</h1>
         <p>${ini ? `Última semana com números: ${esc(AN.period("semana", ini).label)}.` : "Ainda não há números de semana."} Cada cliente mostra o que importa para os serviços que a Nova7 presta a ele.</p></div>
         <div class="toolbar">${CAN_WRITE ? `<a class="btn" href="#semana">${ico("file")} Semana</a>` : ""}${anyPosts ? `<a class="btn primary" href="#calendario">${ico("cal")} Abrir calendário</a>` : ""}</div></div>
-      <div class="kpis">${kp.slice(0, 4).join("")}</div>
       ${ACCESS.cerebro() ? window.N7Cerebro.mini(brainHelpers()) : ""}
+      <div class="kpis">${kp.slice(0, 4).join("")}</div>
       <div class="section-title"><h2>Clientes</h2><span>clique para abrir a página do cliente</span></div>
       ${CLIENTS.length ? `<div class="grid g4">${CLIENTS.map(c => clientCard(c, ps)).join("")}</div>` : `<div class="empty">Nenhum cliente ativo. ${IS_ADMIN ? `Cadastre em <a href="#config/clientes">Configurações</a>.` : ""}</div>`}
       <div class="grid g2">
@@ -560,12 +566,12 @@
   }
   function redesSection(c, ps, part) {
     const W = D.WEEKLY[c.key], hl = health(c, posts()), igp = D.IG_POSTS[c.key] || [];
-    const metrics = W ? `<div class="panel">${banner("eye", "Métricas da última janela", "02–08/11 comparado a 27/10–02/11")}
+    const metrics = W ? `<div class="panel">${banner("eye", "Métricas da última janela", "02–08/11 comparado a 27/10–02/11 · dado embutido no site, não atualiza sozinho")}
           <div class="panel-cols">
             <div><span class="col-title">Instagram</span>${[["Visualizações", "igViews"], ["Interações", "igInt"], ["Cliques no link", "igClicks"], ["Visitas ao perfil", "igVisits"], ["Novos seguidores", "igFollows"]].map(([n, m]) => `<div class="mrow"><span>${n}</span><b>${int(W[m][2])} ${delta(pct(W[m][1], W[m][2]))}</b></div>`).join("")}</div>
             <div><span class="col-title">Facebook</span>${[["Visualizações", "fbViews"], ["Interações", "fbInt"], ["Cliques no link", "fbClicks"], ["Visitas", "fbVisits"], ["Novos seguidores", "fbFollows"]].map(([n, m]) => `<div class="mrow"><span>${n}</span><b>${int(W[m][2])} ${delta(pct(W[m][1], W[m][2]))}</b></div>`).join("")}</div>
           </div></div>
-      <div class="panel">${banner("ig", "Visualizações no Instagram por janela", "relatórios semanais da Nova7")}<div class="panel-body"><div class="chart" id="c-ig"></div></div></div>` : "";
+      <div class="panel">${banner("ig", "Visualizações no Instagram por janela", "dado embutido (relatórios semanais da Nova7 até 08/11)")}<div class="panel-body"><div class="chart" id="c-ig"></div></div></div>` : "";
     const healthPanel = ps.length ? `<div class="panel">${banner("target", "Nota de saúde do cliente", "0 a 100 · recalculada com o Kanban e os alertas", healthChip(hl))}
           <div class="panel-body">
             <div class="health-row big"><span class="health-num tone-${hl.light.tone}">${hl.score}</span><div><b>${hl.light.name}</b><div class="src">${hl.light.action}</div></div></div>
