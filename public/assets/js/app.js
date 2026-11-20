@@ -212,7 +212,7 @@
   const NAVSUB = {
     semana: () => [["entrada", "Entrada dos números"], ["analise", "Análise e PowerPoint"]],
     autoridade: () => [["painel", "Painel de autoridade"], ["entrada", "Entrada dos números"]],
-    promocoes: () => [["", "Visão geral"], ["candidatos", "Candidatos"], ["campanha", "Montar campanha"], ["campanhas", "Campanhas"], ["importar", "Importar"]],
+    promocoes: () => [["", "Visão geral"], ["candidatos", "Candidatos"], ["campanha", "Montar campanha"], ["campanhas", "Campanhas"], ["resultado", "Resultado"], ["importar", "Importar"]],
     cerebro: () => [["", "Hoje"], ["clientes", "Clientes"], ["radar", "Radar"], ["agentes", "Agentes 3D"], ["servicos", "Serviços 3D"], ["conexoes", "Conexões"], ["memoria", "Memória"], ["regras", "Como pensa"]],
     config: () => [["usuarios", "Usuários"], ["clientes", "Clientes e serviços"], ["fontes", "Fontes de dados"]]
   };

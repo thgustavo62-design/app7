@@ -8,7 +8,7 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const TABS = [["visao", "Visão geral"], ["candidatos", "Candidatos"], ["campanha", "Montar campanha"], ["campanhas", "Campanhas"], ["importar", "Importar"]];
+  const TABS = [["visao", "Visão geral"], ["candidatos", "Candidatos"], ["campanha", "Montar campanha"], ["campanhas", "Campanhas"], ["resultado", "Resultado"], ["importar", "Importar"]];
   const LISTAS = [["queima", "Queima", "Estoque parado ou encalhado com preço que respeita o piso"], ["atrair", "Atrair", "Isca e giro: itens que puxam cliente"], ["margem", "Margem", "Proteger: vendem bem com boa margem"], ["ruptura", "Ruptura", "Vendem bem e o estoque acaba em poucos dias"], ["semCusto", "Sem custo", "Sem custo não existe piso"], ["semDescontoReal", "Sem desconto real", "O piso fica igual ou acima do preço atual"]];
   const ui = Object.assign({ loja: "", regra: "padrao", lista: "queima", cat: "all", q: "", limit: 50, ord: "", compare: false }, (() => { try { return S.get("promoui", {}) || {}; } catch (e) { return {}; } })());
   const cache = {};                                  /* loja -> { data, a } */
@@ -145,13 +145,35 @@
   }
 
   /* ---------- campanhas salvas ---------- */
+  const STEPS = ["rascunho", "aprovada", "publicada", "encerrada"], STEP_NAME = { rascunho: "Rascunho", aprovada: "Aprovada", publicada: "Publicada", encerrada: "Encerrada" };
+  const NEXT = { rascunho: [["aprovada", "Aprovar", true]], aprovada: [["publicada", "Publicar", true], ["rascunho", "Voltar a rascunho", false]], publicada: [["encerrada", "Encerrar", false]], encerrada: [] };
+  const stepper = st => `<span class="steps" aria-label="Situação">${STEPS.map((x, i) => `<i class="${x === st ? "on" : STEPS.indexOf(st) > i ? "done" : ""}">${STEP_NAME[x]}</i>`).join("")}</span>`;
+  const quem = x => { const a = x.totais && x.totais.aprovacao; return a ? `<div class="src">aprovada por ${esc(a.por)} em ${esc((a.em || "").slice(0, 10).split("-").reverse().join("/"))}${a.estoqueEm ? ` · estoque de ${esc(a.estoqueEm.split("-").reverse().join("/"))}` : ""}</div>` : ""; };
   function savedView(c) {
     const list = c.data.campanhas;
-    return `<div class="panel">${H.banner("file", "Campanhas desta loja", `${list.length} salva(s)`)}
+    return `<div class="panel">${H.banner("file", "Campanhas desta loja", `${list.length} salva(s) · Rascunho, Aprovada, Publicada e Encerrada`)}
+      <p class="src" style="padding:0 16px">Aprovar e publicar passam por uma conferência no servidor: estoque, custo, piso de margem e preço terminando em ,90, com a base de agora. O servidor registra quem aprovou.</p>
       <div class="table-wrap"><table><thead><tr><th>Campanha</th><th>Tipo</th><th>Período</th><th class="num">Itens</th><th class="num">Margem</th><th>Situação</th><th></th></tr></thead><tbody>
-      ${list.map(x => `<tr><td><b>${esc(x.nome)}</b><div class="src">por ${esc(x.criadoPor)} · ${esc((x.criadoEm || "").slice(0, 10).split("-").reverse().join("/"))}</div></td><td>${esc(x.tipo)}</td><td>${x.inicio ? dm(x.inicio) : "—"}${x.fim ? " a " + dm(x.fim) : ""}</td><td class="num">${x.itens.length}</td><td class="num">${x.totais && x.totais.margemBase != null ? pct(x.totais.margemBase) : "—"}</td><td><span class="badge ${x.status === "aprovada" || x.status === "publicada" ? "st-pub" : ""}">${esc(x.status)}</span></td>
-        <td style="text-align:right"><button type="button" class="btn sm" data-open="${esc(x.id)}">Abrir</button>${podeEditar ? ` <button type="button" class="btn sm" data-del="${esc(x.id)}">Apagar</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">Nenhuma campanha salva.</div></td></tr>`}
+      ${list.map(x => `<tr><td><b>${esc(x.nome)}</b><div class="src">por ${esc(x.criadoPor)} · ${esc((x.criadoEm || "").slice(0, 10).split("-").reverse().join("/"))}</div>${quem(x)}</td><td>${esc(x.tipo)}</td><td>${x.inicio ? dm(x.inicio) : "—"}${x.fim ? " a " + dm(x.fim) : ""}</td><td class="num">${x.itens.length}</td><td class="num">${x.totais && x.totais.margemBase != null ? pct(x.totais.margemBase) : "—"}</td><td>${stepper(x.status)}</td>
+        <td style="text-align:right;white-space:nowrap"><button type="button" class="btn sm" data-open="${esc(x.id)}">Abrir</button>${podeEditar ? NEXT[x.status].map(([to, nome, main]) => ` <button type="button" class="btn sm${main ? " primary" : ""}" data-st="${esc(x.id)}" data-to="${to}">${nome}</button>`).join("") + ` <button type="button" class="btn sm" data-del="${esc(x.id)}">Apagar</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">Nenhuma campanha salva.</div></td></tr>`}
       </tbody></table></div></div>`;
+  }
+
+  /* ---------- resultado das campanhas ---------- */
+  function resultView(c) {
+    const list = c.data.campanhas.filter(x => x.status !== "rascunho");
+    if (!list.length) return `<div class="panel"><div class="panel-body"><p class="notice info">Nenhuma campanha aprovada ainda. O resultado aparece aqui depois que a campanha for aprovada e as vendas dos dias dela forem importadas.</p></div></div>`;
+    const CLS = { ESCALAR: "st-pub", MANTER: "st-pub", CORRIGIR: "p0", ENCERRAR: "p0", TESTAR: "p1", INCONCLUSIVO: "" };
+    const num = (v, f) => (v == null ? `<span class="na">sem dado</span>` : f(v));
+    const sg = v => (v >= 0 ? "+" : "") + dec(v * 100, 0) + "%";
+    return list.map(x => {
+      const r = P.resultadoCampanha(x, c.data.items, c.data.intervalos);
+      const cab = H.banner("chart", esc(x.nome), `${esc(x.tipo)} · ${x.inicio ? dm(x.inicio) : "—"}${x.fim ? " a " + dm(x.fim) : ""} · ${STEP_NAME[x.status]}`, `<span class="badge ${CLS[r.classe]}">${r.classe}</span><span class="badge">confiança ${r.confianca}</span>`);
+      const kp = r.dias >= 2 && r.unBase >= 10 ? `<div class="kpis">${H.kpi("Unidades vendidas", int(r.un), `esperado ${dec(r.unBase, 0)} · ${r.lift == null ? "sem base" : sg(r.lift)}`, "cart", "green")}${H.kpi("Receita", brl(r.receita), `esperado ${brl(r.receitaBase)}`, "money", "green")}${H.kpi("Margem", brl(r.margem), `esperado ${brl(r.margemBase)}`, "target", "amber")}${H.kpi("Margem incremental", (r.margemIncremental >= 0 ? "+" : "") + brl(r.margemIncremental), "contra o esperado nos mesmos dias da semana", "chart", r.margemIncremental >= 0 ? "green" : "red")}</div>` : "";
+      const rows = r.porItem.slice().sort((a, b) => ((b.margem || 0) - (b.margemBase || 0)) - ((a.margem || 0) - (a.margemBase || 0)));
+      const tab = rows.length && r.dias >= 2 ? `<div class="table-wrap"><table><thead><tr><th>Item</th><th class="num">Unid.</th><th class="num">Esperado</th><th class="num">Variação</th><th class="num">Margem</th><th class="num">Esperada</th></tr></thead><tbody>${rows.map(i => `<tr><td>${esc(i.d)}</td><td class="num">${int(i.un)}</td><td class="num">${dec(i.unBase, 1)}</td><td class="num">${i.lift == null ? "—" : sg(i.lift)}</td><td class="num">${num(i.margem, brl)}</td><td class="num">${num(i.margemBase, brl)}</td></tr>`).join("")}</tbody></table></div>` : "";
+      return `<div class="panel">${cab}<div class="panel-body">${r.texto ? `<p><b>${esc(r.texto)}</b></p>` : ""}${kp}${r.motivos.map(m => `<p class="src">${esc(m)}</p>`).join("")}</div>${tab}</div>`;
+    }).join("");
   }
 
   /* ---------- importar ---------- */
@@ -238,7 +260,7 @@
       c = await loadLoja(ui.loja);
       const outra = lojas.find(l => l.key !== ui.loja); if (outra && tab === "visao" && ui.compare && !cache[outra.key]) { try { await loadLoja(outra.key); } catch (e) { /* sem a outra loja */ } }
     } catch (e) { host.innerHTML = `<p class="notice">${esc(e.message)} <button type="button" class="btn sm" id="pm-retry">Tentar de novo</button></p>`; $("#pm-retry", view).onclick = () => draw(view, tab); return; }
-    host.innerHTML = tab === "visao" ? await overview(view, c) : tab === "candidatos" ? candidatesView(c) : tab === "campanha" ? campaignView(c) : tab === "campanhas" ? savedView(c) : importView(c);
+    host.innerHTML = tab === "visao" ? await overview(view, c) : tab === "candidatos" ? candidatesView(c) : tab === "campanha" ? campaignView(c) : tab === "campanhas" ? savedView(c) : tab === "resultado" ? resultView(c) : importView(c);
     wire(view, tab, c);
   }
 
@@ -286,6 +308,11 @@
         const x = c.data.campanhas.find(y => y.id === b.dataset.open); if (!x) return;
         saveCart(ui.loja, { camp: { id: x.id, v: x.v, nome: x.nome, tipo: x.tipo, regra: x.regra, inicio: x.inicio, fim: x.fim, status: x.status }, linhas: x.itens.map(i => ({ b: i.b, por: i.por })) });
         location.hash = "#promocoes/campanha";
+      }; });
+      $$("[data-st]", view).forEach(b => { b.onclick = async () => {
+        const x = c.data.campanhas.find(y => y.id === b.dataset.st); if (!x) return; b.disabled = true;
+        try { await api("/api/promo", { action: "campanha", loja: ui.loja, id: x.id, v: x.v, nome: x.nome, tipo: x.tipo, regra: x.regra, inicio: x.inicio, fim: x.fim, status: b.dataset.to, itens: x.itens, totais: x.totais }); bust(ui.loja); H.toast(`Campanha ${STEP_NAME[b.dataset.to].toLowerCase()}.`); redraw(); }
+        catch (e) { H.toast(e.message); b.disabled = false; }
       }; });
       $$("[data-del]", view).forEach(b => { let armed = false; b.onclick = async () => {
         if (!armed) { armed = true; b.textContent = "Confirmar"; setTimeout(() => { armed = false; b.textContent = "Apagar"; }, 3500); return; }

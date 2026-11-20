@@ -123,3 +123,35 @@ test('preço praticado: promoção que já está no sistema vale como preço atu
   assert.equal(q.preco, 20); assert.equal(q.promoAtiva, false, 'promoção acima do preço de venda é ignorada');
   const s = P.suggest(p); assert.equal(s.ok, false); assert.match(s.motivo, /já tem promoção/);
 });
+
+/* ---------- resultado da campanha ---------- */
+test('resultado da campanha: vendas e margem contra a média dos mesmos dias da semana das 4 semanas anteriores', () => {
+  const dias = {}, base = ['2026-11-11', '2026-11-12', '2026-11-13', '2026-11-04', '2026-11-05', '2026-11-06', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-21', '2026-10-22', '2026-10-23'];
+  base.forEach(d => { dias[d] = [4, 80]; });                                        /* 4 un/dia a R$ 20 */
+  const camp = { inicio: '2026-11-18', fim: '2026-11-20', itens: [{ b: '1', d: 'P1', por: 14.9, c: 10 }] };
+  const cob = [['2026-10-01', '2026-11-20', '']];
+  const com = (un, preco) => { const x = { '1': item('1', { custo: 10, dias: Object.assign({}, dias) }) }; ['2026-11-18', '2026-11-19', '2026-11-20'].forEach(d => { x['1'].dias[d] = [un, un * preco]; }); return [x['1']]; };
+  const forte = P.resultadoCampanha(camp, com(12, 15), cob);
+  assert.equal(forte.dias, 3); assert.equal(forte.un, 36); assert.equal(forte.unBase, 12); assert.equal(forte.lift, 2);
+  assert.equal(forte.margemBase, 120); assert.equal(forte.margem, 180); assert.equal(forte.margemIncremental, 60);
+  assert.equal(forte.classe, 'ESCALAR'); assert.equal(forte.confianca, 'MÉDIA', 'menos de 5 dias: confiança média');
+  assert.ok(forte.motivos.some(m => /indício, não prova/.test(m)));
+  const fundo = P.resultadoCampanha(camp, com(8, 15), cob);                           /* vendeu o dobro, mas a margem total ficou igual ao esperado */
+  assert.equal(fundo.margemIncremental, 0); assert.equal(fundo.classe, 'CORRIGIR'); assert.match(fundo.texto, /desconto foi fundo demais/);
+  const fraco = P.resultadoCampanha(camp, com(4, 15), cob);                            /* mesmo volume, preço menor: margem cai */
+  assert.equal(fraco.classe, 'ENCERRAR'); assert.ok(fraco.margemIncremental < 0);
+  assert.equal(P.resultadoCampanha(camp, com(12, 15), cob).porItem[0].lift, 2);
+});
+test('resultado da campanha: sem relatório nos dias da campanha, base pequena ou campanha ainda rolando é INCONCLUSIVO ou parcial, nunca zero', () => {
+  const dias = { '2026-11-11': [1, 20], '2026-11-04': [1, 20], '2026-10-28': [1, 20], '2026-10-21': [1, 20], '2026-11-18': [3, 45] };
+  const it = item('1', { custo: 10, dias });
+  const camp = { inicio: '2026-11-18', fim: '2026-11-19', itens: [{ b: '1', d: 'P1', por: 15, c: 10 }] };
+  const peq = P.resultadoCampanha(camp, [it], [['2026-10-01', '2026-11-18', '']]);
+  assert.equal(peq.classe, 'INCONCLUSIVO'); assert.equal(peq.parcial, true, 'o dia 19 não tem relatório'); assert.ok(peq.motivos.some(m => /só 1 têm relatório|só 1 tem|1 têm/.test(m)));
+  const sem = P.resultadoCampanha({ ...camp, inicio: '2026-12-01', fim: '2026-12-03' }, [it], [['2026-10-01', '2026-11-18', '']]);
+  assert.equal(sem.dias, 0); assert.equal(sem.classe, 'INCONCLUSIVO'); assert.equal(sem.lift, null);
+  assert.equal(P.resultadoCampanha({ inicio: '', fim: '', itens: [] }, [it], null).classe, 'INCONCLUSIVO');
+  /* dias da própria campanha não entram na base (campanha em duas semanas seguidas não se compara com ela mesma) */
+  const long = P.resultadoCampanha({ inicio: '2026-11-11', fim: '2026-11-18', itens: camp.itens }, [it], [['2026-10-01', '2026-11-18', '']]);
+  assert.ok(long.dias <= 8);
+});

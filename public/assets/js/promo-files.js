@@ -29,6 +29,7 @@
   const colIndex = ref => { let n = 0; for (const ch of ref.replace(/[^A-Z]/gi, "").toUpperCase()) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; };
   const xml = s => new DOMParser().parseFromString(s, "application/xml");
   async function readXlsxGrid(buffer) {
+    if (!root.JSZip && root.N7Lazy) await root.N7Lazy.pptx();                       /* o JSZip vem dentro do pacote do PowerPoint, que só é baixado quando preciso */
     const JSZip = root.JSZip; if (!JSZip) throw new Error("Leitor de planilha não carregou. Recarregue a página.");
     const zip = await JSZip.loadAsync(buffer);
     const read = async p => { const f = zip.file(p); return f ? f.async("string") : null; };

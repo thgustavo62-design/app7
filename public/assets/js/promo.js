@@ -185,6 +185,51 @@
     return { itens: linhas.length, unidadesBase: r2(un), receitaBase: r2(receita), lucroBase: r2(lucro), margemBase: receita ? lucro / receita : null, abaixoDoPiso: abaixo, semCusto, dias };
   }
 
+  /* Resultado de uma campanha: o que os itens dela venderam nos dias da campanha contra o esperado para os mesmos dias da semana
+     (média das 4 semanas anteriores, só com dias que têm relatório importado). Mede vendas e margem; não prova causalidade
+     (clima, feriado, concorrência e outras campanhas não entram), então o texto sempre diz isso e a base pequena é INCONCLUSIVO. */
+  function resultadoCampanha(camp, items, intervalos) {
+    const covered = (() => { if (!intervalos || !intervalos.length) return null; const c = new Set(); intervalos.forEach(([a, b, drop]) => { for (let d = day(a); d <= day(b); d++) c.add(d); if (drop) c.delete(day(drop)); }); return c; })();
+    const lastSale = items.flatMap(i => Object.keys(i.dias || {})).sort().pop() || "";
+    const ok = d => (covered ? covered.has(d) : (lastSale && d <= day(lastSale)));
+    const out = { dias: 0, diasCampanha: 0, un: 0, unBase: 0, receita: 0, receitaBase: 0, margem: 0, margemBase: 0, margemIncremental: null, lift: null, porItem: [], classe: "INCONCLUSIVO", confianca: "BAIXA", motivos: [], parcial: false };
+    if (!camp.inicio || !camp.fim || !(camp.itens || []).length) { out.motivos.push("A campanha não tem período ou itens."); return out; }
+    const ini = day(camp.inicio), fim = day(camp.fim);
+    out.diasCampanha = fim - ini + 1;
+    const dias = []; for (let d = ini; d <= fim; d++) if (ok(d)) dias.push(d);
+    out.parcial = dias.length < out.diasCampanha;
+    const byB = new Map(items.map(i => [i.barras, i]));
+    const bases = new Map();                                                         /* dia da campanha -> dias-base (mesmo dia da semana, 7 a 28 dias antes, com relatório e fora da campanha) */
+    dias.forEach(d => { const b = []; for (let k = 1; k <= 4; k++) { const x = d - 7 * k; if (ok(x) && !(x >= ini && x <= fim)) b.push(x); } if (b.length >= 2) bases.set(d, b); });
+    out.dias = bases.size;
+    camp.itens.forEach(ci => {
+      const it = byB.get(ci.b); if (!it) return;
+      const custo = it.custo > 0 ? it.custo : (ci.c > 0 ? ci.c : null);
+      let un = 0, rec = 0, ub = 0, rb = 0;
+      bases.forEach((bs, d) => {
+        const at = it.dias[iso(d)] || [0, 0]; un += at[0]; rec += at[1];
+        let su = 0, sr = 0; bs.forEach(x => { const b = it.dias[iso(x)] || [0, 0]; su += b[0]; sr += b[1]; }); ub += su / bs.length; rb += sr / bs.length;
+      });
+      const mg = custo == null ? null : rec - custo * un, mb = custo == null ? null : rb - custo * ub;
+      out.porItem.push({ b: ci.b, d: ci.d || it.desc, un, unBase: r2(ub), rec: r2(rec), recBase: r2(rb), lift: ub > 0 ? un / ub - 1 : null, margem: mg == null ? null : r2(mg), margemBase: mb == null ? null : r2(mb), semCusto: custo == null });
+      out.un += un; out.unBase += ub; out.receita += rec; out.receitaBase += rb;
+      if (mg != null) { out.margem += mg; out.margemBase += mb; }
+    });
+    out.un = r2(out.un); out.unBase = r2(out.unBase); out.receita = r2(out.receita); out.receitaBase = r2(out.receitaBase); out.margem = r2(out.margem); out.margemBase = r2(out.margemBase);
+    out.lift = out.unBase > 0 ? out.un / out.unBase - 1 : null;
+    out.margemIncremental = r2(out.margem - out.margemBase);
+    const semCusto = out.porItem.filter(i => i.semCusto).length;
+    if (semCusto) out.motivos.push(`${semCusto} item(ns) sem custo ficam fora da margem.`);
+    if (out.parcial) out.motivos.push(`A campanha tem ${out.diasCampanha} dia(s), e só ${dias.length} têm relatório de vendas importado${dias.length ? "" : ": importe as vendas dos dias da campanha"}.`);
+    out.motivos.push("Compara com a média dos mesmos dias da semana nas 4 semanas anteriores. Clima, feriado, concorrência e outras campanhas no período não entram: é indício, não prova.");
+    if (out.dias < 2 || out.unBase < 10) { out.motivos.unshift(out.dias < 2 ? "Poucos dias com base de comparação (menos de 2)." : "Base de vendas pequena (menos de 10 unidades esperadas)."); return out; }
+    out.confianca = out.dias >= 5 && out.unBase >= 50 ? "ALTA" : "MÉDIA";
+    const l = out.lift, m = out.margemIncremental;
+    out.classe = m > 0 && l >= 0.15 ? "ESCALAR" : m > 0 ? "MANTER" : l >= 0.15 ? "CORRIGIR" : l < 0.05 ? "ENCERRAR" : "TESTAR";
+    out.texto = { ESCALAR: "Vendeu mais e deixou mais margem que o esperado: vale repetir e ampliar com cuidado.", MANTER: "Deixou mais margem que o esperado, com pouco ganho de volume: manter.", CORRIGIR: "Vendeu mais, mas deixou menos margem que o esperado: o desconto foi fundo demais. Subir o preço POR (sempre acima do piso).", ENCERRAR: "Quase não mexeu no volume e deixou menos margem: o desconto não se pagou.", TESTAR: "Ganho pequeno de volume e margem abaixo do esperado: testar outro preço ou outra cesta." }[out.classe];
+    return out;
+  }
+
   /* cruza duas lojas: item parado numa e girando na outra (candidato a transferência) */
   function cruzarLojas(a, b) {
     const mb = new Map(b.items.map(i => [i.barras, i])), out = [];
@@ -260,5 +305,5 @@
     });
   }
 
-  root.N7Promo = { CADENCIA, brainSummary, CAMPANHAS, lojaProvavel, frasePadrao, briefing, REGRAS, DESC_MAX, PAPEL, CATS: CATS.map(c => c[0]).concat("Outros"), ceil90, categoria, janela, enrich, classify, abc, suggest, analyze, candidatos, campaignTotals, cruzarLojas, day, iso };
+  root.N7Promo = { CADENCIA, brainSummary, CAMPANHAS, lojaProvavel, frasePadrao, briefing, REGRAS, DESC_MAX, PAPEL, CATS: CATS.map(c => c[0]).concat("Outros"), ceil90, categoria, janela, enrich, classify, abc, suggest, analyze, candidatos, campaignTotals, resultadoCampanha, cruzarLojas, day, iso };
 })(typeof window !== "undefined" ? window : globalThis);
