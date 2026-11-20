@@ -68,11 +68,17 @@
   }
 
   /* motor de envio (só no navegador) */
-  function createSync({ store, fetchFn, onState, onFatal, onAuth, retryMs = 6000 }) {
+  function createSync({ store, fetchFn, onState, onFatal, onAuth, persist, retryMs = 6000 }) {
     fetchFn = fetchFn || ((u, i) => fetch(u, i));
     let queue = [], busy = false, attempts = 0, timer = null, sent = 0;   /* queue[0..sent-1] já foram enviadas e aguardam resposta */
     const target = op => `${op.t}|${op.id || op.code || op.key || op.chave || (op.t === "week" || op.t === "weekgen" || op.t === "auth" ? op.tipo + "|" + op.inicio + "|" + (op.marca || "") + "|" + (op.canal || "") : op.marca) || (op.ev && op.ev.id)}`;
-    const setState = s => { try { onState && onState(s); } catch (e) { /* ignora */ } };
+    const setState = s => { try { onState && onState(s, queue.length); } catch (e) { /* ignora */ } };
+    /* a fila é guardada no aparelho a cada mudança (e apagada quando esvazia): fechar o app com alteração pendente não perde nada */
+    let saving = null;
+    const persistQueue = () => {
+      if (!persist) return;
+      if (saving) return; saving = Promise.resolve().then(() => { saving = null; try { return queue.length ? persist.save(queue.slice()) : persist.clear(); } catch (e) { /* sem armazenamento local */ } });
+    };
 
     function applyResult(op, r) {
       if (!r || r.v == null) return;
@@ -97,8 +103,8 @@
         } catch (e) { res = null; }
         sent = 0;
         if (res && res.status === 401) { busy = false; onAuth && onAuth(); return; }
-        if (res && res.status === 409) { queue = []; busy = false; onFatal && onFatal("Outra pessoa mudou isto ao mesmo tempo. Vou recarregar com a versão mais recente."); return; }
-        if (res && res.status >= 400 && res.status < 500) { queue = []; busy = false; onFatal && onFatal((body && body.error) || "Não foi possível salvar."); return; }
+        if (res && res.status === 409) { const n = queue.length; queue = []; busy = false; persistQueue(); onFatal && onFatal("Outra pessoa mudou isto ao mesmo tempo. Vou recarregar com a versão mais recente."); return; }
+        if (res && res.status >= 400 && res.status < 500) { queue = []; busy = false; persistQueue(); onFatal && onFatal((body && body.error) || "Não foi possível salvar."); return; }
         if (!res || !res.ok) {
           attempts++; busy = false; setState("error");
           if (attempts < 6) timer = setTimeout(flush, retryMs * Math.min(attempts, 4));
@@ -106,8 +112,9 @@
         }
         attempts = 0; queue.splice(0, batch.length);
         batch.forEach((op, i) => applyResult(op, (body.results || [])[i]));
+        persistQueue();
       }
-      busy = false; setState("saved");
+      busy = false; persistQueue(); setState("saved");
     }
     store.onChange((key, old, nw) => {
       const ops = diffKey(key, old, nw);
@@ -117,9 +124,14 @@
         const i = op.op === "delete" ? -1 : queue.findIndex((q, idx) => idx >= sent && q.op !== "delete" && target(q) === target(op) && q.t !== "event");
         if (i >= 0) queue[i] = Object.assign({}, op, { v: queue[i].v }); else queue.push(op);
       });
-      flush();
+      persistQueue(); flush();
     });
-    return { flush, pending: () => queue.length + (busy ? 1 : 0), _queue: () => queue };
+    /* volta à fila o que ficou guardado de uma sessão anterior (antes de qualquer mudança nova) e tenta enviar */
+    const restore = ops => { queue = (ops || []).concat(queue); persistQueue(); return flush(); };
+    /* quando a internet volta, tenta de novo na hora, mesmo depois de desistir das tentativas */
+    const retryNow = () => { if (queue.length && !busy) { attempts = 0; flush(); } };
+    if (typeof addEventListener === "function" && typeof window !== "undefined") { addEventListener("online", retryNow); document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") retryNow(); }); }
+    return { flush, restore, retryNow, pending: () => queue.length + (busy ? 1 : 0), _queue: () => queue };
   }
 
   root.N7Sync = { diffKey, createSync, _stable: stable };

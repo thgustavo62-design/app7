@@ -139,6 +139,8 @@ Nenhuma análise soma ou mistura a Minas Farma com a Farma e Farma. O Painel mos
 
 - **Permissões sempre atuais:** o cookie guarda o papel de quando a pessoa entrou, mas toda API (`state`, `mutate`, `data`, `promo`, `central`, `windsor`) confere o cadastro de usuários (`lib/guard.js`, memória de 10 segundos por instância). Desativar um usuário ou mudar papel e empresas na planilha vale na próxima requisição, sem esperar o login expirar.
 - **Memória de decisões:** os botões Feito, Adiar e Ignorar aceitam os 21 agentes (`lib/agents.js`); `tests/agents.test.js` compara a lista do servidor com o catálogo do site.
+- **Alterações nunca se perdem sem conexão:** a fila de envio fica guardada no aparelho (IndexedDB, com localStorage de reserva; `outbox.js`). Se a conexão cair e o app for fechado, na próxima abertura as alterações são reenviadas antes de a tela carregar, e o indicador do topo mostra "N alterações não enviadas" enquanto houver pendência. Ao voltar a internet, o envio recomeça na hora. Conflito com outra pessoa continua descartando a fila, com aviso.
+- **Carregamento:** o pacote do PowerPoint (~450 KB) só é baixado ao clicar em Baixar PowerPoint (`lazy.js`).
 - **GitHub Actions** (`.github/workflows/test.yml`) roda `npm test` a cada push e pull request.
 - **Limite conhecido:** a planilha não tem transação. Duas importações da mesma loja ao mesmo tempo podem se sobrescrever (a base é regravada de uma vez). O uso real é de uma pessoa importando por vez; para crescer, o caminho é mover os dados operacionais para um banco com transações (Postgres), mantendo a planilha para importação e exportação. Também ainda não há como restaurar uma importação anterior.
 

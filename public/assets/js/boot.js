@@ -119,10 +119,12 @@
     });
   }
 
-  function setSyncState(s) {
+  function setSyncState(s, n) {
     const el = $("#sync"); if (!el) return;
     el.hidden = false; el.dataset.state = s;
-    $("#sync-text").textContent = { saving: "Salvando…", saved: "Salvo na planilha", error: "Sem conexão: tentando de novo" }[s] || "";
+    const q = n > 0 ? `${n} alteraç${n === 1 ? "ão" : "ões"}` : "";
+    $("#sync-text").textContent = { saving: q ? `Salvando ${q}…` : "Salvando…", saved: "Salvo na planilha", error: q ? `${q} não enviada${n === 1 ? "" : "s"}: sem conexão, tentando de novo` : "Sem conexão: tentando de novo" }[s] || "";
+    el.title = s === "error" ? "As alterações estão guardadas neste aparelho e serão enviadas quando a conexão voltar, mesmo que você feche o app." : "";
   }
 
   async function start(user) {
@@ -138,11 +140,18 @@
     N7Store.hydrate(st.body.state);
     if (!N7Store.get("user", "")) N7Store.set("user", user.nome || "");
     const sync = N7Sync.createSync({
-      store: N7Store, onState: setSyncState,
+      store: N7Store, onState: setSyncState, persist: N7Outbox.forUser(user.email),
       onAuth: () => { location.reload(); },
       onFatal: msg => { const t = $("#toast"); if (t) { t.textContent = msg; t.hidden = false; } setTimeout(() => location.reload(), 2600); }
     });
     window.__n7pending = () => sync.pending() > 0;
+    /* alterações que ficaram guardadas no aparelho (conexão caiu e o app foi fechado): envia antes de abrir a tela e recarrega o estado */
+    const box = N7Outbox.forUser(user.email), saved = await box.load();
+    if (saved) {
+      view().innerHTML = `<p class="src">Enviando ${saved.ops.length} alteração(ões) feita(s) sem conexão…</p>`;
+      await sync.restore(saved.ops);
+      if (sync.pending() === 0) { const again = await api("/api/state"); if (again.ok) N7Store.hydrate(again.body.state); const t = $("#toast"); if (t) { t.textContent = `${saved.ops.length} alteração(ões) feita(s) sem conexão foram enviadas.`; t.hidden = false; setTimeout(() => { t.hidden = true; }, 4000); } }
+    }
     const who = $("#who");
     who.hidden = false;
     who.innerHTML = `<span title="${esc(user.email)}">${esc(user.nome || user.email)}</span><span class="role">${esc({ admin: "administrador", editor: "editor", leitura: "leitura", cliente: "cliente" }[user.papel] || user.papel)}</span><button type="button" class="btn sm" id="logout">Sair</button>`;

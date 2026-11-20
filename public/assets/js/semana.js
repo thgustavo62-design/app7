@@ -298,11 +298,12 @@
     if (sv) sv.onclick = () => { const n = save(view); if (n === false) return; H.toast(n ? "Salvo na planilha." : "Nada mudou desde o último salvamento."); saveUi(); render(view, H, curSub); };
     const pp = $("#sem-pptx", view);
     if (pp) pp.onclick = () => {
-      if (Object.keys(drafts).length || !$("#sem-dirty", view).hidden) { stash(view); if (Object.keys(drafts).length) return H.toast("Há alterações não salvas. Clique em Salvar antes de gerar o PowerPoint."); }
+      if (Object.keys(drafts).length) { stash(view); if (Object.keys(drafts).length) return H.toast("Há alterações não salvas. Clique em Salvar antes de gerar o PowerPoint."); }
       if (!root.N7Report) return H.toast("O gerador de PowerPoint não carregou. Recarregue a página.");
       const an = A.analyze({ weeks: weeks(), gens: gens(), tipo: ui.tipo, inicio: ui.inicio, clients: analysisClients() });
       if (!an.clients.some(c => !c.vazio)) return H.toast("Informe pelo menos um número do período antes de gerar o PowerPoint.");
-      root.N7Report.download(an).then(name => H.toast("PowerPoint gerado: " + name), e => { console.error(e); H.toast("Não foi possível gerar o PowerPoint."); });
+      H.toast("Preparando o PowerPoint…");
+      root.N7Lazy.pptx().then(() => root.N7Report.download(an)).then(name => H.toast("PowerPoint gerado: " + name), e => { console.error(e); H.toast("Não foi possível gerar o PowerPoint."); });
     };
   }
 

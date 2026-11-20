@@ -52,8 +52,9 @@
     $("#rel-obs", view).addEventListener("change", e => setObs(ui.marca, ui.inicio, e.target.value.trim()));
     $("#rel-pptx", view).onclick = () => {
       setObs(ui.marca, ui.inicio, $("#rel-obs", view).value.trim());
-      if (!root.N7Relatorio || !root.PptxGenJS) return H.toast("O gerador de PowerPoint não carregou. Recarregue a página.");
-      R.download(m, { obs: $("#rel-obs", view).value }).then(n => H.toast("PowerPoint gerado: " + n), e => { console.error(e); H.toast("Não foi possível gerar o PowerPoint."); });
+      if (!root.N7Relatorio) return H.toast("O gerador de PowerPoint não carregou. Recarregue a página.");
+      H.toast("Preparando o PowerPoint…");
+      root.N7Lazy.pptx().then(() => R.download(m, { obs: $("#rel-obs", view).value })).then(n => H.toast("PowerPoint gerado: " + n), e => { console.error(e); H.toast("Não foi possível gerar o PowerPoint."); });
     };
     const mb = $("#rel-meta", view);
     if (mb) mb.onclick = async () => {
