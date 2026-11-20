@@ -14,12 +14,15 @@
     varejo: { id: "varejo", name: "Análise comercial de varejo", short: "Varejo", icon: "cart", color: "--c4",
       desc: "Vendas por dia, ticket, cestas, comparação do mesmo dia da semana e PowerPoint semanal.",
       modules: ["vendas", "semana"] },
+    autoridade: { id: "autoridade", name: "Autoridade e posicionamento", short: "Autoridade", icon: "eye", color: "--c7",
+      desc: "Marca pessoal ou profissional: consistência de publicação, engajamento qualificado (comentários, compartilhamentos, salvamentos), visitas ao perfil e contatos que chegaram pelo conteúdo.",
+      modules: ["autoridade"] },
     promocoes: { id: "promocoes", name: "Promoções e preços", short: "Promoções", icon: "tag", color: "--c6",
       desc: "Central de promoções: estoque e vendas de 60 e 90 dias, preço sugerido acima do piso de margem e campanhas prontas para a arte.",
       modules: ["promocoes"] }
   };
-  const ORDER = ["redes", "trafego", "criativos", "varejo", "promocoes"];
-  const SECTORS = { saude: "Saúde e farmácia", agro: "Agro", agencia: "Agência", varejo: "Varejo", outro: "Outro" };
+  const ORDER = ["redes", "trafego", "criativos", "varejo", "promocoes", "autoridade"];
+  const SECTORS = { saude: "Saúde e farmácia", agro: "Agro", agencia: "Agência", contabilidade: "Contabilidade", executivo: "Executivo e marca pessoal", varejo: "Varejo", outro: "Outro" };
   const COLORS = ["--c1", "--c2", "--c3", "--c4", "--c5", "--c6", "--c7", "--c8"];
   const has = (c, s) => !!(c && Array.isArray(c.services) && c.services.includes(s));
   const label = c => ORDER.filter(s => has(c, s)).map(s => SERVICES[s].short).join(" + ") || "sem serviço";

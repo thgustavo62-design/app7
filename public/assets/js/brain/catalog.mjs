@@ -6,9 +6,10 @@ export const AREAS = {
   resultado: { id: "resultado", name: "Resultado", does: "Vendas, anúncios e redes sociais" },
   estrategia: { id: "estrategia", name: "Estratégia", does: "Visão por cliente e oportunidades" },
   promocao: { id: "promocao", name: "Promoções", does: "Estoque, preço e campanhas de cada farmácia" },
+  autoridade: { id: "autoridade", name: "Autoridade", does: "Ritmo, alcance qualificado e convites de marcas pessoais e profissionais" },
   contexto: { id: "contexto", name: "Contexto", does: "Datas, feriados e qualidade dos dados" }
 };
-export const AREA_ORDER = ["operacao", "conteudo", "resultado", "promocao", "estrategia", "contexto"];
+export const AREA_ORDER = ["operacao", "conteudo", "resultado", "promocao", "autoridade", "estrategia", "contexto"];
 
 export const AGENTS = {
   producao: { id: "producao", area: "operacao", name: "Produção", icon: "list", does: "Vigia o calendário: pautas atrasadas, pautas que vencem em até 2 dias sem ter começado e clientes sem pauta nos próximos 7 dias.", rules: ["Atrasada: nota sobe com os dias de atraso e a quantidade", "Vence em até 1 dia e nem começou: nota 90", "Cliente de redes sem pauta nos próximos 7 dias: nota 62"] },
@@ -25,12 +26,15 @@ export const AGENTS = {
   ruptura: { id: "ruptura", area: "promocao", name: "Ruptura", icon: "alert", does: "Procura itens que mais faturam (classe A ou B) com estoque para 15 dias ou menos no ritmo dos últimos 60 dias.", rules: ["Nota 52 mais 2,5 por item (até 24) e 8 se houver item de classe A", "Cobertura = estoque ÷ vendas por dia dos últimos 60 dias", "A ação é conferir a reposição antes de anunciar promoção nesses itens"] },
   margem: { id: "margem", area: "promocao", name: "Preço e margem", icon: "money", does: "Vigia itens que vendem com margem abaixo de 12% e preço de venda no custo ou abaixo dele.", rules: ["Preço de venda igual ou abaixo do último preço de entrada: nota 80 (conferir preço ou custo)", "5 itens ou mais com margem abaixo de 12% e venda em 90 dias: nota 48 a 68", "Margem é sobre a venda: (preço − custo) ÷ preço"] },
   campanha: { id: "campanha", area: "promocao", name: "Campanha da semana", icon: "cal", does: "Compara a cadência semanal de campanhas de cada farmácia com as campanhas salvas e aprovadas para hoje e os 2 próximos dias.", rules: ["Sem campanha aprovada para o dia da cadência: nota 72 (menos 5 por dia de distância)", "Campanha salva só como rascunho: nota 60", "Minas Farma: Segunda do Bebê, Dias do Leite, Quinta dos Suplementos, Perfumaria e Fim de Semana da Limpeza. Farma e Farma: Atacadão do Bebê, quarta e quinta"] },
+  consistencia: { id: "consistencia", area: "autoridade", name: "Consistência", icon: "cal", does: "Compara as publicações da semana (LinkedIn e Instagram) com a meta semanal do cliente e avisa quando o ritmo cai por semanas seguidas.", rules: ["Abaixo da meta na semana: TESTAR, confiança média", "Abaixo da meta há 2 ou 3 semanas seguidas: CORRIGIR, confiança alta", "Meta cumprida: MANTER (ganho)", "Publicação sem número informado fica como falta de dado, nunca zero"] },
+  autoridade: { id: "autoridade", area: "autoridade", name: "Alcance e engajamento", icon: "eye", does: "Lê LinkedIn e Instagram de cada cliente: alcance, engajamento qualificado (comentários, compartilhamentos e salvamentos por mil alcançadas) e seguidores que chegam sem engajar.", rules: ["Alcance variando 25% ou mais com base de 500 pessoas ou mais", "Engajamento qualificado variando 30% ou mais com alcance mínimo de 500 nas duas semanas", "Menos de 10 interações qualificadas somadas: INCONCLUSIVO", "Canais nunca são somados: as mesmas pessoas se repetem"] },
+  convites: { id: "convites", area: "autoridade", name: "Convites e contatos", icon: "bell", does: "Mede o que a autoridade traz de verdade: reuniões, propostas e convites, e perfil visitado que não convida.", rules: ["50 visitas ao perfil ou mais e nenhum contato nas últimas 3 semanas informadas: CORRIGIR", "Reuniões e convites acima da semana anterior: ESCALAR", "Exige a semana anterior informada para comparar"] },
   cliente: { id: "cliente", area: "estrategia", name: "Gestão de contas", icon: "home", does: "Junta tudo o que os outros agentes disseram sobre cada cliente numa nota de saúde de 0 a 100 e avisa quando várias frentes pioram juntas.", rules: ["Cada achado aberto tira pontos da saúde, conforme a nota dele (com teto: a nota nunca zera de vez)", "3 ou mais achados com nota 60+ ou saúde abaixo de 60: nota 60 a 78", "Saúde: 80+ em ordem, 60 a 79 atenção, abaixo de 60 em risco"] },
   oportunidades: { id: "oportunidades", area: "estrategia", name: "Oportunidades", icon: "bulb", does: "Procura onde o resultado está bom e dá para propor mais: orgânico forte em cliente sem tráfego pago.", rules: ["Instagram ou Facebook subindo (classe manter) em cliente sem o serviço de tráfego pago: nota 44"] },
   dados: { id: "dados", area: "contexto", name: "Qualidade dos dados", icon: "file", does: "Avisa o que falta para a análise ser confiável: semana sem números, decisão da semana em branco e calendário fora da Central.", rules: ["Cliente com serviço e sem número na última semana", "Semana com dados e sem decisão registrada", "Calendário usando a cópia em vez da Central"] },
   calendario: { id: "calendario", area: "contexto", name: "Datas e feriados", icon: "clock", does: "Olha os próximos 10 dias atrás de feriado ou data atípica que mude o conteúdo e o horário das publicações.", rules: ["Feriado em até 3 dias: nota 70", "Feriado em até 7 dias: nota 57"] }
 };
-export const AGENT_ORDER = ["aprovacao", "producao", "pipeline", "capacidade", "midia", "criativo", "vendas", "redes", "estoque", "ruptura", "margem", "campanha", "qualidade", "editorial", "cliente", "oportunidades", "dados", "calendario"];
+export const AGENT_ORDER = ["aprovacao", "producao", "pipeline", "capacidade", "midia", "criativo", "vendas", "redes", "estoque", "ruptura", "margem", "campanha", "qualidade", "editorial", "consistencia", "autoridade", "convites", "cliente", "oportunidades", "dados", "calendario"];
 
 export const SYNAPSES = [
   { id: "apr-prod", nome: "Aprovação trava a produção", de: ["aprovacao"], para: ["producao", "pipeline"], texto: "Cliente com peça esperando aprovação e pauta apertada ao mesmo tempo: a causa mais provável é a aprovação. O achado de aprovação ganha 8 pontos." },
@@ -44,6 +48,8 @@ export const SYNAPSES = [
   { id: "promo-dados-confianca", nome: "Base velha, confiança menor", de: ["dados"], para: ["estoque", "ruptura", "margem", "campanha"], texto: "Estoque ou vendas desatualizados numa farmácia: os achados de promoção dela perdem 15% da nota e avisam que a base está velha." },
   { id: "estoque-campanha", nome: "Estoque parado + falta campanha", de: ["estoque"], para: ["campanha"], texto: "Farmácia com dinheiro parado e sem a campanha do dia: a campanha vira a oportunidade de queimar estoque (ganha 6 pontos) e usa os itens parados." },
   { id: "ruptura-midia", nome: "Ruptura com anúncio no ar", de: ["ruptura"], para: ["midia"], texto: "Item de giro alto vai faltar e a farmácia tem anúncio no ar na semana: ruptura ganha 6 pontos, porque o anúncio pode levar cliente a prateleira vazia." },
+  { id: "aut-ritmo-alcance", nome: "Ritmo baixo + alcance em queda", de: ["consistencia"], para: ["autoridade"], texto: "Cliente publicando abaixo da meta e com alcance caindo na mesma semana: o achado de alcance ganha 6 pontos e a ação passa a ser recuperar o ritmo antes de mudar o conteúdo." },
+  { id: "aut-dados-confianca", nome: "Autoridade sem dado novo, confiança menor", de: ["dados"], para: ["consistencia", "autoridade", "convites"], texto: "Semana fechada sem números de autoridade: os achados do cliente vêm de uma semana antiga e perdem 15% da nota." },
   { id: "memoria", nome: "Memória: o que voltou", de: ["memoria"], para: ["todos"], texto: "Se foi marcado como feito (ou adiado, ou ignorado) e o problema continua, o achado volta com a marca de reincidente e ganha de 4 a 10 pontos." }
 ];
 
@@ -53,7 +59,8 @@ export const SERVICE_AGENTS = {
   trafego: ["midia", "criativo", "redes", "dados", "cliente"],
   criativos: ["producao", "pipeline", "capacidade", "aprovacao", "qualidade", "criativo"],
   varejo: ["vendas", "midia", "calendario", "dados", "cliente"],
-  promocoes: ["estoque", "ruptura", "margem", "campanha", "vendas", "calendario", "dados", "cliente"]
+  promocoes: ["estoque", "ruptura", "margem", "campanha", "vendas", "calendario", "dados", "cliente"],
+  autoridade: ["consistencia", "autoridade", "convites", "calendario", "dados", "cliente"]
 };
 /* serviços que um agente atende (inverso de SERVICE_AGENTS) */
 export const servicesOf = agentId => Object.keys(SERVICE_AGENTS).filter(s => SERVICE_AGENTS[s].includes(agentId));

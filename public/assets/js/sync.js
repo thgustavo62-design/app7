@@ -39,6 +39,9 @@
       case "decisions": return diffList(old, nw, "chave",
         (x, o) => ({ t: "decision", op: "upsert", chave: x.chave, agente: x.agente, marca: x.marca || "", titulo: x.titulo, status: x.status, ate: x.ate, nota: x.nota || "", v: x.v ?? (o && o.v) }),
         o => ({ t: "decision", op: "delete", chave: o.chave, marca: o.marca || "", v: o.v }));
+      case "authority": return diffList(old, nw, x => `${x.tipo}|${x.inicio}|${x.marca}|${x.canal}`,
+        (x, o) => Object.assign({ t: "auth", op: "upsert" }, strip(x), { v: x.v ?? (o && o.v) }),
+        o => ({ t: "auth", op: "delete", tipo: o.tipo, inicio: o.inicio, marca: o.marca, canal: o.canal, v: o.v }));
       case "weekGen": return diffList(old, nw, x => `${x.tipo}|${x.inicio}`,
         (x, o) => Object.assign({ t: "weekgen", op: "upsert" }, strip(x), { v: x.v ?? (o && o.v) }),
         o => ({ t: "weekgen", op: "delete", tipo: o.tipo, inicio: o.inicio, v: o.v }));
@@ -68,7 +71,7 @@
   function createSync({ store, fetchFn, onState, onFatal, onAuth, retryMs = 6000 }) {
     fetchFn = fetchFn || ((u, i) => fetch(u, i));
     let queue = [], busy = false, attempts = 0, timer = null, sent = 0;   /* queue[0..sent-1] já foram enviadas e aguardam resposta */
-    const target = op => `${op.t}|${op.id || op.code || op.key || op.chave || (op.t === "week" || op.t === "weekgen" ? op.tipo + "|" + op.inicio + "|" + (op.marca || "") : op.marca) || (op.ev && op.ev.id)}`;
+    const target = op => `${op.t}|${op.id || op.code || op.key || op.chave || (op.t === "week" || op.t === "weekgen" || op.t === "auth" ? op.tipo + "|" + op.inicio + "|" + (op.marca || "") + "|" + (op.canal || "") : op.marca) || (op.ev && op.ev.id)}`;
     const setState = s => { try { onState && onState(s); } catch (e) { /* ignora */ } };
 
     function applyResult(op, r) {
@@ -80,6 +83,7 @@
       else if (op.t === "override") store.setVersion("overrides", op.code, r.v);
       else if (op.t === "week") store.setVersion("weeks", x => x.tipo === op.tipo && x.inicio === op.inicio && x.marca === op.marca, r.v);
       else if (op.t === "decision") store.setVersion("decisions", x => x.chave === op.chave, r.v);
+      else if (op.t === "auth") store.setVersion("authority", x => x.tipo === op.tipo && x.inicio === op.inicio && x.marca === op.marca && x.canal === op.canal, r.v);
       else if (op.t === "weekgen") store.setVersion("weekGen", x => x.tipo === op.tipo && x.inicio === op.inicio, r.v);
     }
     async function flush() {

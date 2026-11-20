@@ -12,6 +12,7 @@ Site de gestão interna da agência Nova7: resultados, metas e produção de con
 | `#insights` | Vendas, ticket, Instagram e Facebook por janela, Facebook diário da Farma e Farma, cesta, achados e qualidade dos dados. Filtro: duas farmácias, Minas ou Farma |
 | `#relatorios` | Fechamento do mês por cliente, conforme os serviços dele, com PowerPoint para enviar ao cliente |
 | `#promocoes` | Central de Promoções das farmácias: estoque e vendas de 60 e 90 dias, candidatos, preço sugerido com piso e campanhas |
+| `#autoridade` | Painel de autoridade de marca pessoal ou profissional (LinkedIn, Instagram e convites): ritmo de publicação, engajamento qualificado e contatos que vieram do conteúdo |
 | `#semana` | Rotina de segunda-feira: digite os números da semana ou do mês (ou cole as tabelas da Meta), veja a análise e baixe o PowerPoint de 6 a 8 slides |
 | `#minas-farma`, `#padaria-bom-pao`... (um por cliente cadastrado) | Página do cliente, **montada conforme os serviços que a Nova7 presta a ele** (veja abaixo): redes sociais, tráfego pago, criativos e análise de varejo |
 | `#config` | Só administradores: subabas **Usuários** e **Clientes e serviços** |
@@ -101,6 +102,7 @@ Em **Configurações** (só administradores):
 | Tráfego pago | Meta Ads semana a semana: gasto, alcance, frequência, CPM, custo por resultado e alerta de saturação |
 | Criativos e design | Fila de peças com etapas e aprovação, sem métricas de venda |
 | Análise comercial de varejo | Vendas por semana, mesmos dias da semana, ticket, cestas e o PowerPoint semanal |
+| Autoridade e posicionamento | Ritmo de publicação contra a meta, alcance e engajamento qualificado por canal, visitas ao perfil e convites (tela `#autoridade`) |
 
   O cartão do Painel, os indicadores, o menu e a tela Semana (campos de entrada) acompanham os mesmos serviços. Empresas não são apagadas: desative para tirá-las do site sem perder o histórico. Os quatro clientes iniciais foram migrados (Minas Farma e Farma e Farma com redes, tráfego e varejo; Campo Forte e Nova7 com redes).
 - **Usuários:** dois tipos. **Equipe da Nova7** (administrador, editor ou leitura) vê todas as empresas ou só as marcadas. **Usuário do cliente** vê só a própria empresa: acompanha o que está sendo feito e **aprova ou pede ajustes** nas pautas; não vê resultados internos, alertas, playbook, outras empresas nem configurações, e não grava nada além da aprovação do cliente.
@@ -131,6 +133,16 @@ A tela `#relatorios` (equipe) mostra o fechamento de um mês de um cliente **con
 ## As farmácias sempre separadas
 
 Nenhuma análise soma ou mistura a Minas Farma com a Farma e Farma. O Painel mostra as vendas de cada uma em indicadores próprios; a tela Semana e o PowerPoint semanal falam de uma loja por vez (sem "total das lojas" nem participação de uma na outra); o Insights tem um filtro por loja (sem a opção "duas farmácias"); a Central de Promoções tem base, custo, estoque e campanhas por loja; o cérebro gera achados por loja, com saúde por loja. A única comparação entre lojas (produto parado numa e girando na outra) fica escondida na visão geral das Promoções e só aparece quando você clica em **Comparar com a outra loja**.
+
+## Autoridade e posicionamento (contador, executivo, profissional liberal)
+
+Para clientes cuja meta não é vender, e sim ser reconhecido (hoje o Werllem Polac, executivo tributário e comercial, e um contador a cadastrar), o serviço **Autoridade e posicionamento** troca a análise de varejo por um painel próprio na tela `#autoridade`. Os números são digitados por semana (segunda a domingo), por canal: **LinkedIn** e **Instagram** (impressões, alcance, interações, comentários, compartilhamentos, salvamentos, visitas ao perfil, seguidores novos e total, publicações) e **Convites** (contatos que vieram do conteúdo, reuniões ou propostas, convites e menções). Campo em branco é falta de dado, nunca zero; **alcance de canais diferentes nunca é somado** (as mesmas pessoas se repetem).
+
+- **Consistência:** publicações da semana contra a meta (padrão 3 por semana; ajustável por cliente na própria tela). Abaixo da meta numa semana é TESTAR; há 2 ou 3 semanas seguidas, CORRIGIR.
+- **Alcance e engajamento qualificado:** comentários, compartilhamentos e salvamentos por mil pessoas alcançadas (mais forte que curtida). Alcance com variação de 25% ou mais e engajamento com variação de 30% ou mais só viram conclusão com 500 pessoas ou mais de base; menos de 10 interações qualificadas é INCONCLUSIVO. Também avisa quando entram mais seguidores e o engajamento cai.
+- **Convites:** 50 visitas ao perfil ou mais e nenhum contato nas últimas 3 semanas informadas é CORRIGIR (o perfil é visto mas não convida); reuniões e convites acima da semana anterior é ESCALAR, a medida de verdade da autoridade.
+- **Conformidade por setor** (checklist antes de publicar, no Playbook e na pauta): *Contabilidade (CFC)*, com conteúdo informativo e moderado, sem promessa de resultado, sem comparação com colegas, sem chamada alusiva a preço, sigilo e LGPD, lei e data de vigência, identificação com nome, categoria e registro no CRC e revisão do contador (as regras de publicidade contábil vêm do CFC: confira o texto vigente da NBC PG 01 e consulte o CRC); *Executivo e marca pessoal*, que mantém a autoridade separada da promoção das farmácias (sem preço, oferta ou medicamento), cita lei com fonte e data, não dá orientação tributária para caso concreto nem promete economia de imposto, declara conflito de interesse e marca opinião como opinião.
+- **Cérebro:** área *Autoridade* com os agentes Consistência, Alcance e engajamento e Convites, mais o aviso de dados (semana fechada sem números). Sinapses: ritmo baixo + alcance em queda, e dado velho baixa a nota. Dados na aba `Autoridade`.
 
 ## Central de Promoções (serviço "Promoções e preços")
 
@@ -201,20 +213,21 @@ A tela `#cerebro` responde "o que fazer hoje" **sem nenhuma API de IA**: agentes
 
 Em 6 passos (motor em `public/assets/js/brain/`, funções puras testadas em Node):
 
-1. **Agentes** lêem os dados e devolvem achados com nota e evidência. São **18, em 6 áreas**:
+1. **Agentes** lêem os dados e devolvem achados com nota e evidência. São **21, em 7 áreas**:
    - *Operação:* Produção (atrasos, pautas que vencem sem começar, calendário vazio), Etapas da produção (prazo de roteiro, gravação, edição, aprovação e agendamento contra o status), Capacidade da equipe (dia com etapas demais), Aprovações.
    - *Conteúdo:* Ritmo editorial (horários fixos, variedade de formato, ideias aprovadas paradas), Qualidade (peça pronta sem checagem), Criativos (nasce da conversa entre Mídia e Redes).
    - *Resultado:* Mídia paga, Redes sociais e Vendas (da análise semanal, mesmas regras da tela Semana).
    - *Promoções* (só farmácias com o serviço Promoções e preços; **cada loja é lida à parte, nunca somada à outra**): Estoque parado (dinheiro sem venda em 90 dias e encalhado há 6 meses ou mais), Ruptura (itens classe A ou B com estoque para 15 dias), Preço e margem (venda no custo ou abaixo e margem abaixo de 12%) e Campanha da semana (a cadência de cada loja contra as campanhas salvas e aprovadas para hoje e os 2 próximos dias). O resumo vem da Central de Promoções (`promo.js`), carregado em segundo plano; a tela se atualiza quando chega. O botão *Abrir* de cada achado leva à loja e à lista certas, e a campanha da cadência já vem preparada.
    - *Estratégia:* Gestão de contas (saúde por cliente) e Oportunidades (orgânico forte em cliente sem tráfego pago).
+   - *Autoridade* (só clientes com o serviço Autoridade e posicionamento): Consistência (ritmo de publicação contra a meta), Alcance e engajamento (LinkedIn e Instagram, sem somar canais) e Convites e contatos (reuniões e perfil visitado que não convida).
    - *Contexto:* Qualidade dos dados (inclui base de promoções sem importar, estoque ou vendas velhos, histórico curto e muito item sem custo) e Datas e feriados.
 2. **Memória:** o que foi marcado como feito, adiado ou ignorado e continua aparecendo volta como **reincidente** (+4 a +10 pontos). O que foi feito e deixou de aparecer conta como resolvido.
-3. **Sinapses** (conexões entre agentes, listadas na tela "Como o cérebro pensa"): aprovação trava a produção; dado velho baixa a confiança; feriado aperta o prazo; anúncio cansado + redes em queda = criativos desgastados; dado de promoção velho baixa a nota dos achados da loja; estoque parado + falta de campanha vira oportunidade de queima; ruptura com anúncio no ar; falta de publicação + queda de alcance; vendas caindo + anúncio com problema; sobrecarga + atraso; calendário vazio + ideia parada; memória.
+3. **Sinapses** (conexões entre agentes, listadas na tela "Como o cérebro pensa"): aprovação trava a produção; dado velho baixa a confiança; feriado aperta o prazo; anúncio cansado + redes em queda = criativos desgastados; dado de promoção velho baixa a nota dos achados da loja; estoque parado + falta de campanha vira oportunidade de queima; ruptura com anúncio no ar; ritmo baixo + alcance em queda (autoridade); dado de autoridade velho baixa a nota; falta de publicação + queda de alcance; vendas caindo + anúncio com problema; sobrecarga + atraso; calendário vazio + ideia parada; memória.
 4. **Gestão de contas:** soma o que todos disseram de cada cliente numa **saúde de 0 a 100** (80+ em ordem, 60 a 79 atenção, abaixo de 60 em risco) e avisa quando várias frentes pioram juntas.
 5. **Maestro:** escolhe a **decisão do dia** e até 2 "também hoje" (agentes e clientes diferentes). Nota de 0 a 100 = urgência x impacto x confiança; Hoje (80+), Esta semana (60+), Acompanhar. Ganhos aparecem à parte e nunca viram decisão.
 6. **Tratar:** *Feito* (some hoje), *Adiar 2 dias* ou *Ignorar* (14 dias), gravado na aba `Decisoes` da planilha-banco.
 
-A tela traz ainda o **mapa do cérebro** (os 18 agentes e as conexões que dispararam hoje), a saúde dos clientes e o radar por área. O Painel mostra a decisão do dia num cartão. Usuário cliente não vê a Central de Inteligência.
+A tela traz ainda o **mapa do cérebro** (os 21 agentes e as conexões que dispararam hoje), a saúde dos clientes e o radar por área. O Painel mostra a decisão do dia num cartão. Usuário cliente não vê a Central de Inteligência.
 
 ### Subabas da Central
 

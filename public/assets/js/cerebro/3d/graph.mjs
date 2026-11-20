@@ -4,7 +4,7 @@
    clientes ao redor ligados ao que contratam; agentes mais afastados). */
 import { AREA_ORDER, AGENT_ORDER, AGENTS, SERVICE_AGENTS } from "../../brain/catalog.mjs";
 
-export const AREA_COLOR = { operacao: 0x7c4dff, conteudo: 0x06b6d4, resultado: 0x22c55e, promocao: 0xec4899, estrategia: 0xf59e0b, contexto: 0x94a3b8 };
+export const AREA_COLOR = { operacao: 0x7c4dff, conteudo: 0x06b6d4, resultado: 0x22c55e, promocao: 0xec4899, autoridade: 0x8b5cf6, estrategia: 0xf59e0b, contexto: 0x94a3b8 };
 export const LEVEL_COLOR = { ok: 0x22c55e, atencao: 0xf59e0b, risco: 0xef4444 };
 export const SERVICE_COLOR = 0xf472b6;
 export const HUB_COLOR = 0xa78bfa;

@@ -59,6 +59,26 @@ window.N7_PLAYBOOK = {
       "Sem promessa de produtividade, rentabilidade ou controle de praga",
       "Só serviços que a Campo Forte confirma oferecer"
     ],
+    contabilidade: [
+      "Texto informativo, moderado e discreto (sem mercantilização)",
+      "Sem promessa de resultado, economia garantida ou comparação com colegas",
+      "Sem chamada alusiva a preço, desconto ou \"o mais barato\"",
+      "Nenhum cliente, caso ou dado exposto sem autorização por escrito (sigilo profissional e LGPD)",
+      "Lei, norma e data de vigência citadas e conferidas",
+      "Identificação presente: nome do contador ou da organização, categoria profissional e número do registro no CRC (e CNPJ, no caso de organização)",
+      "Só títulos e especializações que o profissional realmente possui",
+      "Revisão do contador responsável feita (dúvida: conferir o texto vigente da NBC PG 01 e consultar o CRC)"
+    ],
+    executivo: [
+      "Autoridade separada da promoção das farmácias: sem preço, oferta ou medicamento no perfil pessoal",
+      "Sem alegação terapêutica nem divulgação de medicamento",
+      "Lei ou norma citada com fonte e data; na reforma tributária, conferir o texto vigente",
+      "Sem orientação tributária para caso concreto e sem prometer economia de imposto",
+      "Nenhum dado de cliente, fornecedor, parceiro ou funcionário exposto (sigilo e LGPD)",
+      "Conflito de interesse declarado quando citar as próprias empresas",
+      "Opinião marcada como opinião, separada de fato e de norma",
+      "Revisão do próprio Werllem feita antes de publicar"
+    ],
     agencia: [
       "Autorização expressa do cliente para usar o case",
       "Métricas citadas medidas e documentadas",
@@ -134,6 +154,22 @@ window.N7_PLAYBOOK = {
       formats: ["Registro de campo e antes e depois documentado", "Vídeo do técnico explicando na lavoura", "Guias por fase do café", "Conta de custo e retorno de uma decisão"],
       seasons: ["Planejamento de safra e análise de solo", "Floração e pegamento", "Monitoramento de pragas e doenças", "Colheita e pós-colheita"],
       pitfalls: ["Achar que o produtor não pesquisa online", "Jargão técnico sem benefício prático", "Comunicar fora da janela de decisão", "Pouco vídeo em condição real de campo"]
+    },
+    contabilidade: {
+      name: "Contabilidade (empresas médias e profissionais liberais)", clients: [],
+      funnel: "Confiança técnica antes do contato: o decisor compara, pede indicação e procura prova de conhecimento. Autoridade vem de explicar bem, com regularidade, sem prometer.",
+      channels: ["LinkedIn: artigos curtos e posts técnicos para sócios e profissionais liberais", "Instagram: carrosséis explicando regras e prazos", "Indicação de clientes e de outros profissionais (advogados, consultores)", "Newsletter e WhatsApp para a base de clientes", "Palestras e conteúdo em associações do setor"],
+      formats: ["Carrossel que explica uma regra, um prazo ou uma mudança com fonte e data", "Texto de opinião técnica sobre o impacto de uma mudança para o tipo de cliente", "Vídeo curto respondendo uma dúvida real (sem caso identificável)", "Checklist de fechamento e de obrigações do mês"],
+      seasons: ["Janeiro a março: fechamento do ano, DEFIS e IRPF", "Maio: IRPF e DASN-SIMEI", "Julho: ECF", "Novembro e dezembro: planejamento tributário do próximo ano e fechamento", "Ao longo do ano: reforma tributária em transição (conferir o texto vigente)"],
+      pitfalls: ["Promessa de economia ou de resultado", "Falar de preço ou fazer comparação com colegas", "Citar cliente ou caso sem autorização", "Norma sem data de vigência", "Conteúdo genérico demais para o decisor técnico", "Esquecer a identificação profissional (registro no CRC)"]
+    },
+    executivo: {
+      name: "Executivo e marca pessoal (tributário e comercial)", clients: [],
+      funnel: "Reputação entre pares e decisores: quem contrata ou indica procura consistência, ponto de vista claro e prova de repertório. O convite (reunião, palestra, parceria) é a medida de verdade.",
+      channels: ["LinkedIn: o canal principal de autoridade", "Artigos e análises curtas sobre tributação e gestão comercial", "Participação em eventos, podcasts e entrevistas", "Rede de contatos por mensagem direta e e-mail", "Instagram só como apoio, com linha editorial própria"],
+      formats: ["Análise de uma mudança tributária com o efeito prático para empresas de varejo e serviços", "Ponto de vista comercial ancorado em dado ou experiência própria", "Bastidor de decisão (sem expor números de terceiros)", "Série semanal com tema fixo"],
+      seasons: ["Início do ano: planejamento tributário e orçamento", "Marcos da reforma tributária (acompanhar o calendário vigente)", "Meio do ano: revisão de resultado e de estratégia comercial", "Fim de ano: fechamento e planejamento"],
+      pitfalls: ["Misturar a marca pessoal com oferta e preço das farmácias", "Opinião apresentada como norma", "Citar lei sem fonte e data", "Prometer economia de imposto", "Ficar semanas sem publicar: autoridade depende de regularidade", "Postar para curtida e não para o convite"]
     }
   },
 

@@ -79,8 +79,9 @@
   const fmtBadge = f => `<span class="badge fmt-${f.toLowerCase()}">${esc(f)}</span>`;
   /* ---------- nota de saúde do cliente (método do playbook) ---------- */
   const clamp = v => Math.max(0, Math.min(100, v));
-  const sectorOf = b => { const st = CL[b] && CL[b].setor; return st === "saude" || st === "agro" ? st : "agencia"; };
-  const roleOf = b => F.INTERNAL_ROLE[b] || ({ saude: "farmacêutico responsável", agro: "revisão agronômica" })[CL[b] && CL[b].setor] || "revisão interna";
+  const SECTORS_REG = ["saude", "agro", "contabilidade", "executivo"];     /* setores com checklist e notas próprios */
+  const sectorOf = b => { const st = CL[b] && CL[b].setor; return SECTORS_REG.includes(st) ? st : "agencia"; };
+  const roleOf = b => F.INTERNAL_ROLE[b] || ({ saude: "farmacêutico responsável", agro: "revisão agronômica", contabilidade: "contador responsável (revisão técnica e de ética)", executivo: "o próprio titular (revisão técnica e de conflito de interesses)" })[CL[b] && CL[b].setor] || "revisão interna";
   function health(c, all) {
     const ps = all.filter(p => p.b === c.key), W = D.WEEKLY[c.key];
     const due = ps.filter(p => toDate(p.date) <= TODAY);
@@ -149,6 +150,7 @@
     painel: { title: "Painel", render: renderPainel },
     insights: { title: "Insights", render: renderInsights },
     semana: { title: "Semana", render: v => window.N7Semana.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }) },
+    autoridade: { title: "Autoridade", render: v => window.N7Autoridade.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }) },
     promocoes: { title: "Central de Promoções", render: (v, sub) => window.N7Promocoes.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
     relatorios: { title: "Relatórios", render: v => window.N7Relatorios.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS, posts }) },
     cerebro: { title: "Central de Inteligência", render: (v, sub) => window.N7Cerebro.render(v, sub, brainHelpers()) },
@@ -167,6 +169,7 @@
     cerebro: () => !IS_CLIENT && CLIENTS.length > 0,
     relatorios: () => !IS_CLIENT && CLIENTS.some(c => (c.services || []).length),
     promocoes: () => !IS_CLIENT && CLIENTS.some(c => has(c, "promocoes")),
+    autoridade: () => !IS_CLIENT && CLIENTS.some(c => has(c, "autoridade")),
     calendario: () => anyPostClients(),
     fluxo: () => !IS_CLIENT && anyPostClients(),
     alertas: () => !IS_CLIENT && D.ALERTS.length > 0,
@@ -182,7 +185,7 @@
   /* ajudantes da Central de Inteligência: dados do site entregues às funções puras do cérebro (assets/js/brain/) */
   const brainHelpers = () => ({ ico, banner, toast, esc, store, canWrite: CAN_WRITE, today: TODAY_ISO,
     input: () => ({ today: TODAY_ISO, clients: CLIENTS.map(c => ({ key: c.key, id: c.id, name: c.name, services: c.services })), posts: posts(), weeks: allWeeks(), gens: store.get("weekGen", []), decisions: store.get("decisions", []),
-      promo: window.N7PromoBrain ? window.N7PromoBrain.summaries() : {}, ideas: F.getIdeas(), slots: F.getFlow().slots, checks,
+      promo: window.N7PromoBrain ? window.N7PromoBrain.summaries() : {}, authority: store.get("authority", []), goals: store.get("goals", {}), ideas: F.getIdeas(), slots: F.getFlow().slots, checks,
       needsClient: p => { const st = F.approvalState(p.code, p.b); return st.needs.includes("client") && !st.rec.client; }, planSource: D.PLAN_SOURCE }),
     go: (route, brand, ideas, extra) => { if (brand) prefs.kbrand = brand; if (ideas) prefs.kview = "ideias"; if (brand || ideas) savePrefs(); if (/^promocoes/.test(route) && window.N7Promocoes) window.N7Promocoes.focus(Object.assign({ loja: brand }, extra || {})); location.hash = "#" + route; } });
   const settingsCtx = () => ({ REG, ME, clients: () => CLIENTS, banner, ico, toast, esc, reload: reloadRegistry });
@@ -201,6 +204,7 @@
       ${ACCESS.semana() ? `<a class="nav-item" href="#semana">${ico("file")}<span>Semana</span></a>` : ""}
       ${ACCESS.relatorios() ? `<a class="nav-item" href="#relatorios">${ico("list")}<span>Relatórios</span></a>` : ""}
       ${ACCESS.promocoes() ? `<a class="nav-item" href="#promocoes">${ico("tag")}<span>Promoções</span></a>` : ""}
+      ${ACCESS.autoridade() ? `<a class="nav-item" href="#autoridade">${ico("eye")}<span>Autoridade</span></a>` : ""}
       ${CLIENTS.length ? `<div class="nav-group">${IS_CLIENT ? "Sua empresa" : "Clientes"}</div>
       ${CLIENTS.map(c => `<a class="nav-item" href="#${c.id}"><i class="nav-dot" style="background:var(${c.color})"></i><span>${esc(c.name)}</span>${late(c.id) && !IS_CLIENT ? `<span class="nav-count" title="pautas atrasadas">${late(c.id)}</span>` : ""}</a>`).join("")}` : ""}
       ${ops.length ? `<div class="nav-group">Operação</div>${ops.map(([id, ic, name, extra]) => `<a class="nav-item" href="#${id}">${ico(ic)}<span>${name}</span>${extra}</a>`).join("")}` : ""}
@@ -275,6 +279,14 @@
       if (lw) { const n = AN.norm(lw), d = AN.derive(n); list.push(kpi(`Meta Ads ${periodTxt(lw.inicio)}`, n.ads.gasto == null ? "sem gasto" : brl(n.ads.gasto), d.adsCusto != null ? `custo por resultado ${brl(d.adsCusto)}` : "sem resultado informado", "target", "amber"), kpi("Frequência", d.adsFreq == null ? "sem dado" : dec(d.adsFreq, 2), d.adsFreq != null && d.adsFreq > 1.5 ? "acima de 1,5: saturação" : "limite saudável: 1,5", "eye", d.adsFreq != null && d.adsFreq > 1.5 ? "red" : "green")); }
       else list.push(kpi("Meta Ads", "sem dado", "informe na tela Semana", "target", "amber"));
       out.trafego = list;
+    }
+    if (has(c, "autoridade")) {
+      const ini = AU.periodsWith(store.get("authority", []), c.key).filter(i => i <= lastClosedIso()).pop(), list = [];
+      if (ini) { const a = AU.analyze({ rows: store.get("authority", []), client: c, inicio: ini, metaPosts: authMeta(c) });
+        list.push(kpi(`Publicações ${periodTxt(ini)}`, a.posts.atual == null ? "sem dado" : `${int(a.posts.atual)} de ${int(a.posts.meta)}`, a.posts.atual != null && a.posts.atual >= a.posts.meta ? "meta cumprida" : "regularidade é a base da autoridade", "cal", a.posts.atual != null && a.posts.atual < a.posts.meta ? "amber" : "green"));
+        a.canais.filter(x => x.row).slice(0, 2).forEach(x => list.push(kpi(`${x.nome} · alcance`, x.row.alcance == null ? "sem dado" : int(x.row.alcance), x.cmp.alcance.pct != null ? delta(x.cmp.alcance.pct) + " vs anterior" : "sem semana anterior", x.canal === "li" ? "target" : "ig", "red"))); }
+      else list.push(kpi("Autoridade", "sem dado", "informe na tela Autoridade", "eye", "amber"));
+      out.autoridade = list;
     }
     if (has(c, "criativos")) {
       const n = s => ps.filter(p => p.status === s).length;
@@ -488,7 +500,7 @@
      CLIENTE
      ==================================================================== */
   function sectorPanel(c) {
-    if (c.setor !== "saude" && c.setor !== "agro" && c.setor !== "agencia") return "";   /* varejo e outros: sem notas de setor */
+    if (!["saude", "agro", "agencia", "contabilidade", "executivo"].includes(c.setor)) return "";   /* varejo e outros: sem notas de setor */
     const sec = sectorOf(c.key);
     if (sec === "agencia") {
       return `<div class="panel">${banner("file", "Regras para o perfil da agência", "portfólio e cases")}
@@ -584,6 +596,16 @@
       <div class="panel">${banner("file", "Como funciona", "peças e aprovação")}<div class="panel-body"><ul class="plain"><li>Cada peça é uma pauta no <a href="#calendario">Calendário</a>, com etapas de produção e data de entrega.</li><li>A aprovação interna e a do cliente ficam registradas na peça.</li>${CAN_WRITE ? `<li>Crie uma peça pelo quadro de <b>Ideias</b> do calendário: <a href="#calendario" data-brand="${c.key}" data-ideas="1">nova ideia para ${esc(c.short)}</a>.</li>` : ""}</ul></div></div></div>`;
   }
 
+  const AU = window.N7Authority, authMeta = c => { const g = store.get("goals", {}) || {}, v = g[`${c.key}-postsemana`]; return v > 0 ? Number(v) : AU.META_POSTS; };
+  function autoridadeSection(c) {
+    const head = `<div class="section-title"><h2>${SVC.SERVICES.autoridade.name}</h2><span>números informados na tela <a href="#autoridade">Autoridade</a> · canais nunca somados</span></div>`;
+    const rows = store.get("authority", []), ini = AU.periodsWith(rows, c.key).filter(i => i <= lastClosedIso()).pop();
+    if (!ini) return head + `<div class="panel"><div class="panel-body"><p class="src">Sem números de autoridade. Informe a semana na tela Autoridade (LinkedIn, Instagram e convites).</p></div></div>`;
+    const a = AU.analyze({ rows, client: c, inicio: ini, metaPosts: authMeta(c) }), top = a.signals.filter(s => s.classe !== "INCONCLUSIVO").slice(0, 3);
+    return head + `<div class="grid g2">
+      <div class="panel">${banner("chart", "Alcance por semana", "LinkedIn e Instagram")}<div class="panel-body"><div class="chart" id="c-auth"></div></div></div>
+      <div class="panel">${banner("bell", `Semana ${esc(periodTxt(ini))}`, "o que os números dizem")}<div class="panel-body">${top.length ? top.map(s => `<div class="sig"><div class="sig-h"><span class="badge ${s.classe === "CORRIGIR" ? "p0" : s.classe === "TESTAR" ? "p1" : "st-pub"}">${s.classe}</span><span class="badge">${esc(s.canal)}</span></div><b>${esc(s.titulo)}</b></div>`).join("") : `<p class="src">Nenhuma variação relevante.</p>`}</div></div></div>`;
+  }
   function renderClient(c, v) {
     v = v || $("#view");
     const ps = posts().filter(p => p.b === c.key);
@@ -604,6 +626,7 @@
       ${has(c, "criativos") ? criativosSection(c, ps) : ""}
       ${has(c, "trafego") ? trafegoSection(c) : ""}
       ${has(c, "varejo") ? varejoSection(c) : ""}
+      ${has(c, "autoridade") ? autoridadeSection(c) : ""}
       ${alerts.length ? `<div class="section-title"><h2>Alertas de ${esc(c.name)}</h2><span>${alerts.length} itens</span></div><div class="grid" style="gap:10px">${alerts.map(alertHtml).join("")}</div>` : ""}
       ${findings.length ? `<div class="panel">${banner("target", "Achados dos insights", "evidência não é causalidade")}<div class="table-wrap"><table><thead><tr><th>Prioridade</th><th>Rede</th><th>Achado</th><th>Próxima validação</th></tr></thead><tbody>${findings.map(x => `<tr><td><span class="badge ${x.p === "ALTA" ? "alta" : "media"}">${x.p}</span></td><td>${x.net}</td><td><b>${esc(x.t)}</b><div class="src">${esc(x.e)}</div></td><td>${esc(x.n)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}`}`;
     if (!IS_CLIENT) {
@@ -613,6 +636,13 @@
       if (ah) {
         const rows = allWeeks().filter(r => r.marca === c.key && r.tipo === "semana" && r.inicio <= lastClosedIso() && hasAds(AN.norm(r))).sort((a, b) => a.inicio.localeCompare(b.inicio)).slice(-8);
         C.bars(ah, { cats: rows.map(r => dm(r.inicio)), series: [{ name: "Gasto", color: c.color, values: rows.map(r => r.ads.gasto) }], fmt: brlK, tipFmt: brl, height: 200 });
+      }
+      const au = $("#c-auth", v);
+      if (au) {
+        const ini = AU.periodsWith(store.get("authority", []), c.key).filter(i => i <= lastClosedIso()).pop(), rs = store.get("authority", []);
+        const s = ["li", "ig"].map(ch => AU.series(rs, c.key, ch, n => n.alcance, ini, 8));
+        if (s.some(x => x.some(p => p.valor != null))) C.lines(au, { cats: s[0].map(p => dm(p.inicio)), series: [{ name: "LinkedIn", short: "LinkedIn", color: "--c7", values: s[0].map(p => p.valor) }, { name: "Instagram", short: "Instagram", color: "--c2", values: s[1].map(p => p.valor) }], fmt: k, tipFmt: int, height: 200 });
+        else au.innerHTML = `<p class="src">Nenhum alcance informado.</p>`;
       }
       const vh = $("#c-vendas", v);
       if (vh) {
@@ -1133,7 +1163,7 @@
       <p class="src">Rubrica de post social com 6 critérios. ${critical ? `Setor regulado: nível de aprovação <b>${sectorOf(p.b) === "saude" ? "crítico" : "alto"}</b>, com revisão técnica obrigatória.` : ""}</p>
       <div class="qgrid">${PB.rubric.map(r => `<label class="qrow" for="q-${r.id}"><span><b>${r.name}</b> <small>${r.weight}%</small><small class="hint">${r.hint}</small></span>
         <select id="q-${r.id}" data-dim="${r.id}"><option value="">—</option>${PB.levels.map(([v2, n]) => `<option value="${v2}" ${c.dims && String(c.dims[r.id]) === v2 ? "selected" : ""}>${n}</option>`).join("")}</select></label>`).join("")}</div>
-      <span class="col-title">Conformidade · ${{ saude: "farmácia e saúde", agro: "agro", agencia: "agência" }[sectorOf(p.b)]}</span>
+      <span class="col-title">Conformidade · ${{ saude: "farmácia e saúde", agro: "agro", agencia: "agência", contabilidade: "contabilidade (CFC)", executivo: "marca pessoal do executivo" }[sectorOf(p.b)]}</span>
       <div class="qchecks">${list.map((t, i) => `<label class="check"><input type="checkbox" data-chk="${i}" ${c.checks && c.checks[i] ? "checked" : ""}> ${esc(t)}</label>`).join("")}</div>
       <div class="health-row" id="q-result">${qualityResult(p.code)}</div></div>`;
   }
@@ -1172,7 +1202,7 @@
       </div>
 
       <div class="grid g3">
-        ${["saude", "agro", "agencia"].map(k2 => `<div class="panel">${banner("file", "Checklist · " + { saude: "Farmácia e saúde", agro: "Agro", agencia: "Perfil da agência" }[k2], { saude: "Minas Farma e Farma e Farma", agro: "Campo Forte", agencia: "Nova7 Produtora" }[k2])}
+        ${["saude", "agro", "contabilidade", "executivo", "agencia"].map(k2 => `<div class="panel">${banner("file", "Checklist · " + { saude: "Farmácia e saúde", agro: "Agro", agencia: "Perfil da agência", contabilidade: "Contabilidade (CFC)", executivo: "Marca pessoal do executivo" }[k2], { saude: "Minas Farma e Farma e Farma", agro: "Campo Forte", agencia: "Nova7 Produtora", contabilidade: "Clientes contadores", executivo: "Executivos e profissionais liberais" }[k2])}
           <div class="panel-body"><ul class="plain check">${PB.checks[k2].map(t => `<li>${esc(t)}</li>`).join("")}</ul></div></div>`).join("")}
       </div>
 

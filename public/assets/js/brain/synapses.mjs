@@ -69,6 +69,13 @@ export function connect(open, ctx, allKeys) {
     if (empty && idea) { empty.detalhe += " Há ideia aprovada esperando data: é só agendar."; empty.acao = "Agendar a ideia aprovada mais antiga nos horários fixos do cliente."; idea.score = clamp(idea.score - 15); idea.evidencia.push("Absorvido pelo aviso de calendário vazio"); rel(empty, idea, "ideias-vazio", idea.titulo); rel(idea, empty, "ideias-vazio", "Calendário vazio"); fire("ideias-vazio", k, "Calendário vazio com ideia aprovada parada"); }
   });
 
+  brands.forEach(k => {
+    const ritmo = by(k, f => f.agente === "consistencia" && f.tags.includes("ritmo_baixo"))[0], alc = by(k, f => f.agente === "autoridade" && f.tags.includes("alcance_down"))[0];
+    if (ritmo && alc) { add(alc, 6); alc.evidencia.push("A publicação também ficou abaixo da meta nesta semana: o alcance pode ser reflexo do ritmo"); alc.acao = "Recuperar o ritmo de publicação antes de mudar o conteúdo."; rel(alc, ritmo, "aut-ritmo-alcance", ritmo.titulo.replace(/^.*? · /, "")); rel(ritmo, alc, "aut-ritmo-alcance", "Alcance em queda na mesma semana"); fire("aut-ritmo-alcance", k, `${ritmo.titulo.replace(/^.*? · /, "")} + ${alc.titulo.replace(/^.*? · /, "")}`); }
+    const stale = by(k, f => f.agente === "dados" && f.tags.includes("stale") && /^aut-dados-/.test(f.chave))[0];
+    if (stale) { const hit = by(k, f => ["consistencia", "autoridade", "convites"].includes(f.agente) && f.kind === "acao"); hit.forEach(f => { f.score = clamp(f.score * .85); f.evidencia.push("Os números de autoridade mais recentes são de semana antiga: confiança menor"); }); if (hit.length) fire("aut-dados-confianca", k, stale.titulo); }
+  });
+
   open.forEach(f => { if (f.reincidente) fire("memoria", f.marca, f.titulo); });
   return { fired: fired.map(s => Object.assign(s, { qtd: s.casos.length })), extra };
 }
