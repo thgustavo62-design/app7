@@ -6,10 +6,11 @@
    Só equipe: quem edita (admin ou editor) importa e salva; leitura só consulta; usuário cliente não entra. */
 const { getRepo } = require('../lib/db');
 const P = require('../lib/promo-store');
-const { send, readJson, query, sameSiteRequest, currentUser, handle } = require('../lib/http');
+const { send, readJson, query, sameSiteRequest, handle } = require('../lib/http');
+const { authUser } = require('../lib/guard');
 
 module.exports = handle(async (req, res) => {
-  const user = currentUser(req);
+  const user = await authUser(req);
   if (!user) return send(res, 401, { error: 'login' });
   if (user.trocar) return send(res, 403, { error: 'trocar_senha' });
   const repo = getRepo(), q = query(req);

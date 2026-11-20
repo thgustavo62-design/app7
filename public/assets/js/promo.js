@@ -50,13 +50,15 @@
     const w60 = janela(it.dias, ref, 60), w90 = janela(it.dias, ref, 90);
     const rate60 = w60.q / n60, rate90 = w90.q / n90;
     const mesesEstoque = it.estoque > 0 ? (w90.q > 0 ? it.estoque / (w90.q / (n90 / 30)) : Infinity) : 0;
-    const margem = it.custo > 0 && it.preco > 0 ? (it.preco - it.custo) / it.preco : null;
+    /* preço praticado: se o sistema já tem preço de promoção abaixo do de venda, é ele que está valendo na loja */
+    const pp = it.promoSistema > 0 && it.preco > 0 && it.promoSistema < it.preco ? it.promoSistema : it.preco;
+    const margem = it.custo > 0 && pp > 0 ? (pp - it.custo) / pp : null;
     const taxa = rate90 > 0 ? rate60 / rate90 : null;
     return Object.assign({}, it, {
       cat: categoria(it.desc), q60: w60.q, v60: w60.v, q90: w90.q, v90: w90.v, dias90: w90.com, ultVenda: ultimaVenda(it.dias),
       rate60: r2(rate60 * 100) / 100, rate90: r2(rate90 * 100) / 100, tendencia: taxa == null ? null : r2(taxa * 100) / 100,
       mesesEstoque, coberturaDias: it.estoque > 0 && Math.max(rate60, rate90) > 0 ? Math.round(it.estoque / (rate60 > 0 ? rate60 : rate90)) : (it.estoque > 0 ? Infinity : 0),
-      capitalCusto: it.custo > 0 ? r2(it.estoque * it.custo) : null, capitalVenda: it.preco > 0 ? r2(it.estoque * it.preco) : null, margem
+      capitalCusto: it.custo > 0 ? r2(it.estoque * it.custo) : null, capitalVenda: pp > 0 ? r2(it.estoque * pp) : null, preco: pp, precoLista: it.preco, promoAtiva: pp !== it.preco, margem
     });
   }
 
@@ -104,8 +106,23 @@
     let por = ceil90(alvo);
     if (por < piso) por = ceil90(piso);                                            /* a terminação ,90 nunca fura o piso */
     out.piso = r2(piso);
-    if (por >= it.preco - 0.05) return Object.assign(out, { motivo: "Sem desconto real: o preço mínimo seguro é igual ou maior que o preço de venda atual." });
+    if (por >= it.preco - 0.05) return Object.assign(out, { motivo: "Sem desconto real: o preço mínimo seguro é igual ou maior que o preço praticado hoje" + (it.promoAtiva ? " (o sistema já tem promoção neste item)." : ".") });
     return Object.assign(out, { ok: true, por, margem: (por - it.custo) / por, lucroUn: r2(por - it.custo), desconto: 1 - por / it.preco });
+  }
+
+  /* dias realmente cobertos pelos relatórios de vendas, nas janelas de 60 e 90 dias até ref; intervalos: [inicio, fim, diaCortado] */
+  function coberturaReal(intervalos, ref) {
+    const cov = new Set();
+    intervalos.forEach(([a, b, drop]) => { for (let d = day(a); d <= day(b); d++) cov.add(d); if (drop) cov.delete(day(drop)); });
+    const fim = day(ref), conta = n => { let c = 0; for (let d = fim - n + 1; d <= fim; d++) if (cov.has(d)) c++; return c; };
+    const lacunas = []; let ini = null;
+    for (let d = fim - 89; d <= fim + 1; d++) {
+      const falta = d <= fim && !cov.has(d);
+      if (falta && ini == null) ini = d; else if (!falta && ini != null) { lacunas.push([iso(ini), iso(d - 1)]); ini = null; }
+    }
+    /* antes do primeiro dia coberto não é lacuna, é histórico que ainda não foi importado (já aparece como cobertura curta) */
+    const primeiro = cov.size ? Math.min(...cov) : fim + 1;
+    return { dias60: conta(60), dias90: conta(90), lacunas: lacunas.filter(l => day(l[1]) >= primeiro && day(l[0]) > primeiro).map(l => [l[0], l[1]]) };
   }
 
   /* ---------- análise completa de uma loja ---------- */
@@ -115,7 +132,10 @@
     if (!ref) return { ref: null, items: [], resumo: null, avisos: ["Ainda não há vendas importadas."] };
     /* cobertura do histórico: o giro de 90 dias só vale se as vendas importadas cobrem 90 dias */
     const ini = params.coberturaInicio || items.flatMap(i => Object.keys(i.dias || {})).sort()[0] || ref;
-    const cob = Math.max(1, day(ref) - day(ini) + 1), n60 = Math.min(60, cob), n90 = Math.min(90, cob);
+    /* com os intervalos que cada relatório cobriu, conta só os dias realmente cobertos nas janelas de 60 e 90 dias e aponta as lacunas;
+       sem eles (base antiga), presume o período corrido entre a primeira venda e a última */
+    const cv = params.coberturaIntervalos && params.coberturaIntervalos.length ? coberturaReal(params.coberturaIntervalos, ref) : null;
+    const cob = cv ? cv.dias90 : Math.max(1, day(ref) - day(ini) + 1), n60 = cv ? Math.max(1, cv.dias60) : Math.min(60, cob), n90 = cv ? Math.max(1, cv.dias90) : Math.min(90, cob);
     let list = items.map(i => enrich(i, ref, p, n60, n90));
     list = abc(classify(list, p));
     const com = list.filter(i => i.estoque > 0), semCusto = com.filter(i => !(i.custo > 0));
@@ -130,8 +150,9 @@
       porPapel: Object.fromEntries(Object.keys(PAPEL).map(k => [k, list.filter(i => i.papel === k).length])),
       abcA: list.filter(i => i.abc === "A").length, abcB: list.filter(i => i.abc === "B").length, abcC: list.filter(i => i.abc === "C").length
     };
-    resumo.cobertura = { inicio: ini, fim: ref, dias: cob, completa60: cob >= 60, completa90: cob >= 90 };
+    resumo.cobertura = { inicio: ini, fim: ref, dias: cob, completa60: cv ? cv.dias60 >= 60 : cob >= 60, completa90: cob >= 90, lacunas: cv ? cv.lacunas : [] };
     const avisos = [];
+    if (cv && cv.lacunas.length) avisos.push(`O histórico de vendas dos últimos 90 dias tem ${cv.lacunas.length} lacuna(s): ${cv.lacunas.slice(0, 4).map(l => l[0] === l[1] ? l[0].split("-").reverse().slice(0, 2).join("/") : l[0].split("-").reverse().slice(0, 2).join("/") + " a " + l[1].split("-").reverse().slice(0, 2).join("/")).join(", ")}. O giro usa só os ${cv.dias90} dias cobertos.`);
     if (cob < 90) avisos.push(cob < 60 ? `As vendas importadas cobrem só ${cob} dias: o giro de 60 e de 90 dias ainda não é confiável. "Parado" e "encalhado" valem só para o que foi coberto. Importe mais relatórios.` : `As vendas importadas cobrem ${cob} dias: o giro de 90 dias está parcial. Importe mais relatórios para completar.`);
     if (resumo.semCusto) avisos.push(`${resumo.semCusto} de ${resumo.comEstoque} itens com estoque estão sem custo na exportação: neles não existe piso.`);
     return { ref, items: list, resumo, avisos, params: p };

@@ -3,11 +3,12 @@
 const { getRepo } = require('../lib/db');
 const { activeClients } = require('../lib/model');
 const { view } = require('../lib/dataset');
-const { send, query, currentUser, handle } = require('../lib/http');
+const { send, query, handle } = require('../lib/http');
+const { authUser } = require('../lib/guard');
 
 module.exports = handle(async (req, res) => {
   if (req.method !== 'GET') return send(res, 405, { error: 'Método não permitido' });
-  const user = currentUser(req);
+  const user = await authUser(req);
   if (!user) return send(res, 401, { error: 'login' });
   if (user.trocar) return send(res, 403, { error: 'trocar_senha' });
   if (user.tipo === 'cliente' || user.papel !== 'admin') return send(res, 403, { error: 'Só administradores veem as fontes de dados' });

@@ -35,7 +35,7 @@
     if (cache[k] && !force) return cache[k];
     const data = await api("/api/promo?loja=" + encodeURIComponent(k));
     podeEditar = data.podeEditar;
-    const a = P.analyze({ items: data.items, params: { coberturaInicio: data.cobertura && data.cobertura.inicio } });
+    const a = P.analyze({ items: data.items, params: { coberturaInicio: data.cobertura && data.cobertura.inicio, coberturaIntervalos: data.intervalos } });
     return (cache[k] = { data, a });
   }
 
@@ -210,14 +210,16 @@
           ${drop ? `<p class="notice info">O relatório saiu às ${esc(h.emissao.hora)} do último dia: <b>${dm(drop)} fica de fora</b> por estar cortado. Cobertura gravada: ${cov ? dm(cov.inicio) + " a " + dm(cov.fim) : "—"}.</p>` : ""}
           ${!taxaOk ? `<p class="notice"><b>Atenção:</b> ${int(r.stats.rejeitadas)} linha(s) não foram lidas (o esperado é 99,9% ou mais). Exemplo: <code>${esc((r.stats.exemplosRejeitados[0] || "").slice(0, 110))}</code></p>` : ""}
           ${cnpjDiff ? `<p class="notice"><b>O CNPJ deste PDF (${esc(h.cnpj)}) é diferente do último importado nesta loja (${esc(last)}).</b> Confira se é a loja certa antes de gravar.</p>` : ""}`;
-        if (cov) pend.vendas.push({ nome: file.name, produtos: ag, inicio: cov.inicio, fim: cov.fim, dia: drop || "", linhas: r.stats.lidas, cnpj: h.cnpj || "", ok: taxaOk });
+        if (cov) pend.vendas.push({ nome: file.name, produtos: ag, inicio: cov.inicio, fim: cov.fim, dia: drop || "", linhas: r.stats.lidas, cand: r.stats.candidatas, cnpj: h.cnpj || "", ok: taxaOk });
       } catch (e) { card.innerHTML = `<b>${esc(file.name)}</b><p class="notice">${esc(e.message || "Não consegui ler este PDF.")}</p>`; }
     }
+    const bloq = pend.vendas.filter(x => !x.ok); pend.vendas = pend.vendas.filter(x => x.ok);                /* leitura abaixo de 99,9% nunca é gravada */
+    if (bloq.length) { const n = document.createElement("p"); n.className = "notice"; n.innerHTML = `<b>${bloq.length} relatório(s) bloqueado(s):</b> a leitura ficou abaixo de 99,9% e não substitui vendas já gravadas (${esc(bloq.map(x => x.nome).join(", "))}). Emita o relatório de novo; se passou de 1 MB, dia a dia.`; out.appendChild(n); }
     if (pend.vendas.length && podeEditar) {
       const b = document.createElement("button"); b.type = "button"; b.className = "btn primary"; b.id = "im-ven-go"; b.textContent = `Gravar ${pend.vendas.length} relatório(s) de vendas de ${clientOf(ui.loja).name}`; out.appendChild(b);
       b.onclick = () => commit(v, b, async () => {
         let n = 0;
-        for (const x of pend.vendas) { b.textContent = `Gravando ${++n} de ${pend.vendas.length}…`; await api("/api/promo", { action: "vendas", loja: ui.loja, produtos: x.produtos, inicio: x.inicio, fim: x.fim, diaDescartado: x.dia, linhas: x.linhas, arquivo: (x.nome + (x.cnpj ? " · CNPJ " + x.cnpj : "")).slice(0, 120) }); }
+        for (const x of pend.vendas) { b.textContent = `Gravando ${++n} de ${pend.vendas.length}…`; await api("/api/promo", { action: "vendas", loja: ui.loja, produtos: x.produtos, inicio: x.inicio, fim: x.fim, diaDescartado: x.dia, linhas: x.linhas, candidatas: x.cand, arquivo: (x.nome + (x.cnpj ? " · CNPJ " + x.cnpj : "")).slice(0, 120) }); }
         return `${pend.vendas.length} relatório(s) de vendas gravados.`;
       });
     }

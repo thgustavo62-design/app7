@@ -91,8 +91,10 @@ test('cadastro: IDs das contas Meta no cliente e na leitura do cadastro; caracte
   await model.applyOps(new Repo(repo.d), [Object.assign({}, op, { v: '2' })], adm);        /* sem os campos: não apaga o que já estava */
   assert.equal((await model.loadRegistry(new Repo(repo.d), adm)).clients.find(x => x.key === 'M').meta.ads, 'act_111');
 });
+const regUsers = async list => require('../lib/model').applyOps(require('../lib/db').getRepo(), list.map(u => Object.assign({ t: 'user', op: 'upsert' }, u)), { email: 'dev@agencia.test', papel: 'admin', tipo: 'equipe', empresas: [] });   /* as rotas conferem o cadastro: o usuário do cookie precisa existir na planilha */
 test('rotas: o agendador só entra com o segredo; as demais exigem administrador', async () => {
   db._resetMemory();
+  await regUsers([{ email: 'e@x.com', nome: 'E', tipo: 'equipe', papel: 'editor', empresas: [] }, { email: 'c@x.com', nome: 'C', tipo: 'cliente', empresas: ['F'] }]);
   const { createServer } = require('../dev-server'), session = require('../lib/session'), { cfg } = require('../lib/config');
   const srv = createServer(); await new Promise(r => srv.listen(0, r)); const base = 'http://localhost:' + srv.address().port;
   const call = async (p, { headers = {}, method = 'GET', body } = {}) => { const r = await fetch(base + p, { method, headers: Object.assign({ 'content-type': 'application/json', 'x-n7': '1' }, headers), body: body ? JSON.stringify(body) : undefined }); let j = null; try { j = await r.json(); } catch (e) { /* sem corpo */ } return { status: r.status, j }; };

@@ -334,15 +334,17 @@ test('dados dos clientes: o script entregue a quem é de uma empresa só traz es
   const all = run(ds.scriptFor(null)); assert.equal(all.CLIENTS.length, 4);
 });
 
+const regUsers = async list => require('../lib/model').applyOps(require('../lib/db').getRepo(), list.map(u => Object.assign({ t: 'user', op: 'upsert' }, u)), { email: 'dev@agencia.test', papel: 'admin', tipo: 'equipe', empresas: [] });   /* as rotas conferem o cadastro: o usuário do cookie precisa existir na planilha */
 test('rotas: cliente recebe só a própria empresa em /api/data e /api/state, e não grava o que não é dele', async () => {
   db._resetMemory();
+  await regUsers([{ email: 'dono@f.com', nome: 'Dona', tipo: 'cliente', empresas: ['F'] }]);
   const { createServer } = require('../dev-server'), { cfg } = require('../lib/config');
   const srv = createServer(); await new Promise(rs => srv.listen(0, rs));
   const base = 'http://localhost:' + srv.address().port;
   const mk2 = u => 'n7_session=' + encodeURIComponent(session.create(u, cfg().sessionSecret, 600));
   const call = async (p, cookie, body) => { const res = await fetch(base + p, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-n7': '1', cookie }, body: body ? JSON.stringify(body) : undefined }); const t = await res.text(); let j = null; try { j = JSON.parse(t); } catch (e) { /* script */ } return { status: res.status, text: t, json: j }; };
   try {
-    const adm = mk2(admin), cli = mk2({ email: 'dono@f.com', nome: 'Dona', papel: 'cliente', tipo: 'cliente', empresas: ['F'] });
+    const adm = mk2({ ...admin, email: 'dev@local' }), cli = mk2({ email: 'dono@f.com', nome: 'Dona', papel: 'cliente', tipo: 'cliente', empresas: ['F'] });
     const d = await call('/api/data', cli); assert.equal(d.status, 200); assert.ok(!d.text.includes('Minas Club')); assert.match(d.text, /^window\.N7 = \{/);
     const s = await call('/api/state', cli); assert.equal(s.status, 200);
     assert.deepEqual(s.json.registry.clients.map(c => c.key), ['F']); assert.equal(s.json.registry.users, undefined); assert.equal(s.json.state.ideas.length, 0);

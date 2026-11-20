@@ -8,7 +8,8 @@ const { cfg } = require('../lib/config');
 const { getRepo } = require('../lib/db');
 const { activeClients, applyOp, weekFromRow } = require('../lib/model');
 const W = require('../lib/windsor');
-const { send, readJson, query, sameSiteRequest, currentUser, handle } = require('../lib/http');
+const { send, readJson, query, sameSiteRequest, handle } = require('../lib/http');
+const { authUser } = require('../lib/guard');
 
 const same = (a, b) => { const x = crypto.createHash('sha256').update(String(a)).digest(), y = crypto.createHash('sha256').update(String(b)).digest(); return crypto.timingSafeEqual(x, y); };
 
@@ -29,7 +30,7 @@ module.exports = handle(async (req, res) => {
     if (new Date().getUTCDate() <= 3) report.mes = await run(repo, { tipo: 'mes' });
     return send(res, 200, { ok: true, report });
   }
-  const user = currentUser(req);
+  const user = await authUser(req);
   if (!user) return send(res, 401, { error: 'login' });
   if (user.trocar) return send(res, 403, { error: 'trocar_senha' });
   if (user.tipo === 'cliente' || user.papel !== 'admin') return send(res, 403, { error: 'Só administradores mexem nas fontes de dados' });

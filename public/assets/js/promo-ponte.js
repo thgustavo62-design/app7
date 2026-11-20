@@ -13,7 +13,7 @@
       for (const l of r.lojas) {
         try {
           const d = await get("/api/promo?loja=" + encodeURIComponent(l.key));
-          out[l.key] = root.N7Promo.brainSummary(l.key, l.name, d, root.N7Promo.analyze({ items: d.items, params: { coberturaInicio: d.cobertura && d.cobertura.inicio } }));
+          out[l.key] = root.N7Promo.brainSummary(l.key, l.name, d, root.N7Promo.analyze({ items: d.items, params: { coberturaInicio: d.cobertura && d.cobertura.inicio, coberturaIntervalos: d.intervalos } }));
         } catch (e) { /* esta loja fica sem resumo; as outras seguem */ }
       }
       st.data = out; st.at = Date.now(); st.loading = false;

@@ -10,7 +10,7 @@ const admin = { email: 'dev@agencia.test', nome: 'Dev', papel: 'admin', tipo: 'e
 const seeded = () => new Repo(new MemoryDriver(require('../lib/seed').build({ devEmail: 'dev@agencia.test' })));
 const fresh = repo => new Repo(repo.d);
 const est = (b, o = {}) => Object.assign({ barras: b, desc: 'PRODUTO ' + b, estoque: 10, preco: 20, custo: 12 }, o);
-const vendas = (inicio, fim, prod) => ({ produtos: prod, inicio, fim, arquivo: 'analitico.pdf', linhas: 10 });
+const vendas = (inicio, fim, prod) => ({ produtos: prod, inicio, fim, arquivo: 'analitico.pdf', linhas: 10, candidatas: 10 });
 
 test('acesso: só quem tem o serviço Promoções e preços; usuário cliente não entra; leitura não grava', async () => {
   const r = seeded();
@@ -62,6 +62,7 @@ test('vendas: histórico muito antigo é descartado (200 dias) e a codificação
 });
 test('campanhas: salvar, atualizar com versão, conflito, apagar e validar', async () => {
   const r = seeded();
+  await P.importEstoque(r, admin, 'F', { items: [est('7890000000011')], arquivo: 'estoque.xlsx' });
   const itens = [{ b: '7890000000011', d: 'PRODUTO 1', cat: 'Bebê', de: 20, por: 15.9, c: 12, papel: 'giro' }];
   const a = await P.saveCampaign(r, admin, 'F', { nome: 'Atacadão do Bebê', tipo: 'Atacadão do Bebê', regra: 'padrao', inicio: '2026-11-19', fim: '2026-11-20', itens, totais: { itens: 1 } });
   assert.match(a.id, /^cp-/); assert.equal(a.v, '1');
@@ -86,9 +87,11 @@ test('planilha: a troca da base grava em blocos de 1000 linhas e limpa o que hav
   assert.equal((await repo.rows('PromoBase')).length, 2300, 'a cópia em memória acompanha');
 });
 
+const regUsers = async list => require('../lib/model').applyOps(require('../lib/db').getRepo(), list.map(u => Object.assign({ t: 'user', op: 'upsert' }, u)), { email: 'dev@agencia.test', papel: 'admin', tipo: 'equipe', empresas: [] });   /* as rotas conferem o cadastro: o usuário do cookie precisa existir na planilha */
 test('rota /api/promo: lista lojas, importa um pacote grande (mais de 200 KB), recusa cliente e leitura', async () => {
   const db = require('../lib/db'), session = require('../lib/session'), { cfg } = require('../lib/config');
   db._resetMemory();
+  await regUsers([{ email: 'l@x.com', nome: 'L', tipo: 'equipe', papel: 'leitura', empresas: [] }, { email: 'c@x.com', nome: 'C', tipo: 'cliente', empresas: ['M'] }]);
   const { createServer } = require('../dev-server'); const srv = createServer(); await new Promise(rs => srv.listen(0, rs));
   const base = 'http://localhost:' + srv.address().port, ck = u => 'n7_session=' + encodeURIComponent(session.create(u, cfg().sessionSecret, 600));
   const call = async (p, cookie, body) => { const res = await fetch(base + p, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-n7': '1', cookie }, body: body ? JSON.stringify(body) : undefined }); return { status: res.status, json: await res.json().catch(() => null) }; };
@@ -106,4 +109,42 @@ test('rota /api/promo: lista lojas, importa um pacote grande (mais de 200 KB), r
     assert.equal((await call('/api/promo?loja=M', cli)).status, 403); assert.equal((await call('/api/promo?loja=C', adm)).status, 403, 'empresa sem o serviço');
     assert.equal((await call('/api/promo', adm, { action: 'nada', loja: 'M' })).status, 400);
   } finally { srv.close(); db._resetMemory(); }
+});
+
+test('campanha aprovada ou publicada: o servidor confere piso, custo, estoque e terminação com a base de agora e registra quem aprovou', async () => {
+  const r = seeded(), ok = { nome: 'Limpeza', tipo: 'Limpeza', regra: 'padrao', inicio: '2026-11-21', fim: '2026-11-23' };
+  await P.importEstoque(r, admin, 'F', { items: [est('7890000000011'), est('7890000000028', { custo: null }), est('7890000000035', { estoque: 0 })], arquivo: 'e.xlsx' });
+  const it = (b, o = {}) => ({ b, d: 'P ' + b, cat: 'Limpeza', de: 20, por: 15.9, c: 12, papel: 'giro', ...o });
+  const tenta = (itens, status = 'aprovada', extra = {}) => P.saveCampaign(fresh(r), admin, 'F', { ...ok, itens, status, ...extra });
+  await assert.rejects(tenta([it('7890000000011', { por: 14.9 })]), /abaixo do piso 15\.00/);
+  await assert.rejects(tenta([it('7890000000011', { por: 16 })]), /não termina em ,90/);
+  await assert.rejects(tenta([it('7890000000011', { por: 20.9 })]), /não é menor que o preço de venda/);
+  await assert.rejects(tenta([it('7890000000028')]), /sem custo/);
+  await assert.rejects(tenta([it('7890000000035')]), /sem estoque/);
+  await assert.rejects(tenta([it('7890000000099')]), /não está na base desta loja/);
+  await assert.rejects(tenta([it('7890000000011', { c: 10 })]), /o custo mudou/);
+  await assert.rejects(tenta([]), /não tem itens/);
+  await assert.rejects(tenta([it('7890000000011')], 'publicada'), /aprove primeiro/, 'campanha nova não nasce publicada');
+  const rasc = await tenta([it('7890000000028')], 'rascunho'); assert.ok(rasc.id, 'rascunho aceita item sem custo (só não aprova)');
+  const ap = await tenta([it('7890000000011')], 'aprovada', { totais: { aprovacao: { por: 'falso@x.com' } } });
+  let c = (await P.load(fresh(r), 'F')).campanhas.find(x => x.id === ap.id);
+  assert.equal(c.totais.aprovacao.por, 'dev@agencia.test', 'o registro de aprovação é do servidor'); assert.ok(c.totais.aprovacao.em);
+  const pub = await P.saveCampaign(fresh(r), admin, 'F', { ...ok, id: ap.id, v: ap.v, itens: [it('7890000000011')], status: 'publicada' });
+  c = (await P.load(fresh(r), 'F')).campanhas.find(x => x.id === ap.id); assert.equal(c.status, 'publicada'); assert.equal(c.totais.aprovacao.por, 'dev@agencia.test');
+  /* a base mudou depois da aprovação: custo subiu, o preço aprovado já não respeita o piso e a publicação é barrada */
+  await P.importEstoque(r, admin, 'F', { items: [est('7890000000011', { custo: 14 })], arquivo: 'e2.xlsx' });
+  await assert.rejects(P.saveCampaign(fresh(r), admin, 'F', { ...ok, id: ap.id, v: pub.v, itens: [it('7890000000011', { c: 14 })], status: 'publicada' }), /abaixo do piso 17\.50/);
+  /* uma campanha de outra loja nunca é validada com a base da primeira */
+  await assert.rejects(P.saveCampaign(fresh(r), admin, 'M', { ...ok, itens: [it('7890000000011')], status: 'aprovada' }), /não está na base desta loja/);
+});
+test('vendas: leitura abaixo de 99,9% (ou sem a conferência) não grava nem substitui nada', async () => {
+  const r = seeded(), prod = { '7890000000011': { desc: 'P1', dias: { '2026-11-03': [2, 20] } } };
+  await P.importVendas(r, admin, 'M', { produtos: prod, inicio: '2026-11-01', fim: '2026-11-08', arquivo: 'a.pdf', linhas: 1000, candidatas: 1000 });
+  const novo = { '7890000000011': { desc: 'P1', dias: { '2026-11-03': [99, 999] } } };
+  await assert.rejects(P.importVendas(fresh(r), admin, 'M', { produtos: novo, inicio: '2026-11-01', fim: '2026-11-08', arquivo: 'b.pdf', linhas: 997, candidatas: 1000 }), /Leitura incompleta: 997 de 1000/);
+  await assert.rejects(P.importVendas(fresh(r), admin, 'M', { produtos: novo, inicio: '2026-11-01', fim: '2026-11-08', arquivo: 'b.pdf', linhas: 10 }), /sem a conferência/);
+  assert.deepEqual((await P.load(fresh(r), 'M')).items[0].dias, { '2026-11-03': [2, 20] }, 'as vendas anteriores continuam intactas');
+  await P.importVendas(fresh(r), admin, 'M', { produtos: novo, inicio: '2026-11-01', fim: '2026-11-08', arquivo: 'c.pdf', linhas: 999, candidatas: 1000 });
+  assert.deepEqual((await P.load(fresh(r), 'M')).items[0].dias, { '2026-11-03': [99, 999] }, '99,9% exato passa');
+  const d = await P.load(fresh(r), 'M'); assert.deepEqual(d.intervalos, [['2026-11-01', '2026-11-08', ''], ['2026-11-01', '2026-11-08', '']], 'os intervalos cobertos vêm do registro de importações');
 });

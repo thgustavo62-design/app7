@@ -99,3 +99,27 @@ test('campanha: totais pelo giro de 60 dias, alerta de item abaixo do piso e sem
   const b = P.analyze({ items: [it('X', { estoque: 0, dias: dias(REF, [[3, 20, 600]]) })], ref: REF }), a2 = P.analyze({ items: [it('X', { estoque: 40, custo: 12, dias: {} })], ref: REF, params: { coberturaInicio: P.iso(P.day(REF) - 89) } });
   const tr = P.cruzarLojas(a2, b); assert.equal(tr.length, 1); assert.equal(tr[0].de, 'a'); assert.equal(tr[0].giroPara, 20);
 });
+
+/* ---------- cobertura real e preço praticado ---------- */
+const item = (b, o = {}) => Object.assign({ barras: b, desc: 'P ' + b, estoque: 10, preco: 20, custo: 12, dias: {} }, o);
+test('cobertura: com os intervalos dos relatórios, o meio sem relatório aparece como lacuna e o giro usa só os dias cobertos', () => {
+  /* vendas só em 1º e 4 de novembro; relatórios cobriram 01 a 10/09 e 20/10 a 17/11: o meio (11/09 a 19/10) ficou sem relatório */
+  const items = [item('1', { dias: { '2026-09-05': [10, 100], '2026-11-04': [10, 100] } })];
+  const cheio = P.analyze({ items, ref: '2026-11-17', params: { coberturaInicio: '2026-09-05' } });
+  assert.equal(cheio.resumo.cobertura.dias, 74, 'sem os intervalos a cobertura é presumida corrida (05/09 a 17/11)');
+  const real = P.analyze({ items, ref: '2026-11-17', params: { coberturaInicio: '2026-09-05', coberturaIntervalos: [['2026-09-01', '2026-09-10', ''], ['2026-10-20', '2026-11-17', '']] } });
+  const c = real.resumo.cobertura; assert.equal(c.dias, 39); assert.equal(c.completa90, false);
+  assert.deepEqual(c.lacunas, [['2026-09-11', '2026-10-19']]);
+  assert.ok(real.avisos.some(a => /1 lacuna/.test(a) && /11\/09 a 19\/10/.test(a)));
+  assert.ok(real.items[0].rate90 > cheio.items[0].rate90, 'giro de 90 dias dividido pelos dias cobertos, não pelos 90 corridos');
+  /* o dia cortado do relatório mais recente também é lacuna */
+  const cut = P.analyze({ items, ref: '2026-11-17', params: { coberturaInicio: '2026-09-05', coberturaIntervalos: [['2026-08-19', '2026-11-17', '2026-11-17']] } });
+  assert.equal(cut.resumo.cobertura.dias, 89);
+});
+test('preço praticado: promoção que já está no sistema vale como preço atual na margem e na sugestão', () => {
+  const a = P.analyze({ items: [item('1', { preco: 20, promoSistema: 16, custo: 14, dias: { '2026-11-01': [5, 80] } }), item('2', { preco: 20, promoSistema: 25, custo: 12, dias: { '2026-11-01': [5, 100] } })], ref: '2026-11-17' });
+  const p = a.items.find(i => i.barras === '1'), q = a.items.find(i => i.barras === '2');
+  assert.equal(p.preco, 16); assert.equal(p.precoLista, 20); assert.equal(p.promoAtiva, true); assert.ok(Math.abs(p.margem - (16 - 14) / 16) < 1e-9, 'margem sobre o preço praticado');
+  assert.equal(q.preco, 20); assert.equal(q.promoAtiva, false, 'promoção acima do preço de venda é ignorada');
+  const s = P.suggest(p); assert.equal(s.ok, false); assert.match(s.motivo, /já tem promoção/);
+});
