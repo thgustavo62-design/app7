@@ -1,6 +1,8 @@
 # Plano: migrar os dados operacionais da planilha para o Postgres
 
-Status: **plano, nada foi alterado em produção.** A planilha continua sendo o banco até a virada (fase 4).
+Status: **fase 1 construída e testada; produção continua na planilha** até você trocar `DB_BACKEND` (fase 4). Passo a passo para você: [supabase-passo-a-passo.md](supabase-passo-a-passo.md).
+
+O que já existe: `lib/pg-driver.js` (gravação da aba em transação, versão conferida no próprio UPDATE, revisão de importação atômica, schema `n7` com RLS), `lib/db-copy.js` e `/api/banco` (copiar e conferir aba por aba, nos dois sentidos), painel em Configurações > Fontes de dados > Banco de dados, e testes contra um Postgres real no CI (`tests/pg.test.js`).
 
 ## Por que
 
