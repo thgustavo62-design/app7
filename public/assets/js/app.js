@@ -51,7 +51,7 @@
     byId = Object.fromEntries(CLIENTS.map(c => [c.id, c]));
     Object.keys(ROUTES).forEach(id => { if (ROUTES[id].client) ROUTES[id] = undefined; });
     Object.keys(ROUTES).forEach(id => { if (ROUTES[id] === undefined) Reflect.deleteProperty(ROUTES, id); });
-    CLIENTS.forEach(c => { ROUTES[c.id] = { title: c.name, client: true, render: v => renderClient(c, v) }; });
+    CLIENTS.forEach(c => { ROUTES[c.id] = { title: c.name, client: true, render: (v, sub) => renderClient(c, v, sub) }; });
   }
   const STATUS = {
     prop: { name: "Proposta", hint: "aguarda revisão técnica", cls: "" },
@@ -149,8 +149,8 @@
   const ROUTES = {
     painel: { title: "Painel", render: renderPainel },
     insights: { title: "Insights", render: renderInsights },
-    semana: { title: "Semana", render: v => window.N7Semana.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }) },
-    autoridade: { title: "Autoridade", render: v => window.N7Autoridade.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }) },
+    semana: { title: "Semana", render: (v, sub) => window.N7Semana.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
+    autoridade: { title: "Autoridade", render: (v, sub) => window.N7Autoridade.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
     promocoes: { title: "Central de Promoções", render: (v, sub) => window.N7Promocoes.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
     relatorios: { title: "Relatórios", render: v => window.N7Relatorios.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS, posts }) },
     cerebro: { title: "Central de Inteligência", render: (v, sub) => window.N7Cerebro.render(v, sub, brainHelpers()) },
@@ -191,6 +191,31 @@
   const settingsCtx = () => ({ REG, ME, clients: () => CLIENTS, banner, ico, toast, esc, reload: reloadRegistry });
   setupClients();
 
+  /* subpáginas listadas na lateral, embaixo da página ativa: [sub, nome]; sub vazio é a página principal */
+  const clientSubs = c => {
+    if (IS_CLIENT) return [];
+    const l = [["", "Visão geral"]];
+    if (has(c, "redes")) l.push(["redes", "Redes sociais"], ["plano", "Plano e metas"]);
+    if (has(c, "criativos") && !has(c, "redes")) l.push(["criativos", "Criativos"]);
+    if (has(c, "trafego")) l.push(["trafego", "Tráfego pago"]);
+    if (has(c, "varejo")) l.push(["varejo", "Varejo"]);
+    if (has(c, "autoridade")) l.push(["autoridade", "Autoridade"]);
+    if (D.ALERTS.some(a => a.b === c.key) || D.FINDINGS.some(x => x.b === c.key)) l.push(["alertas", "Alertas e achados"]);
+    return l.length > 2 ? l : [];
+  };
+  const NAVSUB = {
+    semana: () => [["entrada", "Entrada dos números"], ["analise", "Análise e PowerPoint"]],
+    autoridade: () => [["painel", "Painel de autoridade"], ["entrada", "Entrada dos números"]],
+    promocoes: () => [["", "Visão geral"], ["candidatos", "Candidatos"], ["campanha", "Montar campanha"], ["campanhas", "Campanhas"], ["importar", "Importar"]],
+    cerebro: () => [["", "Hoje"], ["clientes", "Clientes"], ["radar", "Radar"], ["agentes", "Agentes 3D"], ["servicos", "Serviços 3D"], ["conexoes", "Conexões"], ["memoria", "Memória"], ["regras", "Como pensa"]],
+    config: () => [["usuarios", "Usuários"], ["clientes", "Clientes e serviços"], ["fontes", "Fontes de dados"]]
+  };
+  const subsOf = id => (byId[id] ? clientSubs(byId[id]) : NAVSUB[id] ? NAVSUB[id]() : []);
+  let navAt = { id: "painel", sub: "" };
+  /* a subpágina ativa: a pedida, se existir, senão a primeira da lista */
+  const activeSub = (id, sub) => { const l = subsOf(id); return l.some(x => x[0] === (sub || "")) ? (sub || "") : (l[0] ? l[0][0] : ""); };
+  const subLinks = id => { const l = subsOf(id); if (!l.length || navAt.id !== id) return ""; const on = activeSub(id, navAt.sub);
+    return `<div class="nav-sub" role="group" aria-label="${esc((byId[id] || ROUTES[id] || {}).title || id)}">${l.map(([s, n]) => `<a class="nav-subitem${s === on ? " on" : ""}" href="#${id}${s ? "/" + s : ""}"${s === on ? ' aria-current="page"' : ""}>${esc(n)}</a>`).join("")}</div>`; };
   function renderNav() {
     const ps = posts();
     const late = id => ps.filter(p => p.b === byId[id].key && p.late).length;
@@ -199,16 +224,16 @@
     $("#nav").innerHTML = `
       <div class="nav-group">Visão</div>
       <a class="nav-item" href="#painel">${ico("home")}<span>Painel</span></a>
-      ${ACCESS.cerebro() ? `<a class="nav-item" href="#cerebro">${ico("target")}<span>Central de Inteligência</span></a>` : ""}
+      ${ACCESS.cerebro() ? `<a class="nav-item" href="#cerebro">${ico("target")}<span>Central de Inteligência</span></a>${subLinks("cerebro")}` : ""}
       ${ACCESS.insights() ? `<a class="nav-item" href="#insights">${ico("chart")}<span>Insights</span></a>` : ""}
-      ${ACCESS.semana() ? `<a class="nav-item" href="#semana">${ico("file")}<span>Semana</span></a>` : ""}
+      ${ACCESS.semana() ? `<a class="nav-item" href="#semana">${ico("file")}<span>Semana</span></a>${subLinks("semana")}` : ""}
       ${ACCESS.relatorios() ? `<a class="nav-item" href="#relatorios">${ico("list")}<span>Relatórios</span></a>` : ""}
-      ${ACCESS.promocoes() ? `<a class="nav-item" href="#promocoes">${ico("tag")}<span>Promoções</span></a>` : ""}
-      ${ACCESS.autoridade() ? `<a class="nav-item" href="#autoridade">${ico("eye")}<span>Autoridade</span></a>` : ""}
+      ${ACCESS.promocoes() ? `<a class="nav-item" href="#promocoes">${ico("tag")}<span>Promoções</span></a>${subLinks("promocoes")}` : ""}
+      ${ACCESS.autoridade() ? `<a class="nav-item" href="#autoridade">${ico("eye")}<span>Autoridade</span></a>${subLinks("autoridade")}` : ""}
       ${CLIENTS.length ? `<div class="nav-group">${IS_CLIENT ? "Sua empresa" : "Clientes"}</div>
-      ${CLIENTS.map(c => `<a class="nav-item" href="#${c.id}"><i class="nav-dot" style="background:var(${c.color})"></i><span>${esc(c.name)}</span>${late(c.id) && !IS_CLIENT ? `<span class="nav-count" title="pautas atrasadas">${late(c.id)}</span>` : ""}</a>`).join("")}` : ""}
+      ${CLIENTS.map(c => `<a class="nav-item" href="#${c.id}"><i class="nav-dot" style="background:var(${c.color})"></i><span>${esc(c.name)}</span>${late(c.id) && !IS_CLIENT ? `<span class="nav-count" title="pautas atrasadas">${late(c.id)}</span>` : ""}</a>${subLinks(c.id)}`).join("")}` : ""}
       ${ops.length ? `<div class="nav-group">Operação</div>${ops.map(([id, ic, name, extra]) => `<a class="nav-item" href="#${id}">${ico(ic)}<span>${name}</span>${extra}</a>`).join("")}` : ""}
-      ${IS_ADMIN ? `<div class="nav-group">Sistema</div><a class="nav-item" href="#config">${ico("sliders")}<span>Configurações</span></a>` : ""}`;
+      ${IS_ADMIN ? `<div class="nav-group">Sistema</div><a class="nav-item" href="#config">${ico("sliders")}<span>Configurações</span></a>${subLinks("config")}` : ""}`;
   }
   /* barra de abas do celular (a navegação completa fica em "Mais") */
   function renderTabbar(active) {
@@ -224,6 +249,7 @@
   function route() {
     const [id, sub] = (location.hash || "#painel").slice(1).split("/");
     const r = allowedRoute(id) ? id : "painel";
+    navAt = { id: r, sub: sub || "" };
     renderNav(); renderTabbar(r);
     $$("#nav .nav-item").forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + r));
     $("#crumb").innerHTML = `Central Nova7 › <b>${esc(ROUTES[r].title)}</b>`;
@@ -532,7 +558,7 @@
         ${late.length ? `<span class="col-title" style="color:var(--red)">Atrasadas (${late.length})</span><div class="post-list">${late.slice(0, 8).map(p => `<button type="button" class="post-row" data-open="${p.code}" style="background:none;text-align:left">${fmtBadge(p.format)}<span class="t">${esc(p.title)}<small>${p.code} · era para ${dm(p.date)}</small></span>${stBadge(p)}</button>`).join("")}</div>${late.length > 8 ? `<p class="src">e mais ${late.length - 8} no Kanban.</p>` : ""}` : ""}
       </div></div>`;
   }
-  function redesSection(c, ps) {
+  function redesSection(c, ps, part) {
     const W = D.WEEKLY[c.key], hl = health(c, posts()), igp = D.IG_POSTS[c.key] || [];
     const metrics = W ? `<div class="panel">${banner("eye", "Métricas da última janela", "02–08/11 comparado a 27/10–02/11")}
           <div class="panel-cols">
@@ -547,10 +573,12 @@
             <p class="src">${hl.dueDone} de ${hl.due} pautas com data vencida estão publicadas. Dimensões sem dado ficam fora da conta. Método adaptado do <a href="${PB.source}" target="_blank" rel="noopener">Digital Marketing Pro</a>; detalhes em <a href="#playbook">Playbook</a>.</p>
           </div></div>` : `<div class="panel">${banner("target", "Nota de saúde do cliente", "precisa de pautas no plano")}<div class="panel-body"><p class="notice info">A nota de saúde mede ritmo de publicação, pipeline, resultados, engajamento e conformidade. Ela aparece quando houver pautas no calendário deste cliente.</p></div></div>`;
     const sec = sectorPanel(c);
-    return `<div class="section-title"><h2>${SVC.SERVICES.redes.name}</h2><span>calendário, aprovação e resultados dos perfis</span></div>
+    const plano = `<div class="section-title"><h2>Plano e metas</h2><span>calendário, aprovação, nota de saúde e metas</span></div>
       <div class="grid g2">${healthPanel}${sec}</div>
-      ${metrics ? `<div class="grid g2">${metrics}</div>` : ""}
-      <div class="grid g2">${planPanel(c, ps)}<div class="panel">${banner("target", "Metas", "publicações vêm do plano; as demais você define")}<div class="panel-body" id="c-goals"></div></div></div>
+      <div class="grid g2">${planPanel(c, ps)}<div class="panel">${banner("target", "Metas", "publicações vêm do plano; as demais você define")}<div class="panel-body" id="c-goals"></div></div></div>`;
+    if (part === "plano") return plano;
+    return `<div class="section-title"><h2>${SVC.SERVICES.redes.name}</h2><span>resultados dos perfis e publicações</span></div>
+      ${metrics ? `<div class="grid g2">${metrics}</div>` : `<p class="src">Ainda não há métricas dos perfis para este cliente. Informe os números na tela Semana.</p>`}
       ${igp.length || c.docs.length ? `<div class="grid g2">
         ${igp.length ? `<div class="panel">${banner("ig", "Publicações vistas no Instagram", "amostra da auditoria; data exata e alcance por post ainda não extraídos")}
           <div class="panel-body"><div class="post-list">${igp.map(([sc, f, t, code, seen]) => `<a class="post-row" href="${c.ig}${f === "Reels" ? "reel" : "p"}/${sc}/" target="_blank" rel="noopener">${fmtBadge(f === "Post" ? "Post" : f)}<span class="t">${esc(t)}<small>${code ? code + " · " : ""}visto ${seen}</small></span>${ico("ext").replace("<svg", '<svg width="14" height="14"')}</a>`).join("")}</div></div></div>` : ""}
@@ -596,6 +624,32 @@
       <div class="panel">${banner("file", "Como funciona", "peças e aprovação")}<div class="panel-body"><ul class="plain"><li>Cada peça é uma pauta no <a href="#calendario">Calendário</a>, com etapas de produção e data de entrega.</li><li>A aprovação interna e a do cliente ficam registradas na peça.</li>${CAN_WRITE ? `<li>Crie uma peça pelo quadro de <b>Ideias</b> do calendário: <a href="#calendario" data-brand="${c.key}" data-ideas="1">nova ideia para ${esc(c.short)}</a>.</li>` : ""}</ul></div></div></div>`;
   }
 
+  /* corpo da página do cliente (equipe): visão geral ou uma subpágina, para a página não ficar longa */
+  function alertsBlock(c, alerts, findings) {
+    return `${alerts.length ? `<div class="section-title"><h2>Alertas de ${esc(c.name)}</h2><span>${alerts.length} itens</span></div><div class="grid" style="gap:10px">${alerts.map(alertHtml).join("")}</div>` : ""}
+      ${findings.length ? `<div class="panel">${banner("target", "Achados dos insights", "evidência não é causalidade")}<div class="table-wrap"><table><thead><tr><th>Prioridade</th><th>Rede</th><th>Achado</th><th>Próxima validação</th></tr></thead><tbody>${findings.map(x => `<tr><td><span class="badge ${x.p === "ALTA" ? "alta" : "media"}">${x.p}</span></td><td>${x.net}</td><td><b>${esc(x.t)}</b><div class="src">${esc(x.e)}</div></td><td>${esc(x.n)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}`;
+  }
+  function overview(c, ps, kp, alerts, findings) {
+    const subs = clientSubs(c).filter(x => x[0]), by = svcKpis(c, ps), pick = { redes: "redes", plano: "redes", trafego: "trafego", varejo: "varejo", autoridade: "autoridade", criativos: "criativos" };
+    const desc = { redes: "resultados dos perfis e publicações", plano: "calendário, aprovação, nota de saúde e metas", trafego: "Meta Ads: gasto, frequência e custo por resultado", varejo: "vendas, ticket e cestas por semana", autoridade: "ritmo, alcance qualificado e convites", criativos: "fila de peças, etapas e aprovação", alertas: `${alerts.length} alerta(s) e ${findings.length} achado(s)` };
+    const icon = { redes: "ig", plano: "cal", trafego: "target", varejo: "cart", autoridade: "eye", criativos: "spark", alertas: "bell" };
+    return `<div class="kpis">${kp.join("")}</div>
+      <div class="section-title"><h2>Páginas deste cliente</h2><span>também na barra lateral, embaixo do nome dele</span></div>
+      <div class="grid g2">${subs.map(([s, n]) => `<a class="panel sub-card" href="#${c.id}/${s}">${banner(icon[s] || "file", esc(n), esc(desc[s] || ""), `<span class="badge">abrir →</span>`)}</a>`).join("")}</div>`;
+  }
+  function bodyOf(c, ps, kp, alerts, findings, sub) {
+    if (!clientSubs(c).length) return `<div class="kpis">${kp.join("")}</div>${["redes", "plano"].filter(() => has(c, "redes")).map(x => redesSection(c, ps, x === "plano" ? "plano" : "resultados")).join("")}${has(c, "criativos") ? criativosSection(c, ps) : ""}${has(c, "trafego") ? trafegoSection(c) : ""}${has(c, "varejo") ? varejoSection(c) : ""}${has(c, "autoridade") ? autoridadeSection(c) : ""}${alertsBlock(c, alerts, findings)}`;
+    switch (sub) {
+      case "redes": return redesSection(c, ps, "resultados");
+      case "plano": return redesSection(c, ps, "plano");
+      case "criativos": return criativosSection(c, ps);
+      case "trafego": return trafegoSection(c);
+      case "varejo": return varejoSection(c);
+      case "autoridade": return autoridadeSection(c);
+      case "alertas": return alertsBlock(c, alerts, findings);
+      default: return overview(c, ps, kp, alerts, findings);
+    }
+  }
   const AU = window.N7Authority, authMeta = c => { const g = store.get("goals", {}) || {}, v = g[`${c.key}-postsemana`]; return v > 0 ? Number(v) : AU.META_POSTS; };
   function autoridadeSection(c) {
     const head = `<div class="section-title"><h2>${SVC.SERVICES.autoridade.name}</h2><span>números informados na tela <a href="#autoridade">Autoridade</a> · canais nunca somados</span></div>`;
@@ -606,7 +660,7 @@
       <div class="panel">${banner("chart", "Alcance por semana", "LinkedIn e Instagram")}<div class="panel-body"><div class="chart" id="c-auth"></div></div></div>
       <div class="panel">${banner("bell", `Semana ${esc(periodTxt(ini))}`, "o que os números dizem")}<div class="panel-body">${top.length ? top.map(s => `<div class="sig"><div class="sig-h"><span class="badge ${s.classe === "CORRIGIR" ? "p0" : s.classe === "TESTAR" ? "p1" : "st-pub"}">${s.classe}</span><span class="badge">${esc(s.canal)}</span></div><b>${esc(s.titulo)}</b></div>`).join("") : `<p class="src">Nenhuma variação relevante.</p>`}</div></div></div>`;
   }
-  function renderClient(c, v) {
+  function renderClient(c, v, sub) {
     v = v || $("#view");
     const ps = posts().filter(p => p.b === c.key);
     const ig = igUrl(c);
@@ -614,21 +668,14 @@
     const alerts = D.ALERTS.filter(a => a.b === c.key), findings = D.FINDINGS.filter(x => x.b === c.key);
     const wait = IS_CLIENT ? awaitingClient(ps) : [];
     v.innerHTML = `
-      <div class="hero p-${SVC.ORDER.find(s => has(c, s)) || "redes"}"><span class="client-avatar" style="background:var(${c.color})">${esc(c.short[0])}</span>
+      <div class="hero p-${SVC.ORDER.find(s => has(c, s)) || "redes"}${!IS_CLIENT && activeSub(c.id, sub) ? " compact" : ""}"><span class="client-avatar" style="background:var(${c.color})">${esc(c.short[0])}</span>
         <div style="min-width:0"><div class="eyebrow" style="color:#b9a2ff">${IS_CLIENT ? "Sua empresa" : "Cliente · " + esc(SVC.label(c))}</div><h1>${esc(c.name)}</h1>${c.about ? `<p>${esc(c.about)}</p>` : ""}
           <div class="meta"><span>${esc(c.segment)}</span>${c.handle ? `<span>${esc(c.handle)}</span>` : ""}${c.postsProfile ? `<span>${int(c.postsProfile)} posts no perfil</span>` : ""}${c.club ? `<span>${esc(c.club)}</span>` : ""}</div>${svcChips(c)}</div>
         <div class="actions toolbar">${ig ? `<a class="btn" href="${esc(ig)}" target="_blank" rel="noopener">${ico("ig")} Instagram</a>` : ""}${!IS_CLIENT && c.docs[0] ? `<a class="btn" href="${esc(c.docs[0][1])}" target="_blank" rel="noopener">${ico("file")} Pasta no Drive</a>` : ""}</div></div>
       ${IS_CLIENT ? `<div class="kpis k3">${kpi("Aguardando sua aprovação", String(wait.length), wait.length ? "abra a pauta para aprovar ou pedir ajustes" : "nada pendente com você", "bell", wait.length ? "red" : "green")}${kpi("Publicadas", `${ps.filter(p => p.status === "pub").length} de ${ps.length}`, "no plano de novembro e dezembro", "list", "green")}${kpi("Atrasadas", String(ps.filter(p => p.late).length), "pautas com data vencida", "alert", "amber")}</div>
         ${wait.length ? `<div class="panel">${banner("bell", "Aguardando sua aprovação", `${wait.length} pauta(s)`)}<div class="panel-body"><div class="post-list">${wait.slice(0, 12).map(p => postRow(p, `publicar ${DOW[toDate(p.date).getDay()]} ${dm(p.date)}`)).join("")}</div></div></div>` : ""}
         ${planPanel(c, ps)}`
-      : `<div class="kpis">${kp.join("")}</div>
-      ${has(c, "redes") ? redesSection(c, ps) : ""}
-      ${has(c, "criativos") ? criativosSection(c, ps) : ""}
-      ${has(c, "trafego") ? trafegoSection(c) : ""}
-      ${has(c, "varejo") ? varejoSection(c) : ""}
-      ${has(c, "autoridade") ? autoridadeSection(c) : ""}
-      ${alerts.length ? `<div class="section-title"><h2>Alertas de ${esc(c.name)}</h2><span>${alerts.length} itens</span></div><div class="grid" style="gap:10px">${alerts.map(alertHtml).join("")}</div>` : ""}
-      ${findings.length ? `<div class="panel">${banner("target", "Achados dos insights", "evidência não é causalidade")}<div class="table-wrap"><table><thead><tr><th>Prioridade</th><th>Rede</th><th>Achado</th><th>Próxima validação</th></tr></thead><tbody>${findings.map(x => `<tr><td><span class="badge ${x.p === "ALTA" ? "alta" : "media"}">${x.p}</span></td><td>${x.net}</td><td><b>${esc(x.t)}</b><div class="src">${esc(x.e)}</div></td><td>${esc(x.n)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}`}`;
+      : bodyOf(c, ps, kp, alerts, findings, activeSub(c.id, sub))}`;
     if (!IS_CLIENT) {
       const W = D.WEEKLY[c.key];
       if (W && $("#c-ig", v)) C.bars($("#c-ig"), { cats: D.WINDOWS, series: [{ name: "Visualizações", color: c.color, values: W.igViews }], fmt: k, tipFmt: int, height: 200 });

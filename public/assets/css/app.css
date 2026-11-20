@@ -67,6 +67,9 @@ button { font: inherit; cursor: pointer; color: inherit; }
 .nav-item:hover { background: var(--side-hover); color: #fff; }
 .nav-item.active { background: var(--violet); color: #fff; font-weight: 700; box-shadow: 0 0 0 2px rgba(255, 255, 255, .9); }
 .nav-item svg { width: 17px; height: 17px; flex: none; }
+.nav-sub { margin: 0 0 6px 18px; padding-left: 10px; border-left: 1px solid var(--side-line); display: flex; flex-direction: column; gap: 1px; }
+.nav-subitem { display: block; padding: 6px 10px; border-radius: 8px; font-size: 12.5px; color: var(--side-muted); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-subitem:hover { color: #fff; background: var(--side-hover); } .nav-subitem.on { color: #fff; font-weight: 700; background: rgba(255, 255, 255, .1); }
 .nav-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; margin: 0 4px; }
 .nav-count { margin-left: auto; font-size: 10.5px; background: #2d2c40; color: #e8e6f5; border-radius: 999px; padding: 0 7px; font-weight: 700; }
 .nav-item.active .nav-count { background: rgba(255, 255, 255, .25); }
@@ -209,6 +212,8 @@ td .code, .code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
 .hero .client-avatar { width: 56px; height: 56px; border-radius: 16px; font-size: 22px; }
 .hero h1 { font-size: 24px; }
 .hero p { color: var(--banner-muted); margin-top: 4px; max-width: 70ch; }
+.hero.compact { padding: 12px 18px; gap: 12px; } .hero.compact .client-avatar { width: 38px; height: 38px; font-size: 16px; border-radius: 12px; } .hero.compact h1 { font-size: 18px; } .hero.compact p, .hero.compact .meta, .hero.compact .svc-chips { display: none; }
+.sub-card { display: block; color: inherit; } .sub-card:hover { box-shadow: 0 0 0 2px var(--violet); }
 .hero .meta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: #dcd8ec; }
 .hero .meta span { background: rgba(255, 255, 255, .08); border-radius: 999px; padding: 3px 10px; }
 .hero .btn { background: transparent; color: #fff; border-color: #3a3852; }
@@ -518,7 +523,7 @@ html.is-offline body::before { content: "Sem conexão"; position: fixed; top: en
   .topbar .spacer, .topbar .stamp:not(#sync) { display: none; }
   .crumb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   .who > span { display: none; }
-  .nav-item { min-height: 46px; }
+  .nav-item { min-height: 46px; } .nav-subitem { min-height: 40px; display: flex; align-items: center; font-size: 13.5px; }
   .kpis, .kpis.k3 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .kpis > .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .kpi { padding: 12px 14px; }

@@ -98,8 +98,9 @@
     return `<div class="kpis">${k.join("")}</div>${evo}${table}${sig}<div class="panel">${H.banner("file", "O que não pôde ser respondido", "Falta de dado listada, nunca preenchida com zero")}<div class="panel-body"><ul class="plain">${miss.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div></div>`;
   }
 
-  function render(view, helpers) {
-    H = helpers;
+  let curSub = "painel";
+  function render(view, helpers, sub) {
+    H = helpers; if (sub !== undefined) curSub = sub === "entrada" ? "entrada" : "painel";
     const cl = clientList();
     if (!ui.inicio || A.parse(ui.inicio) == null) ui.inicio = A.lastClosed("semana", new Date());
     if (!cl.some(c => c.key === ui.marca)) ui.marca = (cl[0] || {}).key || "";
@@ -111,15 +112,14 @@
       <div class="page-head"><div><div class="eyebrow">Marca pessoal e profissional</div><h1>Autoridade</h1>
         <p>Consistência de publicação, engajamento que importa (comentário, compartilhamento e salvamento) e, no fim, o convite. A análise não troca dado que falta por zero e não soma canais.</p></div></div>
       <div class="toolbar sem-nav"><button type="button" class="btn sm" id="au-prev" aria-label="Semana anterior">‹</button><b class="sem-label">${esc(per.label)}</b><button type="button" class="btn sm" id="au-next" aria-label="Próxima semana">›</button>
-        <button type="button" class="btn sm" id="au-last">Última semana fechada</button>${ui.inicio > last ? `<span class="badge p1">semana ainda não fechou</span>` : ""}</div>
+        <button type="button" class="btn sm" id="au-last">Última semana fechada</button><span class="spacer"></span>${curSub === "painel" ? `<a class="btn sm" href="#autoridade/entrada">Digitar os números →</a>` : `<a class="btn sm" href="#autoridade/painel">Ver o painel →</a>`}${ui.inicio > last ? `<span class="badge p1">semana ainda não fechou</span>` : ""}</div>
       ${ro ? `<p class="notice info">Seu acesso é só de leitura.</p>` : ""}
-      <div class="panel">${H.banner("file", "Entrada dos números", esc(per.label), ro ? "" : `<span class="badge" id="au-dirty"${Object.keys(drafts).length ? "" : " hidden"}>alterações não salvas</span><button type="button" class="btn sm primary" id="au-save">Salvar</button>`)}
+      ${curSub === "entrada" ? `<div class="panel">${H.banner("file", "Entrada dos números", esc(per.label), ro ? "" : `<span class="badge" id="au-dirty"${Object.keys(drafts).length ? "" : " hidden"}>alterações não salvas</span><button type="button" class="btn sm primary" id="au-save">Salvar</button>`)}
         <div class="panel-body"><div class="seg" id="au-marca" role="group" aria-label="Cliente">${cl.map(c => `<button type="button" data-v="${c.key}" aria-pressed="${ui.marca === c.key}">${esc(c.name)}</button>`).join("")}</div>
           ${formHtml()}
           <div class="fgrid"><label class="fld"><span>Meta de publicações por semana</span><input type="text" inputmode="decimal" id="au-meta" value="${esc(inp(metaPosts(ui.marca)))}"${ro ? " disabled" : ""}></label></div>
           <p class="src">Em branco é falta de dado, não zero. Pegue os números no LinkedIn (Análises do perfil e das publicações) e no Instagram (Insights), sempre de segunda a domingo.</p>
-        </div></div>
-      <h2 class="sec-title">Painel de autoridade</h2><div id="au-analysis">${analysisHtml(a)}</div>`;
+        </div></div>` : `<div id="au-analysis">${analysisHtml(a)}</div>`}`;
     wire(view); draw(view, rows, a);
   }
 
@@ -135,7 +135,7 @@
   }
 
   function wire(view) {
-    const redraw = () => { saveUi(); render(view, H); scrollTo(0, 0); };
+    const redraw = () => { saveUi(); render(view, H, curSub); scrollTo(0, 0); };
     const nav = fn => () => { stash(view); fn(); redraw(); };
     $("#au-prev", view).onclick = nav(() => { ui.inicio = A.prevStart("semana", ui.inicio); });
     $("#au-next", view).onclick = nav(() => { ui.inicio = A.nextStart("semana", ui.inicio); });
@@ -143,12 +143,12 @@
     $$("#au-marca button", view).forEach(b => b.onclick = () => { stash(view); ui.marca = b.dataset.v; redraw(); });
     $$("#au-form input", view).forEach(el => el.addEventListener("change", () => stash(view)));
     const sv = $("#au-save", view);
-    if (sv) sv.onclick = () => { const n = save(view); if (n === false) return; H.toast(n ? "Salvo na planilha." : "Nada mudou desde o último salvamento."); saveUi(); render(view, H); };
+    if (sv) sv.onclick = () => { const n = save(view); if (n === false) return; H.toast(n ? "Salvo na planilha." : "Nada mudou desde o último salvamento."); saveUi(); render(view, H, curSub); };
     const mt = $("#au-meta", view);
     if (mt) mt.onchange = () => {
       const v = I.num(mt.value), g = Object.assign({}, S.get("goals", {}) || {});
       if (v != null && v > 0 && v <= 50) g[goalKey(ui.marca)] = v; else delete g[goalKey(ui.marca)];
-      S.set("goals", g); H.toast("Meta salva."); stash(view); render(view, H);
+      S.set("goals", g); H.toast("Meta salva."); stash(view); render(view, H, curSub);
     };
   }
 

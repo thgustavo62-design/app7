@@ -15,6 +15,7 @@ Site de gestão interna da agência Nova7: resultados, metas e produção de con
 | `#autoridade` | Painel de autoridade de marca pessoal ou profissional (LinkedIn, Instagram e convites): ritmo de publicação, engajamento qualificado e contatos que vieram do conteúdo |
 | `#semana` | Rotina de segunda-feira: digite os números da semana ou do mês (ou cole as tabelas da Meta), veja a análise e baixe o PowerPoint de 6 a 8 slides |
 | `#minas-farma`, `#padaria-bom-pao`... (um por cliente cadastrado) | Página do cliente, **montada conforme os serviços que a Nova7 presta a ele** (veja abaixo): redes sociais, tráfego pago, criativos e análise de varejo |
+| Subpáginas na lateral | As páginas longas foram divididas: embaixo da página ativa, a barra lateral lista as subpáginas. **Cliente:** Visão geral (indicadores e cartões), Redes sociais, Plano e metas, Tráfego pago, Varejo, Autoridade e Alertas e achados (só as dos serviços dele). **Semana:** Entrada dos números e Análise e PowerPoint. **Autoridade:** Painel e Entrada. **Promoções, Central de Inteligência e Configurações:** as mesmas abas de dentro da página, também na lateral. No celular ficam no menu "Mais" |
 | `#config` | Só administradores: subabas **Usuários** e **Clientes e serviços** |
 | `#calendario` | Calendário Kanban com quatro visões (status, semana, mês e ideias), filtros, arrastar e soltar, horários livres e gaveta da pauta com etapas, aprovação e checagem pré-publicação |
 | `#fluxo` | Política de aprovação e horários fixos de publicação de cada cliente |

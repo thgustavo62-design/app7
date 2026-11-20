@@ -230,8 +230,9 @@
   }
 
   /* ---------- tela ---------- */
-  function render(view, helpers) {
-    H = helpers;
+  let curSub = "entrada";
+  function render(view, helpers, sub) {
+    H = helpers; if (sub !== undefined) curSub = sub === "analise" ? "analise" : "entrada";
     if (!ui.inicio || A.parse(ui.inicio) == null) ui.inicio = A.lastClosed(ui.tipo, new Date());
     if (!clientList().some(c => c.key === ui.marca)) ui.marca = (clientList()[0] || {}).key || "";
     if (!ui.marca) { view.innerHTML = `<div class="page-head"><div><h1>Semana</h1><p>Nenhum cliente com redes sociais, tráfego pago ou análise de varejo. Cadastre os serviços em Configurações.</p></div></div>`; return; }
@@ -250,19 +251,17 @@
         <button type="button" class="btn sm" id="sem-last">${ui.tipo === "mes" ? "Último mês fechado" : "Última semana fechada"}</button>
         ${isFuture ? `<span class="badge p1">período ainda não fechou</span>` : ""}
         <span class="spacer"></span>
-        <button type="button" class="btn primary" id="sem-pptx">Baixar PowerPoint</button>
+        ${curSub === "analise" ? `<button type="button" class="btn primary" id="sem-pptx">Baixar PowerPoint</button>` : `<a class="btn" href="#semana/analise">Ver a análise →</a>`}
       </div>
       ${ro ? `<p class="notice info">Seu acesso é só de leitura: você vê a análise, mas não digita números.</p>` : ""}
       ${a.holidays.length ? `<p class="notice"><b>Atenção ao calendário:</b> ${a.holidays.map(h => `${dm(h.date)} ${esc(h.name)}`).join(" · ")}. Confirme antes de concluir queda.</p>` : ""}
-      <div class="panel">${H.banner("file", "Entrada dos números", `${esc(per.label)}`, ro ? "" : `<span class="badge" id="sem-dirty"${unsaved ? "" : " hidden"}>alterações não salvas</span><button type="button" class="btn sm primary" id="sem-save">Salvar</button>`)}
+      ${curSub === "entrada" ? `<div class="panel">${H.banner("file", "Entrada dos números", `${esc(per.label)}`, ro ? "" : `<span class="badge" id="sem-dirty"${unsaved ? "" : " hidden"}>alterações não salvas</span><button type="button" class="btn sm primary" id="sem-save">Salvar</button>`)}
         <div class="panel-body">
           <div class="seg" id="sem-marca" role="group" aria-label="Empresa">${clientList().map(c => c.key).map(m => `<button type="button" data-v="${m}" aria-pressed="${ui.marca === m}">${esc(nameOf(m))}${stored(ui.tipo, ui.inicio, m) || drafts[keyOf(ui.tipo, ui.inicio, m)] ? " ●" : ""}</button>`).join("")}</div>
           ${formHtml(ui.tipo, ui.inicio, ui.marca)}
           <h3 class="sub">Contexto e decisão do período</h3>
           ${genHtml(ui.tipo, ui.inicio)}
-        </div></div>
-      <h2 class="sec-title">Análise</h2>
-      <div class="sem-analysis">${analysisHtml(a)}</div>`;
+        </div></div>` : `<div class="sem-analysis">${analysisHtml(a)}</div>`}`;
     wire(view);
     draw(view, a);
   }
@@ -285,19 +284,20 @@
   }
 
   function wire(view) {
-    const redraw = () => { saveUi(); render(view, H); scrollTo(0, 0); };
+    const redraw = () => { saveUi(); render(view, H, curSub); scrollTo(0, 0); };
     const keep = () => { stash(view); };
     const nav = fn => () => { keep(); fn(); redraw(); };
     $$("#sem-tipo button", view).forEach(b => b.onclick = nav(() => { if (b.dataset.v !== ui.tipo) { ui.tipo = b.dataset.v; ui.inicio = A.lastClosed(ui.tipo, new Date()); } }));
     $("#sem-prev", view).onclick = nav(() => { ui.inicio = A.prevStart(ui.tipo, ui.inicio); });
     $("#sem-next", view).onclick = nav(() => { ui.inicio = A.nextStart(ui.tipo, ui.inicio); });
     $("#sem-last", view).onclick = nav(() => { ui.inicio = A.lastClosed(ui.tipo, new Date()); });
-    $$("#sem-marca button", view).forEach(b => b.onclick = () => { keep(); ui.marca = b.dataset.v; saveUi(); render(view, H); });
+    $$("#sem-marca button", view).forEach(b => b.onclick = () => { keep(); ui.marca = b.dataset.v; saveUi(); render(view, H, curSub); });
     $$("#sem-form input, #gen-form input, #gen-form textarea", view).forEach(el => el.addEventListener("change", () => stash(view)));
     $$("[data-paste-read]", view).forEach(b => b.onclick = () => showPaste(view, b.dataset.pasteRead));
     const sv = $("#sem-save", view);
-    if (sv) sv.onclick = () => { const n = save(view); if (n === false) return; H.toast(n ? "Salvo na planilha." : "Nada mudou desde o último salvamento."); saveUi(); render(view, H); };
-    $("#sem-pptx", view).onclick = () => {
+    if (sv) sv.onclick = () => { const n = save(view); if (n === false) return; H.toast(n ? "Salvo na planilha." : "Nada mudou desde o último salvamento."); saveUi(); render(view, H, curSub); };
+    const pp = $("#sem-pptx", view);
+    if (pp) pp.onclick = () => {
       if (Object.keys(drafts).length || !$("#sem-dirty", view).hidden) { stash(view); if (Object.keys(drafts).length) return H.toast("Há alterações não salvas. Clique em Salvar antes de gerar o PowerPoint."); }
       if (!root.N7Report) return H.toast("O gerador de PowerPoint não carregou. Recarregue a página.");
       const an = A.analyze({ weeks: weeks(), gens: gens(), tipo: ui.tipo, inicio: ui.inicio, clients: analysisClients() });
