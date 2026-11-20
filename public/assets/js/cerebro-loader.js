@@ -11,6 +11,12 @@
       load().then(m => (me === seq && view.isConnected ? m.render(view, sub, H) : null)).catch(e => fail(view, e));
     },
     /* cartão do Painel: aparece já com "Analisando…" e troca quando o módulo chega */
+    /* achados e saúde de um cliente (visão 360°): placeholder que troca quando o módulo chega */
+    client(H, key) {
+      const id = "bc" + (++seq);
+      load().then(m => setTimeout(() => { const el = document.getElementById(id); if (el) { el.innerHTML = m.clientPanel(H, key); m.wireToday(el, H); } }, 0)).catch(e => console.error(e));
+      return `<div id="${id}"><p class="src">Analisando este cliente…</p></div>`;
+    },
     mini(H) {
       const id = "bm" + (++seq);
       load().then(m => setTimeout(() => { const el = document.getElementById(id); if (el) { el.outerHTML = m.mini(H); const t = document.getElementById("today"); if (t) m.wireToday(t, H); } }, 0)).catch(e => console.error(e));

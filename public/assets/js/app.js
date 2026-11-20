@@ -639,7 +639,26 @@
     const subs = clientSubs(c).filter(x => x[0]), by = svcKpis(c, ps), pick = { redes: "redes", plano: "redes", trafego: "trafego", varejo: "varejo", autoridade: "autoridade", criativos: "criativos" };
     const desc = { redes: "resultados dos perfis e publicações", plano: "calendário, aprovação, nota de saúde e metas", trafego: "Meta Ads: gasto, frequência e custo por resultado", varejo: "vendas, ticket e cestas por semana", autoridade: "ritmo, alcance qualificado e convites", criativos: "fila de peças, etapas e aprovação", alertas: `${alerts.length} alerta(s) e ${findings.length} achado(s)` };
     const icon = { redes: "ig", plano: "cal", trafego: "target", varejo: "cart", autoridade: "eye", criativos: "spark", alertas: "bell" };
+    const mine = ps.filter(p => p.status !== "pub"), prox = mine.filter(p => toDate(p.date) >= TODAY).sort((x, y) => x.date.localeCompare(y.date)).slice(0, 5), atras = ps.filter(p => p.late);
+    const espera = awaitingClient(ps).sort((x, y) => x.date.localeCompare(y.date)), atrasSo = atras.filter(p => !espera.some(e => e.code === p.code));
+    const ev = (store.get("events", []) || []).filter(e => ps.some(p => p.code === e.code)).slice(-6).reverse();
+    const camps = ((window.N7PromoBrain && window.N7PromoBrain.summaries()[c.key]) || {}).campanhas || [];
+    const lw = has(c, "trafego") ? latestWith(c, hasAds) : null;
+    const midia = lw ? (() => { const n = AN.norm(lw), d = AN.derive(n); return `${periodTxt(lw.inicio)}: gasto ${n.ads.gasto == null ? "sem dado" : brl(n.ads.gasto)}${d.adsCusto != null ? ` · custo por resultado ${brl(d.adsCusto)}` : ""}${d.adsFreq != null ? ` · frequência ${dec(d.adsFreq, 2)}` : ""}` })() : "";
+    const actTxt = { aprovou: "aprovou", comentou: "comentou em", pediu_ajuste: "pediu ajuste em", ajuste: "pediu ajuste em" };
+    const post = code => ps.find(p => p.code === code);
+    const pend = `<div class="panel">${banner("bell", "Pendências", `${espera.length} com o cliente · ${atras.length} atrasada(s)`)}<div class="panel-body">
+        ${espera.length ? `<span class="col-title">Aguardando aprovação do cliente</span><div class="post-list">${espera.slice(0, 3).map(p => postRow(p, `publicar ${DOW[toDate(p.date).getDay()]} ${dm(p.date)}`)).join("")}</div>` : ""}
+        ${atrasSo.length ? `<span class="col-title">Atrasadas (fora da lista acima)</span><div class="post-list">${atrasSo.slice(0, 2).map(p => postRow(p, `era para ${dm(p.date)}`)).join("")}${atrasSo.length > 2 ? `<a class="today-more" href="#calendario">e mais ${atrasSo.length - 2} no Calendário</a>` : ""}</div>` : ""}
+        ${!espera.length && !atrasSo.length ? `<p class="src">Nada pendente com o cliente nem atrasado.</p>` : ""}
+        <span class="col-title">O que a Central de Inteligência vê</span>${ACCESS.cerebro() ? window.N7Cerebro.client(brainHelpers(), c.key) : ""}</div></div>`;
+    const entregas = `<div class="panel">${banner("cal", "Próximas entregas", prox.length ? `${prox.length} nos próximos dias` : "sem pautas futuras")}<div class="panel-body">${prox.length ? `<div class="post-list">${prox.map(p => postRow(p, `${DOW[toDate(p.date).getDay()]} ${dm(p.date)} · ${STATUS[p.status].name}`)).join("")}</div>` : `<p class="src">Nenhuma pauta futura no calendário deste cliente.</p>`}
+        ${midia ? `<span class="col-title">Mídia paga</span><p class="src">${midia} · ${esc(srcWeek(lw))}</p>` : ""}</div></div>`;
+    const atividade = `<div class="panel">${banner("list", "Atividade recente", "aprovações e comentários")}<div class="panel-body">${ev.length ? `<ul class="plain">${ev.map(e => `<li><b>${esc(e.by || "alguém")}</b> ${esc(actTxt[e.act] || e.act)} <span class="code">${esc(e.code)}</span>${post(e.code) ? " " + esc(post(e.code).title) : ""}${e.text ? ` <span class="src">“${esc(e.text.slice(0, 80))}”</span>` : ""} <span class="src">${esc(String(e.at || "").slice(0, 10).split("-").reverse().join("/"))}</span></li>`).join("")}</ul>` : `<p class="src">Ainda não há aprovações ou comentários registrados.</p>`}</div></div>`;
+    const campanhas = has(c, "promocoes") ? `<div class="panel">${banner("tag", "Campanhas", `${camps.length} salva(s)`, `<a class="pill-light" href="#promocoes/campanhas">Abrir</a>`)}<div class="table-wrap"><table><tbody>${camps.slice(0, 5).map(x => `<tr><td><b>${esc(x.nome)}</b><div class="src">${esc(x.tipo)}</div></td><td>${x.inicio ? dm(x.inicio) : "—"}${x.fim ? " a " + dm(x.fim) : ""}</td><td><span class="badge ${x.status === "aprovada" || x.status === "publicada" ? "st-pub" : ""}">${esc(x.status)}</span></td></tr>`).join("") || `<tr><td><div class="empty">Nenhuma campanha ainda.</div></td></tr>`}</tbody></table></div></div>` : "";
     return `<div class="kpis">${kp.join("")}</div>
+      <div class="grid g2">${pend}${entregas}</div>
+      <div class="grid g2">${atividade}${campanhas || ""}</div>
       <div class="section-title"><h2>Páginas deste cliente</h2><span>também na barra lateral, embaixo do nome dele</span></div>
       <div class="grid g2">${subs.map(([s, n]) => `<a class="panel sub-card" href="#${c.id}/${s}">${banner(icon[s] || "file", esc(n), esc(desc[s] || ""), `<span class="badge">abrir →</span>`)}</a>`).join("")}</div>`;
   }

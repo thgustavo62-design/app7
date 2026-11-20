@@ -240,7 +240,9 @@ td .code, .code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
 .kanban { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; align-items: flex-start; min-height: 340px; }
 .kcol { flex: 0 0 272px; background: var(--col); border-radius: var(--radius); padding: 10px; border: 2px solid transparent; display: flex; flex-direction: column; gap: 8px; max-height: 78vh; }
 .kcol.over { border-color: var(--violet); background: var(--col-over); }
-.kcol.steps { display: inline-flex; gap: 3px; flex-wrap: wrap; } .steps i { font-style: normal; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: #eceaf5; color: var(--text-2); }
+.kcol.c360-health { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.c360-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; } .c360-row { padding: 10px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; } .c360-row p { margin: 0; }
+.steps { display: inline-flex; gap: 3px; flex-wrap: wrap; } .steps i { font-style: normal; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: #eceaf5; color: var(--text-2); }
 .steps i.done { background: #dff3e8; color: #17653d; } .steps i.on { background: var(--violet); color: #fff; }
 .today { box-shadow: inset 0 0 0 2px var(--violet); }
 .kcol-head { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-2); font-weight: 700; margin: 2px 4px 2px; gap: 8px; }

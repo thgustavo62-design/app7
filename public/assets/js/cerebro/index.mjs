@@ -42,3 +42,13 @@ export function mini(H) {
 export function wireToday(root, H) {
   root.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => H.go(b.dataset.go, b.dataset.brand, !!b.dataset.ideas, { lista: b.dataset.lista, tipo: b.dataset.tipo, dia: b.dataset.dia })));
 }
+
+/* "O que o cérebro vê neste cliente": saúde e os achados em aberto (para a visão 360° da página do cliente) */
+export function clientPanel(H, key) {
+  const k = makeKit(H, () => {}), r = k.r, esc = k.esc, h = (r.clientes || []).find(x => x.key === key);
+  const seen = new Set(), list = [r.decision, ...r.also, ...(r.radar || []).slice().sort((a, b) => b.score - a.score)].filter(f => f && f.marca === key && f.kind !== "ganho" && !seen.has(f.chave) && seen.add(f.chave)).slice(0, 3);
+  const wins = (r.wins || []).filter(f => f.marca === key).slice(0, 2);
+  const head = h ? `<div class="c360-health"><span class="badge ${(k.LEVEL[h.nivel] || ["", ""])[1]}">Saúde ${h.saude}/100 · ${esc((k.LEVEL[h.nivel] || [h.nivel])[0])}</span><span class="src">${h.achados} achado(s) em aberto, ${h.fortes} forte(s)</span></div>` : "";
+  const row = f => `<li class="c360-row"><div class="brain-tags"><span class="badge ${k.tone(f.score)}">${esc(f.urgencia || k.B.urgencia(f.score))} · ${f.score}</span><span class="badge">${esc(k.agentName(f.agente))}</span></div><b>${esc(f.titulo.replace(/^.*?: /, ""))}</b><p class="src">${esc(f.acao)}</p><div class="today-go">${k.goBtn(f)}</div></li>`;
+  return `<div id="c360-brain">${head}${list.length ? `<ul class="c360-list">${list.map(row).join("")}</ul>` : `<p class="src">Nenhum agente pede ação para este cliente agora.</p>`}${wins.length ? `<p class="src"><b>Funcionando:</b> ${wins.map(f => esc(f.titulo.replace(/^.*?: /, ""))).join(" · ")}</p>` : ""}</div>`;
+}
