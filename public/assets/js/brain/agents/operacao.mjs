@@ -41,10 +41,11 @@ export function pipeline(ctx) {
     if (items.length) {
       items.sort((a, b) => a.p.date.localeCompare(b.p.date));
       const w = items[0], dPub = diff(w.p.date, today), days = diff(today, w.step.at);
+      const eml = ((ctx.owners || {})[w.p.code] || {})[w.step.s], pessoa = eml ? ((ctx.team || []).find(u => u.email === eml) || { nome: eml }).nome : "";
       out.push(F("pipeline", `pipe-${c.key}`, { marca: c.key, nome: c.name, score: 48 + (dPub <= 3 ? 22 : dPub <= 7 ? 12 : 4) + Math.min(10, items.length * 2.5),
         titulo: `${c.name}: etapa atrasada em ${items.length} pauta${items.length > 1 ? "s" : ""}`,
         detalhe: `${w.p.code} (${w.p.title}): ${STEP_NAME[w.step.s]} era para ${dm(w.step.at)} (${days} dia${days > 1 ? "s" : ""} atrás) e a pauta está em "${STATUS_NAME[w.p.status] || w.p.status}". Publica em ${dm(w.p.date)}.`,
-        evidencia: [`Pautas com etapa vencida: ${items.map(x => x.p.code).join(", ")}`, `A mais próxima de publicar fica a ${dPub} dia(s)`], acao: "Cobrar a etapa com quem é responsável ou mover a data de publicação antes de a pauta atrasar de vez.", link: { route: "calendario", brand: c.key } }));
+        evidencia: [`Pautas com etapa vencida: ${items.map(x => x.p.code).join(", ")}`, pessoa ? `Responsável pela etapa de ${w.p.code}: ${pessoa}` : `${w.p.code} não tem responsável definido para ${STEP_NAME[w.step.s]}`, `A mais próxima de publicar fica a ${dPub} dia(s)`], acao: "Cobrar a etapa com quem é responsável ou mover a data de publicação antes de a pauta atrasar de vez.", link: { route: "calendario", brand: c.key } }));
     }
     const hol = [];
     posts.filter(p => p.b === c.key && p.status !== "pub" && p.steps).forEach(p => {

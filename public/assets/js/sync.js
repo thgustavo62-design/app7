@@ -27,6 +27,9 @@
       case "overrides": return diffMap(old, nw,
         (code, n, o) => ({ t: "override", op: "upsert", code, status: n.status || "", date: n.date || "", v: n.v ?? (o && o.v) }),
         (code, o) => ({ t: "override", op: "delete", code, v: o && o.v }));
+      case "owners": return diffMap(old, nw,
+        (code, n, o) => ({ t: "owners", op: "upsert", code, roteiro: n.roteiro || "", gravar: n.gravar || "", editar: n.editar || "", aprovar: n.aprovar || "", agendar: n.agendar || "", v: n.v ?? (o && o.v) }),
+        (code, o) => ({ t: "owners", op: "delete", code, v: o && o.v }));
       case "ideas": return diffList(old, nw, "id",
         (x, o) => ({ t: "idea", op: "upsert", id: x.id, b: x.b, format: x.format, title: x.title, note: x.note || "", stage: x.stage, src: x.src || "", at: x.at || "", promoted: x.promoted || "", v: x.v ?? (o && o.v) }),
         o => ({ t: "idea", op: "delete", id: o.id, v: o.v }));
@@ -87,6 +90,7 @@
       if (op.t === "idea") store.setVersion("ideas", x => x.id === op.id, r.v);
       else if (op.t === "custom") store.setVersion("custom", x => x.code === op.code, r.v);
       else if (op.t === "override") store.setVersion("overrides", op.code, r.v);
+      else if (op.t === "owners") store.setVersion("owners", op.code, r.v);
       else if (op.t === "week") store.setVersion("weeks", x => x.tipo === op.tipo && x.inicio === op.inicio && x.marca === op.marca, r.v);
       else if (op.t === "decision") store.setVersion("decisions", x => x.chave === op.chave, r.v);
       else if (op.t === "auth") store.setVersion("authority", x => x.tipo === op.tipo && x.inicio === op.inicio && x.marca === op.marca && x.canal === op.canal, r.v);

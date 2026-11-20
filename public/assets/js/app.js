@@ -62,6 +62,19 @@
     pub: { name: "Publicado", hint: "no ar", cls: "st-pub" }
   };
   const COLS = ["prop", "plan", "prod", "apr", "agd", "pub"];
+  /* responsável por etapa: lista da equipe; quem só lê vê o nome */
+  const ownerOf = (code, step) => ((store.get("owners", {}) || {})[code] || {})[step] || "";
+  const ownerSel = (code, step) => {
+    const cur = ownerOf(code, step), team = REG.team || [];
+    if (!CAN_WRITE) return cur ? ` <small class="src">· ${esc(teamName(cur))}</small>` : "";
+    return ` <select class="own-sel" data-own="${esc(code)}|${step}" aria-label="Responsável por ${STEP_NAMES[step]}"><option value="">sem responsável</option>${team.map(u => `<option value="${esc(u.email)}"${u.email === cur ? " selected" : ""}>${esc(u.nome)}</option>`).join("")}${cur && !team.some(u => u.email === cur) ? `<option value="${esc(cur)}" selected>${esc(cur)}</option>` : ""}</select>`;
+  };
+  function setOwner(code, step, email) {
+    const all = Object.assign({}, store.get("owners", {}) || {}), cur = Object.assign({}, all[code] || {});
+    if (email) cur[step] = email; else delete cur[step];
+    if (Object.keys(cur).some(k => k !== "v")) all[code] = cur; else delete all[code];
+    store.set("owners", all);
+  }
   const STEP_NAMES = { roteiro: "Roteiro", gravar: "Gravar / captar", editar: "Editar / design", aprovar: "Aprovar", agendar: "Agendar" };
   const DONE_BY = { prop: 0, plan: 0, prod: 2, apr: 3, agd: 5, pub: 5 };
 
@@ -185,15 +198,16 @@
   const allowedRoute = id => !!ROUTES[id] && (ROUTES[id].client || !ACCESS[id] || ACCESS[id]());
   async function reloadRegistry() {
     const r = await fetch("/api/state"); if (!r.ok) throw new Error("Não foi possível recarregar o cadastro.");
-    const b = await r.json(); REG.clients = b.registry.clients; REG.users = b.registry.users || [];
+    const b = await r.json(); REG.clients = b.registry.clients; REG.users = b.registry.users || []; REG.team = b.registry.team || [];
     setupClients(); route();
   }
   /* ajudantes da Central de Inteligência: dados do site entregues às funções puras do cérebro (assets/js/brain/) */
   const brainHelpers = () => ({ ico, banner, toast, esc, store, canWrite: CAN_WRITE, today: TODAY_ISO,
     input: () => ({ today: TODAY_ISO, clients: CLIENTS.map(c => ({ key: c.key, id: c.id, name: c.name, services: c.services })), posts: posts(), weeks: allWeeks(), gens: store.get("weekGen", []), decisions: store.get("decisions", []),
-      promo: window.N7PromoBrain ? window.N7PromoBrain.summaries() : {}, authority: store.get("authority", []), goals: store.get("goals", {}), ideas: F.getIdeas(), slots: F.getFlow().slots, checks,
+      promo: window.N7PromoBrain ? window.N7PromoBrain.summaries() : {}, owners: store.get("owners", {}), team: REG.team || [], authority: store.get("authority", []), goals: store.get("goals", {}), ideas: F.getIdeas(), slots: F.getFlow().slots, checks,
       needsClient: p => { const st = F.approvalState(p.code, p.b); return st.needs.includes("client") && !st.rec.client; }, planSource: D.PLAN_SOURCE }),
     go: (route, brand, ideas, extra) => { if (brand) prefs.kbrand = brand; if (ideas) prefs.kview = "ideias"; if (brand || ideas) savePrefs(); if (/^promocoes/.test(route) && window.N7Promocoes) window.N7Promocoes.focus(Object.assign({ loja: brand }, extra || {})); location.hash = "#" + route; } });
+  const teamName = e => { const t = ((REG.team || []).find(u => u.email === e)); return t ? t.nome : e; };
   const settingsCtx = () => ({ REG, ME, clients: () => CLIENTS, banner, ico, toast, esc, reload: reloadRegistry });
   setupClients();
 
@@ -337,6 +351,21 @@
   /* ====================================================================
      PAINEL
      ==================================================================== */
+  /* etapas de pauta que estão comigo e ainda não foram feitas, da mais urgente para a menos */
+  const DONE_STEPS = { prop: 0, plan: 0, prod: 2, apr: 3, agd: 5, pub: 5 }, STEP_ORDER = ["roteiro", "gravar", "editar", "aprovar", "agendar"];
+  function myQueue() {
+    const own = store.get("owners", {}) || {}, me = String(ME.email || "").toLowerCase(), out = [];
+    posts().forEach(p => {
+      if (p.status === "pub" || !p.steps || !own[p.code]) return;
+      STEP_ORDER.forEach((st, i) => { if (own[p.code][st] === me && i >= (DONE_STEPS[p.status] || 0)) out.push({ p, st, at: p.steps[st] || p.date }); });
+    });
+    return out.sort((a, b) => a.at.localeCompare(b.at));
+  }
+  const queuePanel = () => {
+    const q = myQueue(); if (!q.length) return "";
+    const today = toIso(TODAY);
+    return `<div class="panel">${banner("list", "Minha fila", `${q.length} etapa(s) comigo`)}<div class="panel-body"><div class="post-list">${q.slice(0, 6).map(x => `<button type="button" class="post-row" data-open="${x.p.code}" style="background:none;text-align:left">${fmtBadge(x.p.format)}<span class="t">${esc(STEP_NAMES[x.st])} · ${esc(x.p.title)}<small>${esc(CL[x.p.b].short)} · ${x.p.code} · ${x.at < today ? `<b style="color:var(--red)">atrasada, era para ${dm(x.at)}</b>` : `até ${DOW[toDate(x.at).getDay()]} ${dm(x.at)}`}</small></span></button>`).join("")}</div>${q.length > 6 ? `<p class="src">e mais ${q.length - 6} etapa(s).</p>` : ""}</div></div>`;
+  };
   function renderPainel(v) {
     if (IS_CLIENT) return renderPainelCliente(v);
     const ps = posts(), anyPosts = CLIENTS.some(c => has(c, "redes") || has(c, "criativos"));
@@ -356,6 +385,7 @@
         <p>${ini ? `Última semana com números: ${esc(AN.period("semana", ini).label)}.` : "Ainda não há números de semana."} Cada cliente mostra o que importa para os serviços que a Nova7 presta a ele.</p></div>
         <div class="toolbar">${CAN_WRITE ? `<a class="btn" href="#semana">${ico("file")} Semana</a>` : ""}${anyPosts ? `<a class="btn primary" href="#calendario">${ico("cal")} Abrir calendário</a>` : ""}</div></div>
       ${ACCESS.cerebro() ? window.N7Cerebro.mini(brainHelpers()) : ""}
+      ${queuePanel()}
       <div class="kpis">${kp.slice(0, 4).join("")}</div>
       <div class="section-title"><h2>Clientes</h2><span>clique para abrir a página do cliente</span></div>
       ${CLIENTS.length ? `<div class="grid g4">${CLIENTS.map(c => clientCard(c, ps)).join("")}</div>` : `<div class="empty">Nenhum cliente ativo. ${IS_ADMIN ? `Cadastre em <a href="#config/clientes">Configurações</a>.` : ""}</div>`}
@@ -994,7 +1024,7 @@
           <div><label class="lbl" for="d-date">Publicar em${p.time ? " · " + p.time : ""}</label><input type="date" id="d-date" value="${draft.date || p.date}"></div>
         </div>
         <div><span class="col-title">Etapas de produção</span>
-          <ul class="steps" style="margin-top:10px">${steps.map(([k2, d], i) => { const isDone = i < done || p.status === "pub"; const isLate = !isDone && d && toDate(d) < TODAY; return `<li class="${isDone ? "done" : isLate ? "late" : ""}"><i></i><span>${STEP_NAMES[k2]}${isLate ? " · atrasada" : ""}</span><span class="tnum">${d ? DOW[toDate(d).getDay()] + " " + dm(d) : "não se aplica"}</span></li>`; }).join("")}
+          <ul class="steps" style="margin-top:10px">${steps.map(([k2, d], i) => { const isDone = i < done || p.status === "pub"; const isLate = !isDone && d && toDate(d) < TODAY; return `<li class="${isDone ? "done" : isLate ? "late" : ""}"><i></i><span>${STEP_NAMES[k2]}${isLate ? " · atrasada" : ""}${IS_CLIENT ? "" : ownerSel(p.code, k2)}</span><span class="tnum">${d ? DOW[toDate(d).getDay()] + " " + dm(d) : "não se aplica"}</span></li>`; }).join("")}
           <li class="${p.status === "pub" ? "done" : p.late ? "late" : ""}"><i></i><span><b>Publicar</b></span><span class="tnum"><b>${DOW[toDate(p.date).getDay()]} ${dm(p.date)}${p.time ? " " + p.time : ""}</b></span></li></ul></div>
         ${approvalSection(p)}
         ${IS_CLIENT ? "" : qualityForm(p)}
@@ -1037,6 +1067,7 @@
       openDrawer(p.code, { draft: keep, focus: "aprov" });
     }));
 
+    $$("[data-own]", dlg).forEach(sel => sel.addEventListener("change", () => { const [c, st] = sel.dataset.own.split("|"); setOwner(c, st, sel.value); toast(sel.value ? `Responsável: ${teamName(sel.value)}` : "Sem responsável"); }));
     $("#d-save").onclick = () => {
       persistQ();
       const date = $("#d-date").value || p.date;
