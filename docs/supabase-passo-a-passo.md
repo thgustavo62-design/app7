@@ -3,14 +3,14 @@
 Nada abaixo muda o site até o passo 5. Você pode parar a qualquer momento: a planilha continua sendo o banco.
 
 ## 1. Criar o projeto
-1. Entre em supabase.com e crie uma organização e um projeto.
+1. Entre em supabase.com (pode ser com o GitHub) e crie uma organização e um projeto.
 2. **Região: South America (São Paulo)**, a mais perto de Baixo Guandu.
 3. Escolha uma **senha forte do banco** e guarde no seu gerenciador de senhas. Nunca cole no chat.
 4. Plano: para uso real, **Pro** (US$ 25 por mês). O gratuito pausa o projeto depois de uma semana sem uso.
 
 ## 2. Pegar a conexão
 1. No projeto, clique em **Connect** (ou Project Settings > Database).
-2. Escolha **Transaction pooler** (porta **6543**). É a certa para a Vercel, que abre muitas conexões curtas.
+2. (Atalho: em Supabase > Integrations, a integração com a Vercel cria as variáveis sozinha, inclusive `POSTGRES_URL`, que o site também aceita.) Escolha **Transaction pooler** (porta **6543**). É a certa para a Vercel, que abre muitas conexões curtas.
 3. Copie a URL. Ela se parece com `postgresql://postgres.xxxxxxxx:[SUA-SENHA]@aws-0-sa-east-1.pooler.supabase.com:6543/postgres`.
 4. Troque `[SUA-SENHA]` pela senha. Se a senha tiver `@ # / ? : %`, troque cada um por seu código (`@` = `%40`, `#` = `%23`, `/` = `%2F`, `?` = `%3F`, `:` = `%3A`, `%` = `%25`), ou escolha uma senha só com letras e números.
 
