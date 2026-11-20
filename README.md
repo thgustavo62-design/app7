@@ -145,7 +145,8 @@ Nenhuma análise soma ou mistura a Minas Farma com a Farma e Farma. O Painel mos
 - **Visão 360° do cliente:** a Visão geral da página de cada cliente reúne, em uma tela só, indicadores com origem, **Pendências** (aguardando aprovação do cliente, atrasadas e o que a Central de Inteligência vê, com a saúde do cliente), **Próximas entregas**, mídia paga da última semana, **Atividade recente** (aprovações e comentários) e **Campanhas** (nas farmácias), com cartões para as subpáginas de cada serviço.
 - **Carregamento:** o pacote do PowerPoint (~450 KB) só é baixado ao clicar em Baixar PowerPoint (`lazy.js`).
 - **GitHub Actions** (`.github/workflows/test.yml`) roda `npm test` a cada push e pull request.
-- **Limite conhecido:** a planilha não tem transação. Duas importações da mesma loja ao mesmo tempo podem se sobrescrever (a base é regravada de uma vez). O uso real é de uma pessoa importando por vez; para crescer, o caminho é mover os dados operacionais para um banco com transações (Postgres), mantendo a planilha para importação e exportação. Também ainda não há como restaurar uma importação anterior.
+- **Importações simultâneas:** cada loja tem uma revisão na aba `Config` (`promo_rev:<loja>`). Antes de regravar a base, o servidor lê a revisão de novo direto da planilha: se outra importação gravou desde que esta começou, a segunda é **recusada (409) e nada é apagado**; basta tentar de novo. Não é uma transação de verdade (sobra uma janela de décimos de segundo entre ler e reservar).
+- **Limite conhecido:** a planilha não tem transação, então a proteção acima reduz o risco mas não o elimina. O uso real é de uma pessoa importando por vez; para crescer, o caminho é mover os dados operacionais para um banco com transações (Postgres), mantendo a planilha para importação e exportação. Também ainda não há como restaurar uma importação anterior.
 
 ## Autoridade e posicionamento (contador, executivo, profissional liberal)
 

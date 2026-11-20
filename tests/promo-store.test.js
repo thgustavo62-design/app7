@@ -148,3 +148,18 @@ test('vendas: leitura abaixo de 99,9% (ou sem a conferência) não grava nem sub
   assert.deepEqual((await P.load(fresh(r), 'M')).items[0].dias, { '2026-11-03': [99, 999] }, '99,9% exato passa');
   const d = await P.load(fresh(r), 'M'); assert.deepEqual(d.intervalos, [['2026-11-01', '2026-11-08', ''], ['2026-11-01', '2026-11-08', '']], 'os intervalos cobertos vêm do registro de importações');
 });
+
+test('importação simultânea: quem começou com a base velha é recusado (409) em vez de apagar o que a outra gravou', async () => {
+  const r = seeded();
+  await P.importEstoque(r, admin, 'M', { items: [est('7890000000011')], arquivo: 'base.xlsx' });
+  const velha = fresh(r); await velha.load(['PromoBase', 'Config']);                      /* a segunda importação começou aqui, com a base de antes */
+  await P.importVendas(fresh(r), admin, 'M', vendas('2026-11-01', '2026-11-08', { '7890000000011': { desc: 'P1', dias: { '2026-11-03': [2, 20] } } }));   /* e a primeira terminou */
+  await assert.rejects(P.importVendas(velha, admin, 'M', vendas('2026-11-01', '2026-11-08', { '7890000000011': { desc: 'P1', dias: { '2026-11-04': [9, 90] } } })), e => e.status === 409 && /Outra importação/.test(e.message));
+  assert.deepEqual((await P.load(fresh(r), 'M')).items[0].dias, { '2026-11-03': [2, 20] }, 'o que a primeira gravou continua lá');
+  await P.importVendas(fresh(r), admin, 'M', vendas('2026-11-01', '2026-11-08', { '7890000000011': { desc: 'P1', dias: { '2026-11-04': [9, 90] } } }));    /* tentar de novo, já com a base atual, funciona */
+  assert.deepEqual((await P.load(fresh(r), 'M')).items[0].dias, { '2026-11-04': [9, 90] });
+  /* a outra loja não é afetada pela revisão desta */
+  const f2 = fresh(r); await f2.load(['PromoBase', 'Config']);
+  await P.importEstoque(fresh(r), admin, 'M', { items: [est('7890000000011', { estoque: 1 })], arquivo: 'b2.xlsx' });
+  await P.importEstoque(f2, admin, 'F', { items: [est('7890000000011')], arquivo: 'f.xlsx' });
+});
