@@ -158,8 +158,11 @@ test('importação simultânea: quem começou com a base velha é recusado (409)
   assert.deepEqual((await P.load(fresh(r), 'M')).items[0].dias, { '2026-11-03': [2, 20] }, 'o que a primeira gravou continua lá');
   await P.importVendas(fresh(r), admin, 'M', vendas('2026-11-01', '2026-11-08', { '7890000000011': { desc: 'P1', dias: { '2026-11-04': [9, 90] } } }));    /* tentar de novo, já com a base atual, funciona */
   assert.deepEqual((await P.load(fresh(r), 'M')).items[0].dias, { '2026-11-04': [9, 90] });
-  /* a outra loja não é afetada pela revisão desta */
+  /* lojas diferentes também não se sobrescrevem: a base é regravada inteira, então a revisão é da aba toda */
   const f2 = fresh(r); await f2.load(['PromoBase', 'Config']);
   await P.importEstoque(fresh(r), admin, 'M', { items: [est('7890000000011', { estoque: 1 })], arquivo: 'b2.xlsx' });
-  await P.importEstoque(f2, admin, 'F', { items: [est('7890000000011')], arquivo: 'f.xlsx' });
+  await assert.rejects(P.importEstoque(f2, admin, 'F', { items: [est('7890000000099')], arquivo: 'f.xlsx' }), e => e.status === 409, 'F começou com a base velha: recusada, nada da M é apagado');
+  assert.equal((await P.load(fresh(r), 'M')).items[0].estoque, 1, 'o estoque novo da M continua lá');
+  await P.importEstoque(fresh(r), admin, 'F', { items: [est('7890000000099')], arquivo: 'f.xlsx' });        /* de novo, com a base atual, passa */
+  assert.equal((await P.load(fresh(r), 'F')).items.length, 1);
 });

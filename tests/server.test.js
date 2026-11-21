@@ -406,10 +406,11 @@ test('senha: padrão no primeiro acesso, troca obrigatória, regras, bloqueio e 
   assert.match((await setPassword(repo(), ok.user, 'OutraSenha8', 'errada1', c)).error, /atual não confere/);
   assert.ok((await setPassword(repo(), ok.user, 'OutraSenha8', 'MinhaSenha9', c)).user, 'troca com a atual');
   /* bloqueio */
-  const t0 = Date.now();
+  const t0 = Date.now(); require('../lib/login-senha')._resetLimiter();
   for (let i = 1; i < MAX_TRIES; i++) assert.equal((await checkPassword(repo(), email, 'x' + i, c, t0)).status, 401);
-  const lock = await checkPassword(repo(), email, 'x9', c, t0); assert.equal(lock.status, 429); assert.match(lock.error, /bloqueada/);
-  assert.equal((await checkPassword(repo(), email, 'OutraSenha8', c, t0 + 60e3)).status, 429, 'nem a senha certa entra bloqueado');
+  const quinta = await checkPassword(repo(), email, 'x9', c, t0); assert.equal(quinta.status, 401); assert.equal(quinta.error, 'E-mail ou senha incorretos.', 'a quinta tentativa errada não revela que a conta bloqueou');
+  assert.equal((await checkPassword(repo(), email, 'chute', c, t0 + 1000)).status, 401, 'bloqueada, senha errada: mesma resposta de qualquer erro');
+  const certa = await checkPassword(repo(), email, 'OutraSenha8', c, t0 + 2000); assert.equal(certa.status, 429); assert.match(certa.error, /Muitas tentativas/, 'só quem acerta a senha vê o aviso de bloqueio');
   assert.ok((await checkPassword(repo(), email, 'OutraSenha8', c, t0 + LOCK_MS + 1000)).user, 'depois do prazo volta a valer');
   /* administrador redefine: volta para a senha padrão */
   const adm = { email: 'dev@agencia.test', nome: 'Dev', papel: 'admin', tipo: 'equipe', empresas: [] };
