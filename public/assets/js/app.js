@@ -202,7 +202,7 @@
     setupClients(); route();
   }
   /* ajudantes da Central de Inteligência: dados do site entregues às funções puras do cérebro (assets/js/brain/) */
-  const brainHelpers = () => ({ ico, banner, toast, esc, store, canWrite: CAN_WRITE, today: TODAY_ISO,
+  const brainHelpers = () => ({ ico, banner, toast, esc, store, team: REG.team || [], canWrite: CAN_WRITE, today: TODAY_ISO,
     input: () => ({ today: TODAY_ISO, clients: CLIENTS.map(c => ({ key: c.key, id: c.id, name: c.name, services: c.services })), posts: posts(), weeks: allWeeks(), gens: store.get("weekGen", []), decisions: store.get("decisions", []),
       promo: window.N7PromoBrain ? window.N7PromoBrain.summaries() : {}, owners: store.get("owners", {}), team: REG.team || [], authority: store.get("authority", []), goals: store.get("goals", {}), ideas: F.getIdeas(), slots: F.getFlow().slots, checks,
       needsClient: p => { const st = F.approvalState(p.code, p.b); return st.needs.includes("client") && !st.rec.client; }, planSource: D.PLAN_SOURCE }),
@@ -362,9 +362,12 @@
     return out.sort((a, b) => a.at.localeCompare(b.at));
   }
   const queuePanel = () => {
-    const q = myQueue(); if (!q.length) return "";
+    const q = myQueue(), me = String(ME.email || "").toLowerCase(), todayIso = toIso(TODAY);
+    const tarefas = (store.get("decisions", []) || []).filter(d => d.status === "atribuida" && d.responsavel === me).sort((x, y) => x.ate.localeCompare(y.ate));
+    if (!q.length && !tarefas.length) return "";
+    if (!q.length) return `<div class="panel">${banner("list", "Minha fila", `${tarefas.length} tarefa(s) do cérebro`)}<div class="panel-body"><div class="post-list">${tarefas.slice(0, 6).map(d => `<a class="post-row" href="#cerebro/radar"><span class="t">${esc(d.titulo)}<small>tarefa do cérebro · ${d.ate < todayIso ? `<b style="color:var(--red)">vencida, era para ${dm(d.ate)}</b>` : `até ${dm(d.ate)}`}</small></span></a>`).join("")}</div></div></div>`;
     const today = toIso(TODAY);
-    return `<div class="panel">${banner("list", "Minha fila", `${q.length} etapa(s) comigo`)}<div class="panel-body"><div class="post-list">${q.slice(0, 6).map(x => `<button type="button" class="post-row" data-open="${x.p.code}" style="background:none;text-align:left">${fmtBadge(x.p.format)}<span class="t">${esc(STEP_NAMES[x.st])} · ${esc(x.p.title)}<small>${esc(CL[x.p.b].short)} · ${x.p.code} · ${x.at < today ? `<b style="color:var(--red)">atrasada, era para ${dm(x.at)}</b>` : `até ${DOW[toDate(x.at).getDay()]} ${dm(x.at)}`}</small></span></button>`).join("")}</div>${q.length > 6 ? `<p class="src">e mais ${q.length - 6} etapa(s).</p>` : ""}</div></div>`;
+    return `<div class="panel">${banner("list", "Minha fila", `${q.length} etapa(s) comigo`)}<div class="panel-body"><div class="post-list">${q.slice(0, 6).map(x => `<button type="button" class="post-row" data-open="${x.p.code}" style="background:none;text-align:left">${fmtBadge(x.p.format)}<span class="t">${esc(STEP_NAMES[x.st])} · ${esc(x.p.title)}<small>${esc(CL[x.p.b].short)} · ${x.p.code} · ${x.at < today ? `<b style="color:var(--red)">atrasada, era para ${dm(x.at)}</b>` : `até ${DOW[toDate(x.at).getDay()]} ${dm(x.at)}`}</small></span></button>`).join("")}</div>${q.length > 6 ? `<p class="src">e mais ${q.length - 6} etapa(s).</p>` : ""}${tarefas.length ? `<span class="col-title">Tarefas do cérebro</span><div class="post-list">${tarefas.slice(0, 4).map(d => `<a class="post-row" href="#cerebro/radar"><span class="t">${esc(d.titulo)}<small>${d.ate < todayIso ? `<b style="color:var(--red)">vencida, era para ${dm(d.ate)}</b>` : `até ${dm(d.ate)}`}</small></span></a>`).join("")}</div>` : ""}</div></div>`;
   };
   function renderPainel(v) {
     if (IS_CLIENT) return renderPainelCliente(v);

@@ -18,7 +18,7 @@ export const STATUS_NAME = { prop: "Proposta", plan: "A planejar", prod: "Em pro
 export const STEPS = ["roteiro", "gravar", "editar", "aprovar", "agendar"];
 export const STEP_NAME = { roteiro: "o roteiro", gravar: "a gravação", editar: "a edição / design", aprovar: "a aprovação", agendar: "o agendamento" };
 export const DONE = { prop: 0, plan: 0, prod: 2, apr: 3, agd: 5, pub: 5 };   /* quantas etapas já foram feitas em cada status */
-export const MEMORY_DAYS = { feita: 0, adiada: 2, ignorada: 14 };
+export const MEMORY_DAYS = { feita: 0, adiada: 2, ignorada: 14, atribuida: 0 };
 
 /* molde de achado: todo agente devolve uma lista destes */
 export const F = (agente, chave, o) => Object.assign({ agente, chave, marca: "", nome: "", kind: "acao", score: 0, titulo: "", detalhe: "", evidencia: [], acao: "", link: null, rel: [], tags: [], reincidente: false }, o, { score: clamp(o.score) });

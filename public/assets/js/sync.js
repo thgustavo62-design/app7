@@ -40,7 +40,7 @@
         (x, o) => Object.assign({ t: "week", op: "upsert", v: x.v ?? (o && o.v) }, strip(x), { v: x.v ?? (o && o.v) }),
         o => ({ t: "week", op: "delete", tipo: o.tipo, inicio: o.inicio, marca: o.marca, v: o.v }));
       case "decisions": return diffList(old, nw, "chave",
-        (x, o) => ({ t: "decision", op: "upsert", chave: x.chave, agente: x.agente, marca: x.marca || "", titulo: x.titulo, status: x.status, ate: x.ate, nota: x.nota || "", v: x.v ?? (o && o.v) }),
+        (x, o) => ({ t: "decision", op: "upsert", chave: x.chave, agente: x.agente, marca: x.marca || "", titulo: x.titulo, status: x.status, ate: x.ate, nota: x.nota || "", responsavel: x.responsavel || "", v: x.v ?? (o && o.v) }),
         o => ({ t: "decision", op: "delete", chave: o.chave, marca: o.marca || "", v: o.v }));
       case "authority": return diffList(old, nw, x => `${x.tipo}|${x.inicio}|${x.marca}|${x.canal}`,
         (x, o) => Object.assign({ t: "auth", op: "upsert" }, strip(x), { v: x.v ?? (o && o.v) }),

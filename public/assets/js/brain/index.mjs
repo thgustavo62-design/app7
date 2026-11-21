@@ -42,7 +42,7 @@ export function run(ctx) {
   const keys = new Set(all.map(f => f.chave));
   const memoria = {
     voltou: open.filter(f => f.reincidente).sort((a, b) => b.score - a.score),
-    resolveu: (ctx.decisions || []).filter(d => d.status === "feita" && d.chave && !keys.has(d.chave) && d.ate && d.ate <= ctx.today).map(d => ({ chave: d.chave, titulo: d.titulo || d.chave, marca: d.marca || "", agente: d.agente || "", em: d.ate }))
+    resolveu: (ctx.decisions || []).filter(d => (d.status === "feita" || d.status === "atribuida") && d.chave && !keys.has(d.chave) && d.ate && d.ate <= ctx.today).map(d => ({ chave: d.chave, titulo: d.titulo || d.chave, marca: d.marca || "", agente: d.agente || "", em: d.ate, responsavel: d.responsavel || "" }))
   };
   return {
     today: ctx.today, decision: decision && Object.assign({ urgencia: urgencia(decision.score) }, decision), also: also.map(f => Object.assign({ urgencia: urgencia(f.score) }, f)), radar: rest, wins: open.filter(f => f.kind === "ganho").sort((x, y) => y.score - x.score),
