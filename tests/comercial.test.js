@@ -109,3 +109,38 @@ test('sync: ficha, contrato e agência viram operações', () => {
   assert.equal(diffKey('contracts', [], [{ id: 'ct-1', cliente_nome: 'Z' }])[0].t, 'contract');
   assert.deepEqual(diffKey('agency', { cnpj: '1' }, { cnpj: '1' }), []); assert.equal(diffKey('agency', {}, { cnpj: '1' })[0].t, 'agency');
 });
+
+test('funil: previsão ponderada só com valor informado, retornos atrasados, taxa de fechamento só com amostra e motivos de perda', () => {
+  const H = '2026-11-21', p = (o) => Object.assign({ id: 'p-' + Math.random(), nome: 'X', etapa: 'novo', valor_estimado: '', proximo_contato: '', atividades: [] }, o);
+  const f = C.funil([
+    p({ id: 'a', nome: 'A', etapa: 'proposta', valor_estimado: 2000, proximo_contato: '2026-11-10', atividades: [{ em: '2026-11-01', tipo: 'ligacao', texto: 'x' }, { em: '2026-11-19', tipo: 'etapa', texto: 'Reunião → Proposta' }] }),
+    p({ id: 'b', nome: 'B', etapa: 'reuniao', valor_estimado: 1000, proximo_contato: '2026-11-25' }),
+    p({ id: 'c', nome: 'C', etapa: 'contato' }),
+    p({ id: 'd', nome: 'D', etapa: 'perdido', motivo: 'Preço: achou caro', origem: 'Indicação' }), p({ id: 'e', etapa: 'fechado', origem: 'Indicação', valor_estimado: 3000 })
+  ], H);
+  assert.equal(f.aberto.n, 3); assert.equal(f.aberto.valor, 3000); assert.equal(f.aberto.semValor, 1, 'valor que falta não vira zero: é contado à parte');
+  assert.equal(f.aberto.ponderado, 1600, '2000×60% + 1000×40%'); assert.equal(f.colunas.fechado.valor, 3000);
+  assert.deepEqual(f.atrasados.map(x => [x.id, x.dias]), [['a', 11]]); assert.deepEqual(f.semProximo.map(x => x.id), ['c']);
+  assert.deepEqual(f.parados.map(x => [x.id, x.dias]), [['a', 20]], 'mudança de etapa não conta como contato');
+  assert.equal(f.fechamento.taxa, null, 'poucas decisões: sem taxa'); assert.deepEqual(f.motivos, [['Preço', 1]]);
+  assert.equal(f.origens.find(o => o.origem === 'Indicação').ganhos, 1);
+  const muitos = [...Array(3)].map(() => p({ etapa: 'fechado' })).concat([...Array(2)].map(() => p({ etapa: 'perdido' })));
+  assert.equal(C.funil(muitos, H).fechamento.taxa, 60);
+  assert.deepEqual(C.retornos([p({ id: 'a', etapa: 'novo', proximo_contato: '2026-11-20', responsavel: 'z@x' }), p({ id: 'b', etapa: 'novo', proximo_contato: '2026-12-01' }), p({ id: 'c', etapa: 'fechado', proximo_contato: '2026-11-01' })], H).map(x => x.id), ['a']);
+  assert.deepEqual(C.retornos([p({ id: 'a', etapa: 'novo', proximo_contato: '2026-11-20', responsavel: 'z@x' })], H, 'outro@x'), []);
+});
+
+test('dados do funil: valor, próximo contato e histórico de contatos gravam, validam e voltam na leitura', async () => {
+  const r = mk();
+  await run(r, [pr({ valor_estimado: 2500, proximo_contato: '2026-11-30', proximo_passo: 'Enviar proposta', atividades: [{ em: '2026-11-20', tipo: 'ligacao', texto: 'Quer ver cases' }] })]);
+  const p = (await model.loadState(new Repo(r.d))).prospects[0];
+  assert.equal(p.valor_estimado, 2500); assert.equal(p.proximo_contato, '2026-11-30'); assert.equal(p.proximo_passo, 'Enviar proposta');
+  assert.deepEqual(p.atividades, [{ em: '2026-11-20', tipo: 'ligacao', texto: 'Quer ver cases' }]);
+  await assert.rejects(run(r, [pr({ valor_estimado: -5, v: p.v })]), /Valor estimado inválido/);
+  await assert.rejects(run(r, [pr({ proximo_contato: '30/11', v: p.v })]), /Data inválida/);
+  await assert.rejects(run(r, [pr({ atividades: [{ em: '2026-11-20', tipo: 'fax', texto: 'x' }], v: p.v })]), /Tipo de contato/);
+  await run(r, [pr({ valor_estimado: '', proximo_contato: '', atividades: [], v: p.v })]);
+  const q = (await model.loadState(new Repo(r.d))).prospects[0]; assert.deepEqual([q.valor_estimado, q.proximo_contato, q.atividades], [null, '', []]);
+  const a = { ...p, atividades: [...p.atividades, { em: '2026-11-21', tipo: 'nota', texto: 'ok' }] };
+  assert.equal(diffKey('prospects', [p], [a])[0].atividades.length, 2, 'adicionar contato vira operação com a lista inteira');
+});

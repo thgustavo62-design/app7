@@ -703,3 +703,14 @@ html.is-offline body::before { content: "Sem conexão"; position: fixed; top: en
 
 /* as subpáginas ficam no menu da esquerda; a barra horizontal só aparece onde o menu vira gaveta (celular) */
 @media (min-width: 901px) { .subtabs.in-side { display: none; } }
+
+/* Comercial: funil de vendas */
+.fn-board { display: flex; gap: 12px; overflow-x: auto; align-items: flex-start; padding-bottom: 6px; }
+.fn-col { flex: 1 0 176px; max-width: 260px; max-height: none; min-height: 120px; }
+.fn-card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; display: flex; flex-direction: column; gap: 3px; cursor: grab; }
+.fn-card.late { border-color: var(--red); } .fn-card.drag { opacity: .45; }
+.fn-name { background: none; border: 0; padding: 0; text-align: left; font-weight: 700; color: var(--text); cursor: pointer; font-size: 13.5px; }
+.fn-name:hover { color: var(--violet-d); } .fn-late { color: var(--red); font-size: 12px; }
+.fn-move { margin-top: 4px; font-size: 12px; max-width: 100%; } .fn-empty { text-align: center; padding: 14px 4px; }
+.linkish { background: none; border: 0; padding: 0; color: inherit; cursor: pointer; text-align: left; font: inherit; } .linkish:hover { color: var(--violet-d); text-decoration: underline; }
+.cm-ativ li { padding: 4px 0; border-bottom: 1px solid var(--line); } .cm-ativ li:last-child { border-bottom: 0; }

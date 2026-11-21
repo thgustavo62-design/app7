@@ -28,7 +28,7 @@
     const kp = `<div class="kpis">${k("Clientes ativos", String(r.clientes), Object.entries(r.porSetor).map(([s, n]) => `${n} ${esc((SV.SECTORS[s] || s).toLowerCase())}`).join(" · ") || "—", "home")}
       ${k("Receita mensal recorrente", r.mrr ? BRL(r.mrr) : "sem dado", r.mrr ? "contratos assinados" : "registre os contratos em Contratos", "money", "green")}
       ${k("Oportunidades de venda", String(r.oportunidades), "serviços que combinam com o que o cliente já tem", "spark", "amber")}
-      ${k("Clientes novos em aberto", String(abertos.length), abertos.length ? `${pros.filter(p => p.etapa === "proposta").length} com proposta enviada` : "cadastre a ficha em Clientes novos", "target")}</div>`;
+      ${k("Clientes novos em aberto", String(abertos.length), (() => { const F = C.funil(pros, hojeIso()); return F.atrasados.length ? `${F.atrasados.length} retorno(s) atrasado(s): veja o Funil` : abertos.length ? `${pros.filter(p => p.etapa === "proposta").length} com proposta enviada${F.aberto.ponderado ? ` · previsão ${brl0(F.aberto.ponderado)}/mês` : ""}` : "cadastre a ficha em Clientes novos"; })(), "target", C.funil(pros, hojeIso()).atrasados.length ? "red" : "")}</div>`;
     const linhas = a.linhas.map(l => `<tr><td><b>${esc(l.nome)}</b></td><td>${esc(SV.SECTORS[l.setor] || l.setor || "—")}</td><td>${chips(l.servicos)}</td>
       <td class="num">${l.saude == null ? `<span class="na">sem dado</span>` : `<b style="color:var(${l.saude < 50 ? "--red" : "--green"})">${l.saude}</b>`}</td>
       <td>${l.contrato ? `${l.contrato.valor ? BRL(l.contrato.valor) : "sem valor"} <span class="badge ${l.contrato.status === "assinado" ? "st-pub" : "p1"}">${esc(l.contrato.status)}</span>` : `<span class="na">sem contrato</span>`}</td>
@@ -40,7 +40,80 @@
       <div class="panel">${H.banner("list", "Carteira atual", "serviços, saúde, contrato e onde dá para vender mais")}<div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Setor</th><th>Serviços</th><th class="num">Saúde</th><th>Contrato</th><th>Oportunidades</th><th>Atenção</th></tr></thead><tbody>${linhas || `<tr><td colspan="7"><div class="empty">Nenhum cliente cadastrado.</div></td></tr>`}</tbody></table></div>
         <p class="src" style="padding:0 16px 12px">Saúde é a nota do Cérebro para quem tem redes sociais. A receita recorrente soma só contratos assinados. Oportunidade é uma sugestão por regra (o que o cliente tem e o setor dele), não uma previsão de venda.</p></div>
       <div class="grid g2"><div class="panel">${H.banner("chart", "Serviços na carteira", "quantos clientes têm cada serviço")}<div class="panel-body">${cob}</div></div>
-        <div class="panel">${H.banner("target", "Funil de clientes novos", "fichas por etapa")}<div class="panel-body">${funil}<p><a href="#comercial/novos">Abrir as fichas →</a></p></div></div></div>`;
+        <div class="panel">${H.banner("target", "Funil de clientes novos", "fichas por etapa")}<div class="panel-body">${funil}<p><a href="#comercial/funil">Abrir o funil →</a> · <a href="#comercial/novos">Abrir as fichas →</a></p></div></div></div>`;
+  }
+
+  /* ================= Funil de vendas ================= */
+  const hojeIso = () => C.hojeIso();
+  const brl0 = v => BRL(v).replace(",00", "");
+  function gravarPros(fn) { const l = JSON.parse(JSON.stringify(prospects())); fn(l); S.set("prospects", l); }
+  /* muda a etapa de uma ficha e deixa a mudança registrada no histórico; perdido pede o motivo antes */
+  function mover(id, etapa, motivo) {
+    const p = prospects().find(x => x.id === id); if (!p || p.etapa === etapa || !H.canWrite) return false;
+    if (etapa === "perdido" && !motivo) { ui.perda = { id }; return "perda"; }
+    const nota = `${C.ETAPAS[p.etapa]} → ${C.ETAPAS[etapa]}${motivo ? ` (${motivo})` : ""}`, ativ = { em: hojeIso(), tipo: "etapa", texto: nota };
+    gravarPros(l => { const r = l.find(x => x.id === id); r.etapa = etapa; r.motivo = etapa === "perdido" ? motivo : ""; r.atividades = [ativ, ...(r.atividades || [])].slice(0, 60); });
+    if (ui.edit && ui.edit.id === id) ui.edit = Object.assign({}, ui.edit, { etapa, motivo: etapa === "perdido" ? motivo : "", atividades: [ativ, ...(ui.edit.atividades || [])].slice(0, 60) });
+    ui.perda = null; ui.fechou = etapa === "fechado" ? id : null;
+    return true;
+  }
+  function funilTela(view) {
+    const pros = prospects(), F = C.funil(pros, hojeIso()), k = H.kpi, ro = !H.canWrite, nomeDe = e => (team().find(u => u.email === e) || { nome: "" }).nome;
+    const tx = F.fechamento.taxa;
+    const kp = `<div class="kpis">${k("Em negociação", String(F.aberto.n), F.aberto.valor ? `${brl0(F.aberto.valor)}/mês estimados${F.aberto.semValor ? ` · ${F.aberto.semValor} sem valor` : ""}` : (F.aberto.n ? "informe o valor estimado nas fichas" : "nenhuma ficha em aberto"), "target")}
+      ${k("Previsão ponderada", F.aberto.valor ? brl0(F.aberto.ponderado) : "sem dado", F.aberto.valor ? "valor × chance da etapa (10% a 60%). Estimativa, não promessa" : "precisa do valor estimado nas fichas", "money", "green")}
+      ${k("Retornos atrasados", String(F.atrasados.length), F.atrasados.length ? "contato combinado que passou da data" : "nenhum em atraso", "bell", F.atrasados.length ? "red" : "")}
+      ${k("Taxa de fechamento", tx == null ? "sem amostra" : `${tx}%`, tx == null ? `${F.fechamento.amostra} decisão(ões): precisa de 5 para calcular` : `${F.fechamento.ganhos} fechados de ${F.fechamento.amostra} decididos`, "chart")}</div>`;
+    const card = p => {
+      const atras = p.proximo_contato && p.proximo_contato < hojeIso() && C.ABERTAS.includes(p.etapa), fit = C.fit(p), uc = C.ultimoContato(p);
+      return `<div class="fn-card${atras ? " late" : ""}" ${ro ? "" : 'draggable="true"'} data-id="${esc(p.id)}">
+        <span class="fn-name" role="button" tabindex="0" data-abrir="${esc(p.id)}">${esc(p.nome)}</span>
+        <small class="src">${esc(SV.SECTORS[p.setor] || "sem setor")}${C.valorOk(p) ? ` · <b>${brl0(p.valor_estimado)}</b>/mês` : ""}</small>
+        ${p.proximo_contato ? `<small class="${atras ? "fn-late" : "src"}">${atras ? "retorno atrasado: " : "retorno em "}${dm(p.proximo_contato)}${p.proximo_passo ? ` · ${esc(p.proximo_passo)}` : ""}</small>` : (C.ABERTAS.includes(p.etapa) ? `<small class="fn-late">sem próximo contato marcado</small>` : "")}
+        ${uc ? `<small class="src">último contato ${dm(uc)}</small>` : ""}${p.responsavel ? `<small class="src">com ${esc(nomeDe(p.responsavel) || p.responsavel)}</small>` : ""}${p.etapa === "perdido" && p.motivo ? `<small class="src">motivo: ${esc(p.motivo)}</small>` : ""}
+        ${ro ? "" : `<select class="fn-move" data-mover="${esc(p.id)}" aria-label="Mover ${esc(p.nome)} para outra etapa"><option value="">Mover para…</option>${Object.entries(C.ETAPAS).filter(([e]) => e !== p.etapa).map(([e, n]) => `<option value="${e}">${esc(n)}</option>`).join("")}</select>`}</div>`;
+    };
+    const colunas = Object.entries(C.ETAPAS).map(([e, n]) => { const c = F.colunas[e], l = pros.filter(p => p.etapa === e).sort((a, b) => (a.proximo_contato || "9999").localeCompare(b.proximo_contato || "9999"));
+      return `<div class="kcol fn-col" data-etapa="${e}"><div class="kcol-head"><span>${esc(n)}</span><small>${c.n}${c.valor ? ` · ${brl0(c.valor)}` : ""}${C.PROB[e] && e !== "fechado" ? ` · ${C.PROB[e]}%` : ""}</small></div>${l.map(card).join("") || `<p class="src fn-empty">${ro ? "—" : "Arraste uma ficha para cá"}</p>`}</div>`; }).join("");
+    const perda = ui.perda && pros.find(p => p.id === ui.perda.id);
+    const aviso = perda ? `<div class="panel"><div class="panel-body"><p><b>Por que ${esc(perda.nome)} não fechou?</b> O motivo ajuda a ver o que corrigir na venda.</p><div class="toolbar"><select id="fn-motivo">${C.MOTIVOS.map(m => `<option>${esc(m)}</option>`).join("")}</select><input type="text" id="fn-motivo-txt" placeholder="Detalhe (opcional)" maxlength="120" style="flex:1;min-width:160px"><button type="button" class="btn primary sm" id="fn-perda-ok">Registrar perda</button><button type="button" class="btn sm" id="fn-perda-x">Cancelar</button></div></div></div>` : "";
+    const fechou = ui.fechou && pros.find(p => p.id === ui.fechou && p.etapa === "fechado");
+    const aviso2 = fechou ? `<div class="panel"><div class="panel-body"><p><b>${esc(fechou.nome)} fechou.</b> Próximo passo: montar o contrato com os serviços combinados.</p><div class="toolbar"><a class="btn primary sm" href="#comercial/contratos" id="fn-contrato" data-id="${esc(fechou.id)}">Montar contrato</a><button type="button" class="btn sm" id="fn-contrato-x">Agora não</button></div></div></div>` : "";
+    const atr = F.atrasados.map(a => `<li><button type="button" class="linkish" data-abrir="${esc(a.id)}"><b>${esc(a.nome)}</b></button> <small class="src">${a.dias} dia(s) de atraso${a.responsavel ? ` · ${esc(nomeDe(a.responsavel) || a.responsavel)}` : ""}</small></li>`).join("");
+    const semp = F.semProximo.slice(0, 8).map(a => `<li><button type="button" class="linkish" data-abrir="${esc(a.id)}">${esc(a.nome)}</button></li>`).join("");
+    const par = F.parados.map(a => `<li><button type="button" class="linkish" data-abrir="${esc(a.id)}">${esc(a.nome)}</button> <small class="src">${a.dias} dias sem contato</small></li>`).join("");
+    const mot = F.motivos.map(([m, n]) => `<div class="mrow"><span>${esc(m)}</span><b>${n}</b></div>`).join("");
+    const org = F.origens.map(o => `<div class="mrow"><span>${esc(o.origem)}</span><b>${o.n} ficha(s) · ${o.ganhos} fechada(s)</b></div>`).join("");
+    view.innerHTML = `${kp}${aviso}${aviso2}
+      <div class="panel">${H.banner("target", "Funil de vendas", ro ? "somente leitura" : "arraste a ficha para outra etapa ou use \"Mover para…\"")}<div class="panel-body"><div class="fn-board">${colunas}</div><p class="src" style="margin-top:8px">A porcentagem de cada etapa é a chance de fechar usada na previsão: um ponto de partida comum de CRM, não medido na sua agência. Com o histórico de fechados e perdidos você pode calibrar.</p></div></div>
+      <div class="grid g2"><div class="panel">${H.banner("bell", "Precisam de atenção", `${F.atrasados.length + F.semProximo.length + F.parados.length}`)}<div class="panel-body">
+          ${atr ? `<p class="lbl">Retorno atrasado</p><ul class="plain">${atr}</ul>` : ""}${semp ? `<p class="lbl">Sem próximo contato marcado</p><ul class="plain">${semp}</ul>` : ""}${par ? `<p class="lbl">Parados há 14 dias ou mais</p><ul class="plain">${par}</ul>` : ""}
+          ${atr || semp || par ? "" : `<p class="src">Tudo em dia: toda ficha aberta tem retorno marcado e contato recente.</p>`}</div></div>
+        <div class="panel">${H.banner("chart", "Por que perdemos e de onde vêm", "só o que está registrado nas fichas")}<div class="panel-body"><p class="lbl">Motivos de perda</p>${mot || `<p class="src">Nenhuma perda registrada.</p>`}<p class="lbl">Origem das fichas</p>${org || `<p class="src">Preencha "De onde veio" nas fichas.</p>`}</div></div></div>`;
+    const refazer = () => render(view.closest("#view") || view, "funil", H);
+    $$("[data-abrir]", view).forEach(b => { const abrir = () => { ui.novo = null; ui.edit = null; ui.novoSujo = false; ui.sel = b.dataset.abrir; location.hash = "#comercial/novos"; }; b.onclick = abrir; b.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); abrir(); } }; });
+    $$("[data-mover]", view).forEach(sel => sel.onchange = () => { if (!sel.value) return; const r = mover(sel.dataset.mover, sel.value); if (r === true) H.toast("Etapa atualizada."); refazer(); });
+    let arrastando = null;
+    $$(".fn-card[draggable]", view).forEach(c => { c.addEventListener("dragstart", e => { arrastando = c.dataset.id; e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", arrastando); } catch (x) { /* navegador sem suporte */ } c.classList.add("drag"); }); c.addEventListener("dragend", () => { c.classList.remove("drag"); $$(".fn-col", view).forEach(x => x.classList.remove("over")); }); });
+    $$(".fn-col", view).forEach(col => { col.addEventListener("dragover", e => { if (arrastando) { e.preventDefault(); col.classList.add("over"); } }); col.addEventListener("dragleave", () => col.classList.remove("over")); col.addEventListener("drop", e => { e.preventDefault(); col.classList.remove("over"); const id = arrastando; arrastando = null; if (!id) return; const r = mover(id, col.dataset.etapa); if (r === true) H.toast("Etapa atualizada."); refazer(); }); });
+    const ok = $("#fn-perda-ok", view); if (ok) ok.onclick = () => { const m = $("#fn-motivo", view).value, d = ($("#fn-motivo-txt", view).value || "").trim(); mover(ui.perda.id, "perdido", d ? `${m}: ${d}` : m); H.toast("Perda registrada."); refazer(); };
+    const px = $("#fn-perda-x", view); if (px) px.onclick = () => { ui.perda = null; refazer(); };
+    const cx = $("#fn-contrato-x", view); if (cx) cx.onclick = () => { ui.fechou = null; refazer(); };
+    const ct = $("#fn-contrato", view); if (ct) ct.onclick = () => { ui.ct = null; ui.ctDraft = { novo: true, cliente_tipo: "prospect", cliente_ref: ct.dataset.id }; ui.fechou = null; };
+  }
+
+  /* histórico de contatos da ficha (ligação, WhatsApp, reunião, nota e mudanças de etapa) */
+  function historico(f) {
+    const l = (f.atividades || []).slice(), ro = !H.canWrite;
+    return `<div class="panel">${H.banner("list", "Histórico de contatos", `${l.length} registro(s)`)}<div class="panel-body">
+      ${ro ? "" : `<div class="toolbar" id="cm-ativ"><select id="at-tipo">${Object.entries(C.ATIVIDADES).filter(([k]) => k !== "etapa").map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join("")}</select><input type="date" id="at-em" value="${hojeIso()}"><input type="text" id="at-txt" placeholder="O que foi falado ou combinado" maxlength="300" style="flex:1;min-width:200px"><button type="button" class="btn sm primary" id="at-add">Registrar</button></div>`}
+      ${l.length ? `<ul class="plain cm-ativ">${l.map(a => `<li><small class="src">${dm(a.em)} · ${esc(C.ATIVIDADES[a.tipo] || a.tipo)}</small> ${esc(a.texto)}</li>`).join("")}</ul>` : `<p class="src">Nenhum contato registrado ainda.</p>`}</div></div>`;
+  }
+  function registrar(id, tipo, em, texto) {
+    const ativ = { em, tipo, texto };
+    gravarPros(l => { const r = l.find(x => x.id === id); r.atividades = [ativ, ...(r.atividades || [])].sort((a, b) => b.em.localeCompare(a.em)).slice(0, 60); });
+    const novas = (prospects().find(x => x.id === id) || {}).atividades || [];
+    if (ui.edit && ui.edit.id === id) ui.edit = Object.assign({}, ui.edit, { atividades: novas });
   }
 
   /* ================= Clientes novos ================= */
@@ -58,14 +131,15 @@
         <p class="lbl">Serviços de interesse</p><div class="radio-row">${SV.ORDER.map(s => `<label class="check"><input type="checkbox" name="svc" value="${s}"${(f.servicos || []).includes(s) ? " checked" : ""}> ${esc(SV.SERVICES[s].name)}</label>`).join("")}</div></fieldset>
       <fieldset><legend>Andamento</legend><div class="fgrid">
         <label class="fld"><span>Etapa</span><select name="etapa">${opts(C.ETAPAS, f.etapa || "novo")}</select></label>
-        <label class="fld"><span>Responsável</span><select name="responsavel"><option value="">ninguém</option>${team().map(u => `<option value="${esc(u.email)}"${u.email === f.responsavel ? " selected" : ""}>${esc(u.nome)}</option>`).join("")}</select></label>${fld("motivo", "Motivo (se perdido)", f.motivo)}</div>
+        <label class="fld"><span>Responsável</span><select name="responsavel"><option value="">ninguém</option>${team().map(u => `<option value="${esc(u.email)}"${u.email === f.responsavel ? " selected" : ""}>${esc(u.nome)}</option>`).join("")}</select></label>${fld("motivo", "Motivo (se perdido)", f.motivo, ' list="cm-motivos"')}<datalist id="cm-motivos">${C.MOTIVOS.map(m => `<option value="${esc(m)}">`).join("")}</datalist>
+        ${fld("valor_estimado", "Valor estimado do contrato (R$/mês)", f.valor_estimado == null || f.valor_estimado === "" ? "" : String(f.valor_estimado).replace(".", ","), ' inputmode="decimal"')}<label class="fld"><span>Próximo contato</span><input type="date" name="proximo_contato" value="${esc(f.proximo_contato || "")}"></label>${fld("proximo_passo", "Próximo passo combinado", f.proximo_passo)}</div>
         <div class="fgrid one">${area("observacoes", "Observações", f.observacoes, 3)}</div></fieldset></form>`;
   }
   function readFicha(view, base) {
     const f = $("#cm-form", view), g = n => (f.elements[n] ? f.elements[n].value.trim() : "");
     const orc = g("orcamento_midia").replace(/\./g, "").replace(",", ".");
     return Object.assign({}, base, { nome: g("nome"), contato: g("contato"), email: g("email"), telefone: g("telefone"), cidade: g("cidade"), segmento: g("segmento"), setor: g("setor"), porte: g("porte"), tempo_mercado: g("tempo_mercado"), origem: g("origem"), objetivo: g("objetivo"),
-      orcamento_midia: orc === "" || isNaN(Number(orc)) ? null : Number(orc), prazo: g("prazo"), canais: g("canais"), publico: g("publico"), diferenciais: g("diferenciais"), concorrentes: g("concorrentes"), dor: g("dor"), servicos: $$("input[name=svc]:checked", f).map(x => x.value), etapa: g("etapa") || "novo", responsavel: g("responsavel"), motivo: g("motivo"), observacoes: g("observacoes") });
+      orcamento_midia: orc === "" || isNaN(Number(orc)) ? null : Number(orc), valor_estimado: (() => { const t = g("valor_estimado").replace(/\./g, "").replace(",", "."); return t === "" || isNaN(Number(t)) ? null : Number(t); })(), proximo_contato: g("proximo_contato"), proximo_passo: g("proximo_passo"), prazo: g("prazo"), canais: g("canais"), publico: g("publico"), diferenciais: g("diferenciais"), concorrentes: g("concorrentes"), dor: g("dor"), servicos: $$("input[name=svc]:checked", f).map(x => x.value), etapa: g("etapa") || "novo", responsavel: g("responsavel"), motivo: g("motivo"), observacoes: g("observacoes") });
   }
   function analiseHtml(f) {
     const fit = C.fit(f), pos = C.posicionamento(f), c = fit.completude, n = NIVEL[fit.nivel];
@@ -88,7 +162,7 @@
     const cur = ui.novo || (ui.edit && ui.edit.id === ui.sel ? ui.edit : null) || list.find(p => p.id === ui.sel) || null, sujo = !!(ui.novo ? ui.novoSujo : (ui.edit && ui.edit.id === ui.sel));
     const itens = list.map(p => { const fit = C.fit(p); return `<button type="button" class="cm-item${cur && cur.id === p.id ? " on" : ""}" data-pick="${esc(p.id)}"><b>${esc(p.nome)}</b><small>${esc(SV.SECTORS[p.setor] || "sem setor")} · ${esc(C.ETAPAS[p.etapa] || "")}</small><span class="badge ${NIVEL[fit.nivel][1]}">prioridade ${NIVEL[fit.nivel][0]}</span></button>`; }).join("");
     view.innerHTML = `<div class="cm-wrap"><aside class="cm-list"><div class="toolbar">${H.canWrite ? `<button type="button" class="btn primary sm" id="cm-new">+ Nova ficha</button>` : ""}<span class="src">${list.length} ficha(s)</span></div>${itens || `<p class="src">Nenhuma ficha ainda. Clique em Nova ficha para cadastrar um cliente em potencial.</p>`}</aside>
-      <section class="cm-main">${cur ? `<div class="panel">${H.banner("file", esc(cur.nome || "Nova ficha"), "ficha do cliente", H.canWrite ? `<span class="badge" id="cm-dirty"${sujo ? "" : " hidden"}>não salva</span><button type="button" class="btn sm primary" id="cm-save">Salvar</button>${prospects().some(p => p.id === cur.id) ? `<a class="btn sm" href="#comercial/contratos" id="cm-contract">Montar contrato</a><button type="button" class="btn sm" id="cm-del">Excluir</button>` : ""}` : "")}<div class="panel-body">${fichaForm(cur)}</div></div><h2 class="sec-title">Análise e posicionamento</h2><div id="cm-analise">${analiseHtml(cur)}</div>` : `<div class="panel"><div class="panel-body"><p class="src">Escolha uma ficha à esquerda ou crie uma nova. Ao preencher, a análise e o posicionamento sugerido aparecem aqui.</p></div></div>`}</section></div>`;
+      <section class="cm-main">${cur ? `<div class="panel">${H.banner("file", esc(cur.nome || "Nova ficha"), "ficha do cliente", H.canWrite ? `<span class="badge" id="cm-dirty"${sujo ? "" : " hidden"}>não salva</span><button type="button" class="btn sm primary" id="cm-save">Salvar</button>${prospects().some(p => p.id === cur.id) ? `<a class="btn sm" href="#comercial/contratos" id="cm-contract">Montar contrato</a><button type="button" class="btn sm" id="cm-del">Excluir</button>` : ""}` : "")}<div class="panel-body">${fichaForm(cur)}</div></div>${prospects().some(p => p.id === cur.id) ? historico(cur) : `<p class="src">Salve a ficha para começar o histórico de contatos.</p>`}<h2 class="sec-title">Análise e posicionamento</h2><div id="cm-analise">${analiseHtml(cur)}</div>` : `<div class="panel"><div class="panel-body"><p class="src">Escolha uma ficha à esquerda ou crie uma nova. Ao preencher, a análise e o posicionamento sugerido aparecem aqui.</p></div></div>`}</section></div>`;
     $$("[data-pick]", view).forEach(b => b.onclick = () => { ui.novo = null; ui.edit = null; ui.novoSujo = false; ui.sel = b.dataset.pick; render(view.closest("#view") || view, "novos", H); });
     const nw = $("#cm-new", view); if (nw) nw.onclick = () => { ui.edit = null; ui.novoSujo = false; ui.novo = { id: rid("p-"), nome: "", etapa: "novo", servicos: [] }; render(view.closest("#view") || view, "novos", H); };
     if (!cur) return;
@@ -101,11 +175,13 @@
     if (sv) sv.onclick = () => {
       draft = readFicha(view, cur); if (!draft.nome) return H.toast("Dê um nome à ficha.");
       const l = JSON.parse(JSON.stringify(prospects())), i = l.findIndex(p => p.id === draft.id);
+      if (i >= 0 && l[i].etapa !== draft.etapa) draft.atividades = [{ em: C.hojeIso(), tipo: "etapa", texto: `${C.ETAPAS[l[i].etapa]} → ${C.ETAPAS[draft.etapa]}${draft.etapa === "perdido" && draft.motivo ? ` (${draft.motivo})` : ""}` }, ...(draft.atividades || [])].slice(0, 60);
       if (i >= 0) l[i] = Object.assign({}, draft, { v: l[i].v }); else l.push(draft);
       S.set("prospects", l); ui.novo = null; ui.edit = null; ui.novoSujo = false; ui.sel = draft.id; H.toast("Ficha salva."); render(view.closest("#view") || view, "novos", H);
     };
     const del = $("#cm-del", view); if (del) { let armed = false; del.onclick = () => { if (!armed) { armed = true; del.textContent = "Confirmar"; setTimeout(() => { armed = false; del.textContent = "Excluir"; }, 3500); return; } S.set("prospects", prospects().filter(p => p.id !== cur.id)); ui.sel = null; ui.novo = null; H.toast("Ficha excluída."); render(view.closest("#view") || view, "novos", H); }; }
     const mk = $("#cm-contract", view); if (mk) mk.onclick = () => { ui.ct = null; ui.ctDraft = { novo: true, cliente_tipo: "prospect", cliente_ref: cur.id }; };
+    const ad = $("#at-add", view); if (ad) ad.onclick = () => { const t = ($("#at-txt", view).value || "").trim(), em = $("#at-em", view).value || hojeIso(); if (!t) return H.toast("Escreva o que foi falado ou combinado."); registrar(cur.id, $("#at-tipo", view).value, em, t); H.toast("Contato registrado."); render(view.closest("#view") || view, "novos", H); };
   }
 
   /* ================= Contratos ================= */
@@ -200,11 +276,11 @@
 
   /* ================= tela ================= */
   function render(view, sub, helpers) {
-    H = helpers; const tab = ["novos", "contratos"].includes(sub) ? sub : "carteira";
-    const titulo = { carteira: ["Carteira atual", "Como estão os clientes de hoje e onde dá para vender mais."], novos: ["Clientes novos", "Preencha a ficha de quem pode virar cliente e veja o posicionamento sugerido."], contratos: ["Contratos", "Monte o contrato a partir dos serviços, com valor, escopo e condições."] }[tab];
-    view.innerHTML = `<div class="page-head no-print"><div><div class="eyebrow">Comercial · só administradores</div><h1>${titulo[0]}</h1><p>${titulo[1]}</p></div></div><nav class="subtabs in-side no-print" aria-label="Comercial">${[["carteira", "Carteira atual"], ["novos", "Clientes novos"], ["contratos", "Contratos"]].map(([k, n]) => `<a href="#comercial${k === "carteira" ? "" : "/" + k}"${k === tab ? ' aria-current="page"' : ""}>${n}</a>`).join("")}</nav><div id="cm-body" class="view" style="gap:16px"></div>`;
+    H = helpers; const tab = ["funil", "novos", "contratos"].includes(sub) ? sub : "carteira";
+    const titulo = { carteira: ["Carteira atual", "Como estão os clientes de hoje e onde dá para vender mais."], funil: ["Funil de vendas", "Cada cliente novo em sua etapa, com valor, próximo contato e o que está atrasado."], novos: ["Clientes novos", "Preencha a ficha de quem pode virar cliente e veja o posicionamento sugerido."], contratos: ["Contratos", "Monte o contrato a partir dos serviços, com valor, escopo e condições."] }[tab];
+    view.innerHTML = `<div class="page-head no-print"><div><div class="eyebrow">Comercial · só administradores</div><h1>${titulo[0]}</h1><p>${titulo[1]}</p></div></div><nav class="subtabs in-side no-print" aria-label="Comercial">${[["carteira", "Carteira atual"], ["funil", "Funil de vendas"], ["novos", "Clientes novos"], ["contratos", "Contratos"]].map(([k, n]) => `<a href="#comercial${k === "carteira" ? "" : "/" + k}"${k === tab ? ' aria-current="page"' : ""}>${n}</a>`).join("")}</nav><div id="cm-body" class="view" style="gap:16px"></div>`;
     const body = $("#cm-body", view);
-    (tab === "novos" ? novos : tab === "contratos" ? contratos : carteira)(body);
+    (tab === "funil" ? funilTela : tab === "novos" ? novos : tab === "contratos" ? contratos : carteira)(body);
   }
 
   root.N7ComercialUI = { render };

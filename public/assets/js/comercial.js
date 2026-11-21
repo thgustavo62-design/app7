@@ -113,6 +113,39 @@
     return { linhas, resumo: { clientes: linhas.length, porSetor, cobertura, mrr, semContrato: linhas.filter(l => !l.contrato).length, oportunidades: linhas.reduce((t, l) => t + l.oportunidades.length, 0), emRisco: linhas.filter(l => l.saude != null && l.saude < 50).length } };
   }
 
+  /* ---------- funil de vendas ---------- */
+  /* Chance de fechar por etapa: ponto de partida comum em CRMs, NÃO medido. Ajuste conforme o histórico real da agência. */
+  const PROB = { novo: 10, contato: 20, reuniao: 40, proposta: 60, fechado: 100, perdido: 0 };
+  const MOTIVOS = ["Preço", "Parou de responder", "Escolheu outra agência", "Sem verba agora", "Momento errado", "Fora do nosso perfil", "Outro"];
+  const ATIVIDADES = { ligacao: "Ligação", whatsapp: "WhatsApp", email: "E-mail", reuniao: "Reunião", nota: "Nota", etapa: "Mudança de etapa" };
+  const ABERTAS = ["novo", "contato", "reuniao", "proposta"];
+  const hojeIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const diasEntre = (a, b) => Math.round((new Date(b + "T00:00:00Z") - new Date(a + "T00:00:00Z")) / 86400000);
+  const valorOk = p => p.valor_estimado !== "" && p.valor_estimado != null && isFinite(Number(p.valor_estimado)) && Number(p.valor_estimado) > 0;
+  const ultimoContato = p => (p.atividades || []).filter(a => a.tipo !== "etapa").map(a => a.em).sort().pop() || "";
+  const motivoBase = m => String(m || "").split(":")[0].trim() || "Sem motivo registrado";
+  /* Resumo do funil. Valor que falta fica de fora e é contado à parte (nunca vira zero); taxa de fechamento só com amostra mínima. */
+  function funil(pros, hoje = hojeIso()) {
+    const lista = pros || [], colunas = {};
+    Object.keys(ETAPAS).forEach(e => { const l = lista.filter(p => p.etapa === e); colunas[e] = { n: l.length, valor: l.filter(valorOk).reduce((t, p) => t + Number(p.valor_estimado), 0), semValor: l.filter(p => !valorOk(p)).length }; });
+    const abertas = lista.filter(p => ABERTAS.includes(p.etapa)), comValor = abertas.filter(valorOk);
+    const atrasados = abertas.filter(p => p.proximo_contato && p.proximo_contato < hoje).map(p => ({ id: p.id, nome: p.nome, dias: diasEntre(p.proximo_contato, hoje), responsavel: p.responsavel || "" })).sort((a, b) => b.dias - a.dias);
+    const semProximo = abertas.filter(p => !p.proximo_contato).map(p => ({ id: p.id, nome: p.nome }));
+    const parados = abertas.filter(p => { const u = ultimoContato(p); return u && diasEntre(u, hoje) >= 14; }).map(p => ({ id: p.id, nome: p.nome, dias: diasEntre(ultimoContato(p), hoje) }));
+    const ganhos = lista.filter(p => p.etapa === "fechado").length, perdidos = lista.filter(p => p.etapa === "perdido").length, decididos = ganhos + perdidos;
+    const mot = {}; lista.filter(p => p.etapa === "perdido").forEach(p => { const m = motivoBase(p.motivo); mot[m] = (mot[m] || 0) + 1; });
+    const org = {}; lista.forEach(p => { const o = String(p.origem || "").trim() || "Sem origem"; (org[o] = org[o] || { origem: o, n: 0, ganhos: 0 }); org[o].n++; if (p.etapa === "fechado") org[o].ganhos++; });
+    return {
+      colunas,
+      aberto: { n: abertas.length, valor: comValor.reduce((t, p) => t + Number(p.valor_estimado), 0), semValor: abertas.length - comValor.length, ponderado: Math.round(comValor.reduce((t, p) => t + Number(p.valor_estimado) * PROB[p.etapa] / 100, 0)) },
+      atrasados, semProximo, parados,
+      fechamento: { ganhos, perdidos, taxa: decididos >= 5 ? Math.round(ganhos / decididos * 100) : null, amostra: decididos },
+      motivos: Object.entries(mot).sort((a, b) => b[1] - a[1]), origens: Object.values(org).sort((a, b) => b.n - a.n)
+    };
+  }
+  /* Lista de retornos de hoje para frente, mais urgentes primeiro (alimenta a Minha fila do responsável). */
+  const retornos = (pros, hoje = hojeIso(), email = "") => (pros || []).filter(p => ABERTAS.includes(p.etapa) && p.proximo_contato && p.proximo_contato <= hoje && (!email || p.responsavel === email)).sort((a, b) => a.proximo_contato.localeCompare(b.proximo_contato));
+
   /* ---------- valor por extenso ---------- */
   const U = ["zero", "um", "dois", "três", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez", "onze", "doze", "treze", "quatorze", "quinze", "dezesseis", "dezessete", "dezoito", "dezenove"];
   const D = ["", "", "vinte", "trinta", "quarenta", "cinquenta", "sessenta", "setenta", "oitenta", "noventa"], C = ["", "cento", "duzentos", "trezentos", "quatrocentos", "quinhentos", "seiscentos", "setecentos", "oitocentos", "novecentos"];
@@ -198,5 +231,5 @@
     return { titulo, clausulas: cl, texto, html, total };
   }
 
-  root.N7Comercial = { OBJETIVOS, PORTES, ETAPAS, PARAMS, completude, recomendar, posicionamento, fit, carteira, valorContrato, extenso, escopoPadrao, gerarContrato, BRL };
+  root.N7Comercial = { OBJETIVOS, PORTES, ETAPAS, PROB, MOTIVOS, ATIVIDADES, ABERTAS, hojeIso, funil, retornos, valorOk, ultimoContato, PARAMS, completude, recomendar, posicionamento, fit, carteira, valorContrato, extenso, escopoPadrao, gerarContrato, BRL };
 })(typeof window !== "undefined" ? window : globalThis);
