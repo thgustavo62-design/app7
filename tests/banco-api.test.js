@@ -22,17 +22,3 @@ test('rota /api/banco: administrador vê o estado, cliente e leitura são recusa
   } finally { srv.close(); db._resetMemory(); }
 });
 
-test('rota /api/banco com a chave temporária: sem a variável não existe; com ela só confere e copia da planilha para o Postgres', async () => {
-  db._resetMemory(); delete process.env.BANCO_TOKEN;
-  const { createServer } = require('../dev-server'); const srv = createServer(); await new Promise(r => srv.listen(0, r)); const base = 'http://localhost:' + srv.address().port;
-  const get = async q => { const r = await fetch(base + '/api/banco' + q, { headers: { 'x-n7': '1' } }); return { s: r.status, j: await r.json().catch(() => null) }; };
-  try {
-    assert.equal((await get('?token=qualquer&acao=conferir')).s, 401, 'sem BANCO_TOKEN a chave nunca vale');
-    process.env.BANCO_TOKEN = 'chave-de-teste-123';
-    assert.equal((await get('?token=errada&acao=conferir')).s, 401);
-    assert.equal((await get('?token=chave-de-teste-123&acao=conferir')).s, 400, 'sem as duas conexões não faz nada');
-    const post = await fetch(base + '/api/banco?token=chave-de-teste-123&acao=copiar', { method: 'POST', headers: { 'x-n7': '1', 'content-type': 'application/json' }, body: '{}' });
-    assert.equal(post.status, 405, 'só GET');
-    assert.equal((await get('?acao=conferir')).s, 401, 'sem chave e sem login continua recusando');
-  } finally { delete process.env.BANCO_TOKEN; srv.close(); db._resetMemory(); }
-});

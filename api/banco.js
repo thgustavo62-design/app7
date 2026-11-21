@@ -5,8 +5,7 @@
    Uma aba por pedido, para caber no tempo limite da função. A cópia de volta (pg para planilha) serve de cópia de segurança e de plano de volta. */
 const { cfg } = require('../lib/config');
 const { TABS } = require('../lib/schema');
-const { compareTab, compareTabs, copyTab, copyTabs } = require('../lib/db-copy');
-const crypto = require('crypto');
+const { compareTab, copyTab } = require('../lib/db-copy');
 const { SheetsDriver } = require('../lib/repo');
 const { SheetsClient } = require('../lib/google');
 const { PgDriver } = require('../lib/pg-driver');
@@ -20,26 +19,7 @@ function drivers(c) {
   };
 }
 
-/* Chave temporária (variável BANCO_TOKEN na Vercel), autorizada pelo administrador, para o assistente rodar a primeira cópia sem passar pelo login.
-   Só existe enquanto a variável existir; vale apenas para conferir e para copiar da planilha para o Postgres (nunca o contrário e nunca por cima
-   do banco que já está em uso). Depois da migração a variável e este trecho são apagados. */
-const tokenOk = given => { const t = process.env.BANCO_TOKEN; if (!t || !given) return false; const a = Buffer.from(String(given)), b = Buffer.from(t); return a.length === b.length && crypto.timingSafeEqual(a, b); };
-
 module.exports = handle(async (req, res) => {
-  const q0 = query(req);
-  if (q0.token !== undefined) {
-    if (!tokenOk(q0.token)) return send(res, 401, { error: 'Chave inválida' });
-    if (req.method !== 'GET') return send(res, 405, { error: 'Método não permitido' });
-    const c0 = cfg(), d0 = drivers(c0);
-    if (!d0.sheets || !d0.pg) return send(res, 400, { error: 'Faltam as duas conexões (planilha e Postgres).' });
-    const tabs = q0.tabs ? String(q0.tabs).split(',').filter(t => TABS.includes(t)) : TABS;
-    if (q0.acao === 'conferir') return send(res, 200, { backend: c0.driver, resultado: await compareTabs(d0.sheets, d0.pg, tabs) });
-    if (q0.acao === 'copiar') {
-      if (c0.driver === 'pg') return send(res, 400, { error: 'O Postgres já é o banco em uso: não copio por cima.' });
-      return send(res, 200, Object.assign({ backend: c0.driver }, await copyTabs(d0.sheets, d0.pg, tabs)));
-    }
-    return send(res, 400, { error: 'Ação desconhecida' });
-  }
   const user = await authUser(req);
   if (!user) return send(res, 401, { error: 'login' });
   if (user.trocar) return send(res, 403, { error: 'trocar_senha' });
