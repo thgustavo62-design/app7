@@ -169,6 +169,7 @@
     painel: { title: "Painel", render: renderPainel },
     insights: { title: "Insights", render: renderInsights },
     semana: { title: "Semana", render: (v, sub) => window.N7Semana.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
+    comercial: { title: "Comercial", render: (v, sub) => window.N7ComercialUI.render(v, sub, { ico, banner, kpi, toast, clients: () => CLIENTS, team: () => REG.team || [], canWrite: CAN_WRITE, saude: c => (has(c, "redes") && posts().some(p => p.b === c.key) ? health(c, posts()).score : null) }) },
     autoridade: { title: "Autoridade", render: (v, sub) => window.N7Autoridade.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
     promocoes: { title: "Central de Promoções", render: (v, sub) => window.N7Promocoes.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
     relatorios: { title: "Relatórios", render: v => window.N7Relatorios.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS, posts }) },
@@ -189,6 +190,7 @@
     relatorios: () => !IS_CLIENT && CLIENTS.some(c => (c.services || []).length),
     promocoes: () => !IS_CLIENT && CLIENTS.some(c => has(c, "promocoes")),
     autoridade: () => !IS_CLIENT && CLIENTS.some(c => has(c, "autoridade")),
+    comercial: () => IS_ADMIN,
     calendario: () => anyPostClients(),
     fluxo: () => !IS_CLIENT && anyPostClients(),
     alertas: () => !IS_CLIENT && D.ALERTS.length > 0,
@@ -226,6 +228,7 @@
   const NAVSUB = {
     semana: () => [["entrada", "Entrada dos números"], ["analise", "Análise e PowerPoint"]],
     autoridade: () => [["painel", "Painel de autoridade"], ["entrada", "Entrada dos números"]],
+    comercial: () => [["carteira", "Carteira atual"], ["novos", "Clientes novos"], ["contratos", "Contratos"]],
     promocoes: () => [["", "Visão geral"], ["candidatos", "Candidatos"], ["campanha", "Montar campanha"], ["campanhas", "Campanhas"], ["resultado", "Resultado"], ["importar", "Importar"]],
     cerebro: () => [["", "Hoje"], ["clientes", "Clientes"], ["radar", "Radar"], ["agentes", "Agentes 3D"], ["servicos", "Serviços 3D"], ["conexoes", "Conexões"], ["memoria", "Memória"], ["regras", "Como pensa"]],
     config: () => [["usuarios", "Usuários"], ["clientes", "Clientes e serviços"], ["fontes", "Fontes de dados"]]
@@ -250,6 +253,7 @@
       ${ACCESS.relatorios() ? `<a class="nav-item" href="#relatorios">${ico("list")}<span>Relatórios</span></a>` : ""}
       ${ACCESS.promocoes() ? `<a class="nav-item" href="#promocoes">${ico("tag")}<span>Promoções</span></a>${subLinks("promocoes")}` : ""}
       ${ACCESS.autoridade() ? `<a class="nav-item" href="#autoridade">${ico("eye")}<span>Autoridade</span></a>${subLinks("autoridade")}` : ""}
+      ${ACCESS.comercial() ? `<a class="nav-item" href="#comercial">${ico("money")}<span>Comercial</span></a>${subLinks("comercial")}` : ""}
       ${CLIENTS.length ? `<div class="nav-group">${IS_CLIENT ? "Sua empresa" : "Clientes"}</div>
       ${CLIENTS.map(c => `<a class="nav-item" href="#${c.id}"><i class="nav-dot" style="background:var(${c.color})"></i><span>${esc(c.name)}</span>${late(c.id) && !IS_CLIENT ? `<span class="nav-count" title="pautas atrasadas">${late(c.id)}</span>` : ""}</a>${subLinks(c.id)}`).join("")}` : ""}
       ${ops.length ? `<div class="nav-group">Operação</div>${ops.map(([id, ic, name, extra]) => `<a class="nav-item" href="#${id}">${ico(ic)}<span>${name}</span>${extra}</a>`).join("")}` : ""}

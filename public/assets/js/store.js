@@ -3,7 +3,7 @@
    As demais (preferências de tela) ficam só no localStorage do navegador.
    Sem localStorage (ou em testes em Node), tudo cai em memória. */
 (function (root) {
-  const SYNCED = ["overrides", "checks", "goals", "flow", "ideas", "custom", "events", "weeks", "weekGen", "authority", "decisions", "owners"];
+  const SYNCED = ["overrides", "checks", "goals", "flow", "ideas", "custom", "events", "weeks", "weekGen", "authority", "decisions", "owners", "prospects", "contracts", "agency"];
   const clone = o => (o === undefined ? undefined : JSON.parse(JSON.stringify(o)));
   const data = {}, snap = {}, mem = {}, listeners = [];
   const ls = () => { try { return typeof localStorage !== "undefined" ? localStorage : null; } catch (e) { return null; } };
