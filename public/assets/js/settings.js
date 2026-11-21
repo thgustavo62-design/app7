@@ -183,15 +183,15 @@
     });
   }
 
-  /* ---------- banco de dados: conferir e copiar entre a planilha e o Postgres (Supabase) ---------- */
+  /* ---------- banco de dados: conferir e copiar entre a planilha e o Postgres ---------- */
   function dbPanel(v) {
     const host = v.querySelector("#src-db");
     const call = (path, body) => fetch("/api/banco" + path, Object.assign({ headers: { "Content-Type": "application/json", "X-N7": "1" } }, body ? { method: "POST", body: JSON.stringify(body) } : {})).then(async r => ({ ok: r.ok, body: await r.json().catch(() => ({})) })).catch(() => ({ ok: false, body: { error: "Sem conexão." } }));
     call("").then(st => {
       if (!st.ok) return void (host.innerHTML = `<p class="notice">${C.esc(st.body.error || "Não foi possível consultar o banco.")}</p>`);
       const s = st.body, both = s.sheets && s.pg;
-      host.innerHTML = `<div class="toolbar"><span class="badge ${s.backend === "pg" ? "st-pub" : ""}">Em uso agora: ${s.backend === "pg" ? "Postgres (Supabase)" : s.backend === "sheets" ? "Planilha do Google" : "memória (desenvolvimento)"}</span><span class="badge ${s.sheets ? "st-pub" : "p1"}">planilha ${s.sheets ? "conectada" : "não conectada"}</span><span class="badge ${s.pg ? "st-pub" : "p1"}">${s.pg ? "Postgres conectado" : "falta DATABASE_URL"}</span></div>
-        <p class="src">Para trocar a planilha pelo Postgres: 1) crie o projeto no Supabase e coloque a conexão na Vercel como <code>DATABASE_URL</code> (Sensitive); 2) clique em <b>Copiar planilha para o Postgres</b> e depois em <b>Conferir</b> até todas as abas aparecerem iguais; 3) mude <code>DB_BACKEND</code> para <code>pg</code> na Vercel e faça um novo deploy. Para voltar, o inverso: <b>Copiar Postgres para a planilha</b> e <code>DB_BACKEND</code> de volta para <code>sheets</code>.</p>
+      host.innerHTML = `<div class="toolbar"><span class="badge ${s.backend === "pg" ? "st-pub" : ""}">Em uso agora: ${s.backend === "pg" ? "Postgres" : s.backend === "sheets" ? "Planilha do Google" : "memória (desenvolvimento)"}</span><span class="badge ${s.sheets ? "st-pub" : "p1"}">planilha ${s.sheets ? "conectada" : "não conectada"}</span><span class="badge ${s.pg ? "st-pub" : "p1"}">${s.pg ? "Postgres conectado" : "falta DATABASE_URL"}</span></div>
+        <p class="src">Para trocar a planilha pelo Postgres: 1) crie um banco Postgres (o mais simples é o Neon, em Storage na Vercel, que liga <code>DATABASE_URL</code> sozinho) ou cole a conexão de outro provedor como <code>DATABASE_URL</code> (Sensitive); 2) clique em <b>Copiar planilha para o Postgres</b> e depois em <b>Conferir</b> até todas as abas aparecerem iguais; 3) mude <code>DB_BACKEND</code> para <code>pg</code> na Vercel e faça um novo deploy. Para voltar, o inverso: <b>Copiar Postgres para a planilha</b> e <code>DB_BACKEND</code> de volta para <code>sheets</code>.</p>
         <div class="toolbar"><button type="button" class="btn sm" id="db-check"${both ? "" : " disabled"}>Conferir</button><button type="button" class="btn sm primary" id="db-up"${both ? "" : " disabled"}>Copiar planilha para o Postgres</button><button type="button" class="btn sm" id="db-down"${both ? "" : " disabled"}>Copiar Postgres para a planilha</button></div><div id="db-out"></div>`;
       const out = host.querySelector("#db-out"), rows = {};
       const draw = () => { out.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Aba</th><th class="num">Planilha</th><th class="num">Postgres</th><th></th></tr></thead><tbody>${s.tabs.map(t => { const r = rows[t]; return `<tr><td>${C.esc(t)}</td><td class="num">${r && r.sheets ? r.sheets.n : "—"}</td><td class="num">${r && r.pg ? r.pg.n : "—"}</td><td>${!r ? "" : r.erro ? `<span class="badge p0" title="${C.esc(r.erro)}">erro</span> <small class="src">${C.esc(r.erro).slice(0, 80)}</small>` : r.igual ? `<span class="badge st-pub">igual</span>` : `<span class="badge p1">diferente</span>`}</td></tr>`; }).join("")}</tbody></table></div>`; };
@@ -212,7 +212,7 @@
         <div class="panel-body" id="src-cal"><p class="src">Lendo a planilha…</p></div></div>
       <div class="panel">${C.banner("chart", "Meta · Windsor.ai", "Instagram, Facebook e anúncios de todos os clientes")}
         <div class="panel-body" id="src-windsor"><p class="src">Consultando…</p></div></div>
-      <div class="panel">${C.banner("shield", "Banco de dados", "planilha do Google ou Postgres (Supabase)")}
+      <div class="panel">${C.banner("shield", "Banco de dados", "planilha do Google ou Postgres")}
         <div class="panel-body" id="src-db"><p class="src">Consultando…</p></div></div>
       <div class="panel">${C.banner("list", "Outras fontes", "o que ainda será ligado")}
         <div class="table-wrap"><table><thead><tr><th>Fonte</th><th>Situação</th><th>O que precisa</th></tr></thead><tbody>

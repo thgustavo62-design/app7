@@ -1,4 +1,4 @@
-/* /api/banco: cópia e conferência entre a planilha e o Postgres (Supabase). Só administradores.
+/* /api/banco: cópia e conferência entre a planilha e o Postgres. Só administradores.
    GET                      estado: qual banco está em uso, se a planilha e o Postgres estão configurados e a lista de abas
    GET  ?tab=Aba            conta linhas e calcula uma impressão digital da aba nos dois bancos e diz se são iguais
    POST {action:'copiar', tab, de:'sheets'|'pg'}   copia uma aba inteira de um banco para o outro (uma transação no Postgres)
