@@ -169,7 +169,7 @@
     painel: { title: "Painel", render: renderPainel },
     insights: { title: "Insights", render: renderInsights },
     semana: { title: "Semana", render: (v, sub) => window.N7Semana.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
-    comercial: { title: "Comercial", render: (v, sub) => window.N7ComercialUI.render(v, sub, { ico, banner, kpi, toast, clients: () => CLIENTS, team: () => REG.team || [], canWrite: CAN_WRITE, saude: c => (has(c, "redes") && posts().some(p => p.b === c.key) ? health(c, posts()).score : null) }) },
+    comercial: { title: "Comercial", render: (v, sub) => window.N7ComercialUI.render(v, sub, { criarCliente: criarClienteApi, ico, banner, kpi, toast, clients: () => CLIENTS, team: () => REG.team || [], canWrite: CAN_WRITE, saude: c => (has(c, "redes") && posts().some(p => p.b === c.key) ? health(c, posts()).score : null) }) },
     autoridade: { title: "Autoridade", render: (v, sub) => window.N7Autoridade.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
     promocoes: { title: "Central de Promoções", render: (v, sub) => window.N7Promocoes.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
     relatorios: { title: "Relatórios", render: v => window.N7Relatorios.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS, posts }) },
@@ -198,6 +198,14 @@
     config: () => IS_ADMIN
   };
   const allowedRoute = id => !!ROUTES[id] && (ROUTES[id].client || !ACCESS[id] || ACCESS[id]());
+  /* cria um cliente (mesma operação de Configurações > Clientes) e recarrega o cadastro */
+  async function criarClienteApi(op) {
+    const r = await fetch("/api/mutate", { method: "POST", headers: { "Content-Type": "application/json", "X-N7": "1" }, body: JSON.stringify({ ops: [op] }) });
+    const b = await r.json().catch(() => ({}));
+    if (r.status === 401) { location.reload(); throw new Error("Sua sessão terminou."); }
+    if (!r.ok) throw new Error(b.error || "Não foi possível criar o cliente.");
+    await reloadRegistry();
+  }
   async function reloadRegistry() {
     const r = await fetch("/api/state"); if (!r.ok) throw new Error("Não foi possível recarregar o cadastro.");
     const b = await r.json(); REG.clients = b.registry.clients; REG.users = b.registry.users || []; REG.team = b.registry.team || [];

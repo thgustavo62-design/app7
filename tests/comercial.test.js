@@ -144,3 +144,20 @@ test('dados do funil: valor, próximo contato e histórico de contatos gravam, v
   const a = { ...p, atividades: [...p.atividades, { em: '2026-11-21', tipo: 'nota', texto: 'ok' }] };
   assert.equal(diffKey('prospects', [p], [a])[0].atividades.length, 2, 'adicionar contato vira operação com a lista inteira');
 });
+
+test('ficha fechada vira cliente: sugestão sem repetir chave, endereço e cor; contratos passam a ser do cliente; servidor valida a chave', async () => {
+  const existentes = [{ key: 'CS', id: 'clinica-sorriso', color: '--c1' }, { key: 'M', id: 'minas', color: '--c2' }];
+  const s = C.sugerirCliente({ nome: 'Clínica Sorriso', setor: 'saude', segmento: 'odonto', servicos: ['redes', 'trafego'] }, existentes);
+  assert.equal(s.chave, 'CS2', 'chave igual à de outro cliente ganha número'); assert.equal(s.id, 'clinica-sorriso-2'); assert.equal(s.cor, '--c3');
+  assert.deepEqual([s.nome, s.curto, s.setor, s.servicos], ['Clínica Sorriso', 'Clínica', 'saude', ['redes', 'trafego']]);
+  assert.equal(C.sugerirCliente({ nome: 'Config' }, []).id, 'config-2', 'endereço reservado do site não é usado');
+  assert.match(C.sugerirCliente({ nome: '7 Mares' }, []).chave, /^[A-Z]/, 'chave começa por letra');
+  const cts = [{ id: 'ct-1', cliente_tipo: 'prospect', cliente_ref: 'p-1' }, { id: 'ct-2', cliente_tipo: 'prospect', cliente_ref: 'p-2' }, { id: 'ct-3', cliente_tipo: 'cliente', cliente_ref: 'M' }];
+  assert.deepEqual(C.contratosDoCliente(cts, 'p-1', 'CS2').map(c => [c.cliente_tipo, c.cliente_ref]), [['cliente', 'CS2'], ['prospect', 'p-2'], ['cliente', 'M']]);
+  assert.equal(cts[0].cliente_tipo, 'prospect', 'não altera a lista original');
+  const r = mk(); await run(r, [pr({ cliente_chave: 'CS2' })]);
+  assert.equal((await model.loadState(new Repo(r.d))).prospects[0].cliente_chave, 'CS2');
+  await assert.rejects(run(r, [pr({ cliente_chave: 'cs 2!', v: '1' })]), /Chave do cliente inválida/);
+  const carteira = C.carteira({ clients: [{ key: 'CS2', name: 'Clínica Sorriso', services: ['redes'] }], contracts: C.contratosDoCliente([{ id: 'ct-1', cliente_tipo: 'prospect', cliente_ref: 'p-1', status: 'assinado', valores: { redes: 1500 } }], 'p-1', 'CS2') });
+  assert.equal(carteira.resumo.mrr, 1500, 'depois de virar cliente, o contrato assinado entra na receita recorrente');
+});

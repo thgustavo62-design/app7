@@ -143,6 +143,23 @@
       motivos: Object.entries(mot).sort((a, b) => b[1] - a[1]), origens: Object.values(org).sort((a, b) => b.n - a.n)
     };
   }
+  /* ---------- ficha fechada vira cliente cadastrado ---------- */
+  const semAcento = t => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const slugDe = t => semAcento(t).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  const RESERVADOS = ["painel", "insights", "semana", "calendario", "fluxo", "alertas", "playbook", "config", "comercial", "cerebro", "relatorios", "promocoes", "autoridade"];
+  /* Sugere os dados do cadastro a partir da ficha, sem repetir chave, endereço ou cor de quem já existe. O administrador revisa antes de criar. */
+  function sugerirCliente(f, clientes = []) {
+    const ks = clientes.map(c => c.key), ids = clientes.map(c => c.id).concat(RESERVADOS), cores = clientes.map(c => c.color);
+    const palavras = semAcento(f.nome).toUpperCase().split(/[^A-Z0-9]+/).filter(w => w && !["E", "DE", "DA", "DO", "DAS", "DOS"].includes(w));
+    let base = palavras.map(w => w[0]).join("").slice(0, 3); if (base.length < 2) base = (palavras[0] || "CLI").slice(0, 3); if (!/^[A-Z]/.test(base)) base = "C" + base;
+    let chave = base, n = 2; while (ks.includes(chave)) chave = base.slice(0, 3) + n++;
+    const id0 = slugDe(f.nome) || "cliente"; let id = id0, m = 2; while (ids.includes(id)) id = `${id0}-${m++}`.slice(0, 40);
+    const livres = ((SV.COLORS) || ["--c1", "--c2", "--c3", "--c4", "--c5", "--c6", "--c7", "--c8"]).filter(c => !cores.includes(c));
+    return { chave: chave.slice(0, 4), id, nome: String(f.nome || "").trim().slice(0, 80), curto: String(f.nome || "").trim().split(/\s+/)[0].slice(0, 20), cor: livres[0] || SV.COLORS[clientes.length % SV.COLORS.length], setor: f.setor || "", segmento: String(f.segmento || "").slice(0, 80), servicos: (f.servicos || []).slice() };
+  }
+  /* Depois de virar cliente, os contratos da ficha passam a valer como contratos do cliente (só assim entram na receita recorrente). */
+  const contratosDoCliente = (contratos, fichaId, chave) => (contratos || []).map(c => (c.cliente_tipo === "prospect" && c.cliente_ref === fichaId ? Object.assign({}, c, { cliente_tipo: "cliente", cliente_ref: chave }) : c));
+
   /* Lista de retornos de hoje para frente, mais urgentes primeiro (alimenta a Minha fila do responsável). */
   const retornos = (pros, hoje = hojeIso(), email = "") => (pros || []).filter(p => ABERTAS.includes(p.etapa) && p.proximo_contato && p.proximo_contato <= hoje && (!email || p.responsavel === email)).sort((a, b) => a.proximo_contato.localeCompare(b.proximo_contato));
 
@@ -231,5 +248,5 @@
     return { titulo, clausulas: cl, texto, html, total };
   }
 
-  root.N7Comercial = { OBJETIVOS, PORTES, ETAPAS, PROB, MOTIVOS, ATIVIDADES, ABERTAS, hojeIso, funil, retornos, valorOk, ultimoContato, PARAMS, completude, recomendar, posicionamento, fit, carteira, valorContrato, extenso, escopoPadrao, gerarContrato, BRL };
+  root.N7Comercial = { OBJETIVOS, PORTES, ETAPAS, PROB, MOTIVOS, ATIVIDADES, ABERTAS, hojeIso, funil, retornos, sugerirCliente, contratosDoCliente, valorOk, ultimoContato, PARAMS, completude, recomendar, posicionamento, fit, carteira, valorContrato, extenso, escopoPadrao, gerarContrato, BRL };
 })(typeof window !== "undefined" ? window : globalThis);

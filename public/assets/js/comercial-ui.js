@@ -70,7 +70,7 @@
         <span class="fn-name" role="button" tabindex="0" data-abrir="${esc(p.id)}">${esc(p.nome)}</span>
         <small class="src">${esc(SV.SECTORS[p.setor] || "sem setor")}${C.valorOk(p) ? ` · <b>${brl0(p.valor_estimado)}</b>/mês` : ""}</small>
         ${p.proximo_contato ? `<small class="${atras ? "fn-late" : "src"}">${atras ? "retorno atrasado: " : "retorno em "}${dm(p.proximo_contato)}${p.proximo_passo ? ` · ${esc(p.proximo_passo)}` : ""}</small>` : (C.ABERTAS.includes(p.etapa) ? `<small class="fn-late">sem próximo contato marcado</small>` : "")}
-        ${uc ? `<small class="src">último contato ${dm(uc)}</small>` : ""}${p.responsavel ? `<small class="src">com ${esc(nomeDe(p.responsavel) || p.responsavel)}</small>` : ""}${p.etapa === "perdido" && p.motivo ? `<small class="src">motivo: ${esc(p.motivo)}</small>` : ""}
+        ${uc ? `<small class="src">último contato ${dm(uc)}</small>` : ""}${p.responsavel ? `<small class="src">com ${esc(nomeDe(p.responsavel) || p.responsavel)}</small>` : ""}${p.etapa === "perdido" && p.motivo ? `<small class="src">motivo: ${esc(p.motivo)}</small>` : ""}${p.cliente_chave ? `<small class="src"><b>cliente cadastrado</b> (${esc(p.cliente_chave)})</small>` : ""}
         ${ro ? "" : `<select class="fn-move" data-mover="${esc(p.id)}" aria-label="Mover ${esc(p.nome)} para outra etapa"><option value="">Mover para…</option>${Object.entries(C.ETAPAS).filter(([e]) => e !== p.etapa).map(([e, n]) => `<option value="${e}">${esc(n)}</option>`).join("")}</select>`}</div>`;
     };
     const colunas = Object.entries(C.ETAPAS).map(([e, n]) => { const c = F.colunas[e], l = pros.filter(p => p.etapa === e).sort((a, b) => (a.proximo_contato || "9999").localeCompare(b.proximo_contato || "9999"));
@@ -78,19 +78,20 @@
     const perda = ui.perda && pros.find(p => p.id === ui.perda.id);
     const aviso = perda ? `<div class="panel"><div class="panel-body"><p><b>Por que ${esc(perda.nome)} não fechou?</b> O motivo ajuda a ver o que corrigir na venda.</p><div class="toolbar"><select id="fn-motivo">${C.MOTIVOS.map(m => `<option>${esc(m)}</option>`).join("")}</select><input type="text" id="fn-motivo-txt" placeholder="Detalhe (opcional)" maxlength="120" style="flex:1;min-width:160px"><button type="button" class="btn primary sm" id="fn-perda-ok">Registrar perda</button><button type="button" class="btn sm" id="fn-perda-x">Cancelar</button></div></div></div>` : "";
     const fechou = ui.fechou && pros.find(p => p.id === ui.fechou && p.etapa === "fechado");
-    const aviso2 = fechou ? `<div class="panel"><div class="panel-body"><p><b>${esc(fechou.nome)} fechou.</b> Próximo passo: montar o contrato com os serviços combinados.</p><div class="toolbar"><a class="btn primary sm" href="#comercial/contratos" id="fn-contrato" data-id="${esc(fechou.id)}">Montar contrato</a><button type="button" class="btn sm" id="fn-contrato-x">Agora não</button></div></div></div>` : "";
+    const aviso2 = fechou ? `<div class="panel"><div class="panel-body"><p><b>${esc(fechou.nome)} fechou.</b> Próximos passos: cadastrar como cliente e montar o contrato com os serviços combinados.</p><div class="toolbar">${fechou.cliente_chave ? "" : `<button type="button" class="btn primary sm" id="fn-conv" data-id="${esc(fechou.id)}">Cadastrar como cliente</button>`}<a class="btn ${fechou.cliente_chave ? "primary " : ""}sm" href="#comercial/contratos" id="fn-contrato" data-id="${esc(fechou.id)}">Montar contrato</a><button type="button" class="btn sm" id="fn-contrato-x">Agora não</button></div></div></div>` : "";
+    const convP = ui.conv && pros.find(p => p.id === ui.conv && p.etapa === "fechado" && !p.cliente_chave), conv = convP ? conversaHtml(convP) : "";
     const atr = F.atrasados.map(a => `<li><button type="button" class="linkish" data-abrir="${esc(a.id)}"><b>${esc(a.nome)}</b></button> <small class="src">${a.dias} dia(s) de atraso${a.responsavel ? ` · ${esc(nomeDe(a.responsavel) || a.responsavel)}` : ""}</small></li>`).join("");
     const semp = F.semProximo.slice(0, 8).map(a => `<li><button type="button" class="linkish" data-abrir="${esc(a.id)}">${esc(a.nome)}</button></li>`).join("");
     const par = F.parados.map(a => `<li><button type="button" class="linkish" data-abrir="${esc(a.id)}">${esc(a.nome)}</button> <small class="src">${a.dias} dias sem contato</small></li>`).join("");
     const mot = F.motivos.map(([m, n]) => `<div class="mrow"><span>${esc(m)}</span><b>${n}</b></div>`).join("");
     const org = F.origens.map(o => `<div class="mrow"><span>${esc(o.origem)}</span><b>${o.n} ficha(s) · ${o.ganhos} fechada(s)</b></div>`).join("");
-    view.innerHTML = `${kp}${aviso}${aviso2}
+    view.innerHTML = `${kp}${aviso}${aviso2}${conv}
       <div class="panel">${H.banner("target", "Funil de vendas", ro ? "somente leitura" : "arraste a ficha para outra etapa ou use \"Mover para…\"")}<div class="panel-body"><div class="fn-board">${colunas}</div><p class="src" style="margin-top:8px">A porcentagem de cada etapa é a chance de fechar usada na previsão: um ponto de partida comum de CRM, não medido na sua agência. Com o histórico de fechados e perdidos você pode calibrar.</p></div></div>
       <div class="grid g2"><div class="panel">${H.banner("bell", "Precisam de atenção", `${F.atrasados.length + F.semProximo.length + F.parados.length}`)}<div class="panel-body">
           ${atr ? `<p class="lbl">Retorno atrasado</p><ul class="plain">${atr}</ul>` : ""}${semp ? `<p class="lbl">Sem próximo contato marcado</p><ul class="plain">${semp}</ul>` : ""}${par ? `<p class="lbl">Parados há 14 dias ou mais</p><ul class="plain">${par}</ul>` : ""}
           ${atr || semp || par ? "" : `<p class="src">Tudo em dia: toda ficha aberta tem retorno marcado e contato recente.</p>`}</div></div>
         <div class="panel">${H.banner("chart", "Por que perdemos e de onde vêm", "só o que está registrado nas fichas")}<div class="panel-body"><p class="lbl">Motivos de perda</p>${mot || `<p class="src">Nenhuma perda registrada.</p>`}<p class="lbl">Origem das fichas</p>${org || `<p class="src">Preencha "De onde veio" nas fichas.</p>`}</div></div></div>`;
-    const refazer = () => render(view.closest("#view") || view, "funil", H);
+    const refazer = () => render(document.querySelector("#view") || view.closest("#view") || view, "funil", H);
     $$("[data-abrir]", view).forEach(b => { const abrir = () => { ui.novo = null; ui.edit = null; ui.novoSujo = false; ui.sel = b.dataset.abrir; location.hash = "#comercial/novos"; }; b.onclick = abrir; b.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); abrir(); } }; });
     $$("[data-mover]", view).forEach(sel => sel.onchange = () => { if (!sel.value) return; const r = mover(sel.dataset.mover, sel.value); if (r === true) H.toast("Etapa atualizada."); refazer(); });
     let arrastando = null;
@@ -99,7 +100,35 @@
     const ok = $("#fn-perda-ok", view); if (ok) ok.onclick = () => { const m = $("#fn-motivo", view).value, d = ($("#fn-motivo-txt", view).value || "").trim(); mover(ui.perda.id, "perdido", d ? `${m}: ${d}` : m); H.toast("Perda registrada."); refazer(); };
     const px = $("#fn-perda-x", view); if (px) px.onclick = () => { ui.perda = null; refazer(); };
     const cx = $("#fn-contrato-x", view); if (cx) cx.onclick = () => { ui.fechou = null; refazer(); };
-    const ct = $("#fn-contrato", view); if (ct) ct.onclick = () => { ui.ct = null; ui.ctDraft = { novo: true, cliente_tipo: "prospect", cliente_ref: ct.dataset.id }; ui.fechou = null; };
+    const ct = $("#fn-contrato", view); if (ct) ct.onclick = () => { const r = refContrato(prospects().find(p => p.id === ct.dataset.id) || {}); ui.ct = null; ui.ctDraft = { novo: true, cliente_tipo: r.tipo, cliente_ref: r.ref || ct.dataset.id }; ui.fechou = null; };
+    const cvb = $("#fn-conv", view); if (cvb) cvb.onclick = () => { ui.conv = cvb.dataset.id; refazer(); };
+    if (convP) wireConversa(view, convP, refazer);
+  }
+
+  /* ficha fechada vira cliente cadastrado: o administrador revisa os dados sugeridos e cria */
+  const refContrato = p => (p.cliente_chave ? { tipo: "cliente", ref: p.cliente_chave } : { tipo: "prospect", ref: p.id });
+  function conversaHtml(p) {
+    const s = C.sugerirCliente(p, H.clients().map(c => ({ key: c.key, id: c.id, color: c.color })));
+    return `<div class="panel" id="cv-panel"><div class="panel-body"><p><b>Cadastrar ${esc(p.nome)} como cliente.</b> Revise os dados sugeridos: o cliente passa a aparecer no menu, na Carteira e nas análises, e os contratos desta ficha passam a valer como contratos dele.</p>
+      <form id="cv-form" autocomplete="off"><div class="fgrid">${fld("nome", "Nome", s.nome)}${fld("curto", "Nome curto", s.curto)}${fld("id", "Endereço no site (minúsculas e hífen)", s.id)}${fld("chave", "Chave (1 a 4 letras ou números)", s.chave, ' maxlength="4"')}${fld("segmento", "Segmento", s.segmento)}
+        <label class="fld"><span>Setor</span><select name="setor">${opts(SV.SECTORS, s.setor || "saude")}</select></label><input type="hidden" name="cor" value="${esc(s.cor)}"></div>
+        <p class="lbl">Serviços contratados</p><div class="radio-row">${SV.ORDER.map(x => `<label class="check"><input type="checkbox" name="cvsvc" value="${x}"${s.servicos.includes(x) ? " checked" : ""}> ${esc(SV.SERVICES[x].name)}</label>`).join("")}</div></form>
+      <p class="notice" id="cv-err" hidden></p><div class="toolbar"><button type="button" class="btn primary sm" id="cv-ok">Criar cliente</button><button type="button" class="btn sm" id="cv-x">Cancelar</button></div></div></div>`;
+  }
+  function wireConversa(view, p, rerender) {
+    const x = $("#cv-x", view); if (x) x.onclick = () => { ui.conv = null; rerender(); };
+    const ok = $("#cv-ok", view); if (!ok) return;
+    ok.onclick = async () => {
+      const f = $("#cv-form", view), g = n => f.elements[n].value.trim(), err = $("#cv-err", view);
+      const op = { t: "client", chave: g("chave").toUpperCase(), id: g("id"), nome: g("nome"), curto: g("curto"), cor: g("cor"), segmento: g("segmento"), perfil: "", setor: g("setor"), servicos: $$("input[name=cvsvc]:checked", f).map(i => i.value), ativo: "sim" };
+      err.hidden = true; ok.disabled = true;
+      try { await H.criarCliente(op); } catch (e) { err.textContent = e.message; err.hidden = false; ok.disabled = false; return; }
+      gravarPros(l => { const r = l.find(y => y.id === p.id); if (r) { r.cliente_chave = op.chave; r.atividades = [{ em: hojeIso(), tipo: "nota", texto: `Virou cliente cadastrado: ${op.nome} (${op.chave})` }, ...(r.atividades || [])].slice(0, 60); } });
+      if (ui.edit && ui.edit.id === p.id) ui.edit = null;
+      const cts = JSON.parse(JSON.stringify(contracts())), novos = C.contratosDoCliente(cts, p.id, op.chave);
+      if (JSON.stringify(novos) !== JSON.stringify(cts)) S.set("contracts", novos);
+      ui.conv = null; ui.fechou = null; H.toast(`Cliente criado: ${op.nome}.`); rerender();
+    };
   }
 
   /* histórico de contatos da ficha (ligação, WhatsApp, reunião, nota e mudanças de etapa) */
@@ -162,7 +191,7 @@
     const cur = ui.novo || (ui.edit && ui.edit.id === ui.sel ? ui.edit : null) || list.find(p => p.id === ui.sel) || null, sujo = !!(ui.novo ? ui.novoSujo : (ui.edit && ui.edit.id === ui.sel));
     const itens = list.map(p => { const fit = C.fit(p); return `<button type="button" class="cm-item${cur && cur.id === p.id ? " on" : ""}" data-pick="${esc(p.id)}"><b>${esc(p.nome)}</b><small>${esc(SV.SECTORS[p.setor] || "sem setor")} · ${esc(C.ETAPAS[p.etapa] || "")}</small><span class="badge ${NIVEL[fit.nivel][1]}">prioridade ${NIVEL[fit.nivel][0]}</span></button>`; }).join("");
     view.innerHTML = `<div class="cm-wrap"><aside class="cm-list"><div class="toolbar">${H.canWrite ? `<button type="button" class="btn primary sm" id="cm-new">+ Nova ficha</button>` : ""}<span class="src">${list.length} ficha(s)</span></div>${itens || `<p class="src">Nenhuma ficha ainda. Clique em Nova ficha para cadastrar um cliente em potencial.</p>`}</aside>
-      <section class="cm-main">${cur ? `<div class="panel">${H.banner("file", esc(cur.nome || "Nova ficha"), "ficha do cliente", H.canWrite ? `<span class="badge" id="cm-dirty"${sujo ? "" : " hidden"}>não salva</span><button type="button" class="btn sm primary" id="cm-save">Salvar</button>${prospects().some(p => p.id === cur.id) ? `<a class="btn sm" href="#comercial/contratos" id="cm-contract">Montar contrato</a><button type="button" class="btn sm" id="cm-del">Excluir</button>` : ""}` : "")}<div class="panel-body">${fichaForm(cur)}</div></div>${prospects().some(p => p.id === cur.id) ? historico(cur) : `<p class="src">Salve a ficha para começar o histórico de contatos.</p>`}<h2 class="sec-title">Análise e posicionamento</h2><div id="cm-analise">${analiseHtml(cur)}</div>` : `<div class="panel"><div class="panel-body"><p class="src">Escolha uma ficha à esquerda ou crie uma nova. Ao preencher, a análise e o posicionamento sugerido aparecem aqui.</p></div></div>`}</section></div>`;
+      <section class="cm-main">${cur ? `<div class="panel">${H.banner("file", esc(cur.nome || "Nova ficha"), "ficha do cliente", H.canWrite ? `<span class="badge" id="cm-dirty"${sujo ? "" : " hidden"}>não salva</span><button type="button" class="btn sm primary" id="cm-save">Salvar</button>${prospects().some(p => p.id === cur.id) ? `${cur.cliente_chave ? `<span class="badge st-pub">cliente cadastrado (${esc(cur.cliente_chave)})</span>` : (cur.etapa === "fechado" ? `<button type="button" class="btn sm primary" id="cm-conv">Cadastrar como cliente</button>` : "")}<a class="btn sm" href="#comercial/contratos" id="cm-contract">Montar contrato</a><button type="button" class="btn sm" id="cm-del">Excluir</button>` : ""}` : "")}<div class="panel-body">${fichaForm(cur)}</div></div>${ui.conv === cur.id && cur.etapa === "fechado" && !cur.cliente_chave && prospects().some(p => p.id === cur.id) ? conversaHtml(cur) : ""}${prospects().some(p => p.id === cur.id) ? historico(cur) : `<p class="src">Salve a ficha para começar o histórico de contatos.</p>`}<h2 class="sec-title">Análise e posicionamento</h2><div id="cm-analise">${analiseHtml(cur)}</div>` : `<div class="panel"><div class="panel-body"><p class="src">Escolha uma ficha à esquerda ou crie uma nova. Ao preencher, a análise e o posicionamento sugerido aparecem aqui.</p></div></div>`}</section></div>`;
     $$("[data-pick]", view).forEach(b => b.onclick = () => { ui.novo = null; ui.edit = null; ui.novoSujo = false; ui.sel = b.dataset.pick; render(view.closest("#view") || view, "novos", H); });
     const nw = $("#cm-new", view); if (nw) nw.onclick = () => { ui.edit = null; ui.novoSujo = false; ui.novo = { id: rid("p-"), nome: "", etapa: "novo", servicos: [] }; render(view.closest("#view") || view, "novos", H); };
     if (!cur) return;
@@ -180,7 +209,9 @@
       S.set("prospects", l); ui.novo = null; ui.edit = null; ui.novoSujo = false; ui.sel = draft.id; H.toast("Ficha salva."); render(view.closest("#view") || view, "novos", H);
     };
     const del = $("#cm-del", view); if (del) { let armed = false; del.onclick = () => { if (!armed) { armed = true; del.textContent = "Confirmar"; setTimeout(() => { armed = false; del.textContent = "Excluir"; }, 3500); return; } S.set("prospects", prospects().filter(p => p.id !== cur.id)); ui.sel = null; ui.novo = null; H.toast("Ficha excluída."); render(view.closest("#view") || view, "novos", H); }; }
-    const mk = $("#cm-contract", view); if (mk) mk.onclick = () => { ui.ct = null; ui.ctDraft = { novo: true, cliente_tipo: "prospect", cliente_ref: cur.id }; };
+    const mk = $("#cm-contract", view); if (mk) mk.onclick = () => { const r = refContrato(cur); ui.ct = null; ui.ctDraft = { novo: true, cliente_tipo: r.tipo, cliente_ref: r.ref }; };
+    const cvb = $("#cm-conv", view); if (cvb) cvb.onclick = () => { ui.conv = cur.id; render(view.closest("#view") || view, "novos", H); };
+    if (ui.conv === cur.id) wireConversa(view, cur, () => render(document.querySelector("#view") || view.closest("#view") || view, "novos", H));
     const ad = $("#at-add", view); if (ad) ad.onclick = () => { const t = ($("#at-txt", view).value || "").trim(), em = $("#at-em", view).value || hojeIso(); if (!t) return H.toast("Escreva o que foi falado ou combinado."); registrar(cur.id, $("#at-tipo", view).value, em, t); H.toast("Contato registrado."); render(view.closest("#view") || view, "novos", H); };
   }
 
@@ -207,7 +238,7 @@
     if (ui.ctDraft && ui.ctDraft.novo) { ui.ct = ctDefault(ui.ctDraft.cliente_tipo, ui.ctDraft.cliente_ref); ui.ctDraft = null; }
     const cur = ui.ct, ag = agency(), faltaAg = ["razao_social", "cnpj", "representante"].filter(k => !String(ag[k] || "").trim());
     const lista = list.map(c => `<tr><td><b>${esc(c.cliente_nome)}</b><div class="src">${esc(c.cliente_tipo === "prospect" ? "cliente novo" : "cliente")}</div></td><td>${chips(c.servicos)}</td><td class="num">${BRL(C.valorContrato(c))}</td><td><span class="badge ${c.status === "assinado" ? "st-pub" : "p1"}">${esc(stNome[c.status] || c.status)}</span></td><td class="src">${c.inicio ? dm(c.inicio) : ""}</td><td style="text-align:right"><button type="button" class="btn sm" data-open="${esc(c.id)}">Abrir</button></td></tr>`).join("");
-    const origem = [...H.clients().map(c => `<option value="cliente|${esc(c.key)}">${esc(c.name)} (cliente)</option>`), ...prospects().filter(p => p.etapa !== "perdido").map(p => `<option value="prospect|${esc(p.id)}">${esc(p.nome)} (cliente novo)</option>`)].join("");
+    const origem = [...H.clients().map(c => `<option value="cliente|${esc(c.key)}">${esc(c.name)} (cliente)</option>`), ...prospects().filter(p => p.etapa !== "perdido" && !p.cliente_chave).map(p => `<option value="prospect|${esc(p.id)}">${esc(p.nome)} (cliente novo)</option>`)].join("");
     view.innerHTML = `<div class="panel no-print">${H.banner("shield", "Dados da Nova7 no contrato", faltaAg.length ? "faltam dados obrigatórios" : "preenchidos", `<button type="button" class="btn sm" id="ag-toggle">${faltaAg.length ? "Preencher" : "Editar"}</button>`)}<div class="panel-body" id="ag-body" ${faltaAg.length ? "" : "hidden"}>
         <form id="ag-form" autocomplete="off"><div class="fgrid">${AGENCIA_CAMPOS.map(([k, n]) => fld(k, n, ag[k])).join("")}</div></form>${H.canWrite ? `<div class="toolbar"><button type="button" class="btn sm primary" id="ag-save">Salvar dados da Nova7</button></div>` : ""}</div></div>
       <div class="panel no-print">${H.banner("file", "Contratos", `${list.length} salvo(s)`, H.canWrite ? `<select id="ct-origem"><option value="">Novo contrato para…</option>${origem}</select>` : "")}<div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Serviços</th><th class="num">Valor mensal</th><th>Situação</th><th>Início</th><th></th></tr></thead><tbody>${lista || `<tr><td colspan="6"><div class="empty">Nenhum contrato ainda. Escolha um cliente acima para montar o primeiro.</div></td></tr>`}</tbody></table></div></div>
