@@ -33,6 +33,7 @@
 
   /* ---------- clientes ---------- */
   function clientsTab(v) {
+    if (window.N7ComercialMapa) window.N7ComercialMapa.destruirTodos();
     const list = C.REG.clients.slice().sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name));
     const ed = ui.edit && ui.edit.kind === "client" ? ui.edit : null;
     const cur = ed && ed.key ? list.find(c => c.key === ed.key) : null;
@@ -57,6 +58,7 @@
             <div class="form-row"><div><label class="lbl" for="cf-mads">Conta de anúncios</label><input type="text" id="cf-mads" maxlength="80" placeholder="ex.: 1234567890" value="${C.esc((f.meta || {}).ads || "")}"></div>
               <div><label class="lbl" for="cf-mig">Instagram</label><input type="text" id="cf-mig" maxlength="80" placeholder="ID da conta do Instagram" value="${C.esc((f.meta || {}).ig || "")}"></div></div>
             <div style="margin-top:10px"><label class="lbl" for="cf-mfb">Página do Facebook</label><input type="text" id="cf-mfb" maxlength="80" placeholder="ID da página" value="${C.esc((f.meta || {}).fb || "")}"></div></div>
+          <div><span class="lbl">Onde fica (ponto no mapa)</span>${window.N7ComercialMapa ? window.N7ComercialMapa.campos({ endereco: (f.local || {}).endereco, bairro: (f.local || {}).bairro, lat: (f.local || {}).lat, lng: (f.local || {}).lng, raio_km: (f.local || {}).raio }, false) : ""}</div>
           <div><span class="lbl">Cor</span><div class="color-pick" role="radiogroup" aria-label="Cor">${SVC.COLORS.map((k, i) => `<label><input type="radio" name="cor" value="${k}" ${k === f.color ? "checked" : ""} aria-label="Cor ${i + 1}"><span style="background:var(${k})"></span></label>`).join("")}</div></div>
           ${cur ? `<label class="check"><input type="checkbox" id="cf-active" ${f.active ? "checked" : ""}> Cliente ativo (desmarque para tirá-lo do site, sem apagar o histórico)</label>` : ""}
           <p class="login-err" id="c-err" role="alert" style="display:none"></p>
@@ -67,6 +69,7 @@
     $$("[data-edit-client]", v).forEach(b => { b.onclick = () => go("client", b.dataset.editClient); });
     if (!ed) return;
     $("#c-cancel", v).onclick = () => { ui.edit = null; render(v, v.dataset.sub, C); };
+    if (window.N7ComercialMapa) window.N7ComercialMapa.ligar(v, $("#c-form", v), {});
     const nm = $("#cf-name", v), idEl = $("#cf-id", v);
     if (!cur) nm.addEventListener("input", () => { if (!idEl.dataset.touched) idEl.value = slug(nm.value); if (!$("#cf-short", v).dataset.touched) $("#cf-short", v).value = nm.value.split(/\s+/)[0] || ""; });
     idEl.addEventListener("input", () => { idEl.dataset.touched = "1"; }); $("#cf-short", v).addEventListener("input", e => { e.target.dataset.touched = "1"; });
@@ -77,6 +80,7 @@
         t: "client", chave: cur ? cur.key : newKey(nm.value, C.REG.clients.map(c => c.key)), id: (idEl.value || slug(nm.value)).trim(), nome: nm.value.trim(), curto: $("#cf-short", v).value.trim(),
         perfil: $("#cf-handle", v).value.trim(), segmento: $("#cf-segment", v).value.trim(), setor: $("#cf-setor", v).value, servicos: $$('input[name="svc"]:checked', v).map(i => i.value),
         meta_ads: $("#cf-mads", v).value.trim(), meta_ig: $("#cf-mig", v).value.trim(), meta_fb: $("#cf-mfb", v).value.trim(),
+        ...(e.target.elements.endereco ? { endereco: e.target.elements.endereco.value.trim(), bairro: e.target.elements.bairro.value.trim(), lat: e.target.elements.lat.value, lng: e.target.elements.lng.value, raio_km: e.target.elements.raio_km.value.trim().replace(",", ".") } : {}),
         cor: ($('input[name="cor"]:checked', v) || {}).value, ativo: cur ? ($("#cf-active", v).checked ? "sim" : "nao") : "sim", v: cur ? cur.v : undefined
       };
       err.style.display = "none"; btn.disabled = true;

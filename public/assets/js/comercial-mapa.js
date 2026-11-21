@@ -86,8 +86,49 @@
     return { foco(id) { const m = marcadores[id]; if (m) { map.setView(m.getLatLng(), Math.max(map.getZoom(), 15)); m.openPopup(); } }, mapa: map };
   }
 
+  /* ---- bloco "Onde fica", igual na ficha e no cadastro de clientes ---- */
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const coordTxt = f => (f && valido(f.lat, f.lng) ? `Ponto marcado: ${Number(f.lat).toFixed(5)}, ${Number(f.lng).toFixed(5)}. Arraste o pino para ajustar.` : "Sem ponto marcado. Busque o endereço ou clique no mapa para marcar o local.");
+  /* f: { endereco, bairro, lat, lng, raio_km }; ro: somente leitura */
+  function campos(f, ro) {
+    f = f || {}; const ponto = valido(f.lat, f.lng), raio = f.raio_km == null || f.raio_km === "" ? "" : String(f.raio_km).replace(".", ",");
+    return `<div class="fgrid"><label class="fld"><span>Endereço (rua e número)</span><input type="text" name="endereco" value="${esc(f.endereco)}" maxlength="160" autocomplete="off"></label>
+      <label class="fld"><span>Bairro</span><input type="text" name="bairro" value="${esc(f.bairro)}" maxlength="80" autocomplete="off"></label>
+      <label class="fld"><span>Raio de atendimento (km)</span><input type="text" name="raio_km" value="${esc(raio)}" inputmode="decimal" autocomplete="off"></label></div>
+      <input type="hidden" name="lat" value="${ponto ? esc(f.lat) : ""}"><input type="hidden" name="lng" value="${ponto ? esc(f.lng) : ""}">
+      <div class="toolbar">${ro ? "" : `<button type="button" class="btn sm" id="mp-buscar">Localizar no mapa</button><button type="button" class="btn sm" id="mp-limpar">Remover ponto</button>`}<span class="src" id="mp-msg"></span></div>
+      <div class="mp-res" id="mp-res"></div><div class="mp-box" id="mp-box" role="application" aria-label="Mapa com o ponto do comércio"></div><p class="src" id="mp-coord">${coordTxt(f)}</p>`;
+  }
+  /* liga o bloco acima: busca de endereço, pino por clique ou arraste e círculo do raio. onMudou() avisa quando o ponto muda. */
+  function ligar(view, form, opcoes) {
+    const o = opcoes || {}, box = view.querySelector("#mp-box"); if (!box) return;
+    const q = s => view.querySelector(s), msg = t => { const m = q("#mp-msg"); if (m) m.textContent = t || ""; };
+    const el = n => form.elements[n], lat = el("lat"), lng = el("lng"), coordEl = q("#mp-coord");
+    const raioNum = () => Number(String(el("raio_km").value).replace(",", ".")) || 0;
+    let ctrl = null;
+    const gravaPonto = (la, ln) => { lat.value = la.toFixed(6); lng.value = ln.toFixed(6); coordEl.textContent = coordTxt({ lat: la, lng: ln }); o.onMudou && o.onMudou(); };
+    ensure().then(() => { if (!document.body.contains(box)) return; ctrl = seletor(box, { lat: lat.value, lng: lng.value, raio: raioNum() }, { leitura: !!o.leitura }, gravaPonto); })
+      .catch(e => msg(e.message + " O restante do cadastro continua funcionando."));
+    el("raio_km").addEventListener("input", () => ctrl && ctrl.raio(raioNum()));
+    const bus = q("#mp-buscar");
+    if (bus) bus.onclick = async () => {
+      const cidade = el("cidade") ? el("cidade").value : "", rua = el("endereco").value;
+      if (!rua.trim() && !cidade.trim()) return msg("Preencha o endereço (com a cidade) para buscar.");
+      msg("Buscando…"); const res = q("#mp-res"); res.innerHTML = "";
+      try {
+        await ensure(); const l = await buscar([rua, el("bairro").value, cidade].map(x => x.trim()).filter(Boolean).join(", "));
+        if (!l.length) return msg("Não achei esse endereço. Tente só a rua e a cidade, ou clique no mapa.");
+        if (l.length === 1) { msg("Endereço encontrado. Arraste o pino se precisar ajustar."); return ctrl && ctrl.definir(l[0].lat, l[0].lng); }
+        msg("Escolha o endereço certo:");
+        res.innerHTML = l.map((x, i) => `<button type="button" data-i="${i}">${esc(x.nome)}</button>`).join("");
+        res.querySelectorAll("button").forEach(b => { b.onclick = () => { const x = l[Number(b.dataset.i)]; res.innerHTML = ""; msg("Ponto marcado. Arraste o pino se precisar ajustar."); if (ctrl) ctrl.definir(x.lat, x.lng); }; });
+      } catch (e) { msg("Não consegui buscar o endereço agora. Clique no mapa para marcar o ponto."); }
+    };
+    const lim = q("#mp-limpar"); if (lim) lim.onclick = () => { if (ctrl) ctrl.limpar(); lat.value = ""; lng.value = ""; coordEl.textContent = coordTxt({}); msg("Ponto removido."); o.onMudou && o.onMudou(); };
+  }
+
   /* chamado antes de redesenhar a tela: solta os mapas antigos */
   function destruirTodos() { while (vivos.length) { const m = vivos.pop(); try { m.remove(); } catch (e) { /* já solto */ } } }
 
-  root.N7ComercialMapa = { ensure, buscar, seletor, visao, destruirTodos, valido, pinHtml };
+  root.N7ComercialMapa = { ensure, buscar, seletor, visao, destruirTodos, valido, pinHtml, campos, ligar, coordTxt };
 })(typeof window !== "undefined" ? window : globalThis);

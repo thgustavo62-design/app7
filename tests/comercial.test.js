@@ -196,3 +196,19 @@ test('ficha ampliada: campos por tipo de negócio, território e posicionamento 
   await run(r, [pr({ lat: '', lng: '', raio_km: '', ficha: {}, tipo_negocio: '', v: q.v })]);
   const z = (await model.loadState(new Repo(r.d))).prospects[0]; assert.deepEqual([z.lat, z.lng, z.raio_km, z.ficha], [null, null, null, {}], 'apagar o ponto volta a vazio, sem virar zero');
 });
+
+test('clientes cadastrados guardam endereço, ponto no mapa e raio; vazio continua vazio; só administrador grava', async () => {
+  const r = mk(), cli = o => Object.assign({ t: 'client', op: 'upsert', chave: 'PE', id: 'padaria-estrela', nome: 'Padaria Estrela', curto: 'Padaria', cor: '--c5', segmento: 'padaria', perfil: '', setor: 'varejo', servicos: ['redes'], ativo: 'sim' }, o);
+  await run(r, [cli({ endereco: 'Rua A, 10', bairro: 'Centro', lat: -19.52, lng: -41.0123456789, raio_km: 3 })]);
+  const reg = async () => (await model.loadRegistry(new Repo(r.d), admin)).clients.find(c => c.key === 'PE');
+  let c = await reg(); assert.deepEqual(c.local, { endereco: 'Rua A, 10', bairro: 'Centro', lat: -19.52, lng: -41.012346, raio: 3 });
+  assert.deepEqual((await model.loadRegistry(new Repo(r.d), admin)).clients.find(x => x.key === 'M').local, { endereco: '', bairro: '', lat: null, lng: null, raio: null }, 'cliente sem ponto: vazio, nunca zero');
+  await run(r, [cli({ nome: 'Padaria Estrela 2', v: c.v })]); c = await reg();
+  assert.equal(c.local.lat, -19.52, 'operação sem localização não apaga o ponto'); 
+  await assert.rejects(run(r, [cli({ lat: -19.5, lng: '', v: c.v })]), /juntas/);
+  await assert.rejects(run(r, [cli({ lat: 99, lng: 1, v: c.v })]), /Latitude inválida/);
+  await assert.rejects(run(r, [cli({ raio_km: 999, v: c.v })]), /0 a 500/);
+  await assert.rejects(run(r, [cli({ lat: 1, lng: 1, v: c.v })], { email: 'ed@x.test', nome: 'Ed', papel: 'editor', tipo: 'equipe', empresas: [] }), /administrador/i);
+  await run(r, [cli({ lat: '', lng: '', raio_km: '', endereco: '', v: c.v })]); c = await reg();
+  assert.deepEqual([c.local.lat, c.local.lng, c.local.raio, c.local.endereco], [null, null, null, ''], 'apagar o ponto volta a vazio');
+});
