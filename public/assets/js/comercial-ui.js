@@ -7,7 +7,7 @@
   const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const BRL = C.BRL;
   let H = null;
-  const ui = { sel: null, ct: null, novo: null, ctDraft: null };
+  const ui = { sel: null, ct: null, novo: null, ctDraft: null, prop: null, propVal: {} };
   const rid = p => p + Math.random().toString(36).slice(2, 10).padEnd(8, "0");
   const prospects = () => S.get("prospects", []) || [];
   const contracts = () => S.get("contracts", []) || [];
@@ -131,6 +131,45 @@
     };
   }
 
+  /* proposta comercial em PowerPoint, a partir da ficha (proposta.js) */
+  const lacunasHtml = m => `<p class="src" style="margin:8px 0">${m.total != null ? `${m.origem === "parcial" ? "Subtotal dos itens com valor" : m.origem === "pacote" ? "Valor do pacote (valor estimado da ficha)" : "Total mensal"}: <b>${brl0(m.total)}</b>.` : "Sem valores: a página de investimento vai dizer \"a combinar\"."}</p>${m.faltando.length ? `<p class="notice"><b>Ainda falta na proposta:</b> ${m.faltando.map(esc).join("; ")}.</p>` : `<p class="notice info">A ficha tem o necessário para uma proposta completa.</p>`}`;
+  function propostaHtml(p) {
+    const P = root.N7Proposta; if (!P) return `<p class="src">O gerador de proposta não carregou. Recarregue a página.</p>`;
+    const st = ui.propVal[p.id] || {}, m = P.model(p, { agencia: agency(), valores: st.valores || {}, validadeDias: st.dias || 15, obs: st.obs || "" }), v = st.valores || {};
+    return `<div class="panel" id="pv-panel"><div class="panel-body"><p><b>Proposta para ${esc(p.nome)}.</b> Gera um PowerPoint com o que está na ficha, inclusive o que ainda não foi salvo. O que a ficha não tem aparece como "a combinar" ou fica de fora: nada é inventado, e a proposta não promete resultado.</p>
+      <form id="pv-form" autocomplete="off"><div class="fgrid">${m.servicos.map(s => fld("pv_" + s.id, `${s.nome}: valor mensal (R$)`, v[s.id] == null ? "" : String(v[s.id]).replace(".", ","), ' inputmode="decimal"')).join("")}${fld("pv_dias", "Validade da proposta (dias)", st.dias || 15, ' inputmode="numeric"')}</div>
+        ${C.valorOk(p) ? `<p class="src">Valor estimado na ficha: ${brl0(p.valor_estimado)}/mês. Sem valor por serviço, ele aparece como valor do pacote.</p>` : ""}
+        <div class="fgrid one">${area("pv_obs", "Observação na página de investimento (opcional)", st.obs || "", 2)}</div>
+        ${H.canWrite && ["novo", "contato", "reuniao"].includes(p.etapa) ? `<label class="check"><input type="checkbox" name="pv_marcar" checked> Ao baixar, marcar a ficha como "Proposta enviada" e registrar no histórico</label>` : ""}</form>
+      <div id="pv-lac">${lacunasHtml(m)}</div>
+      <div class="toolbar"><button type="button" class="btn primary sm" id="pv-ok">Baixar PowerPoint</button><button type="button" class="btn sm" id="pv-x">Cancelar</button></div></div></div>`;
+  }
+  function lerProposta(form) {
+    const g = n => (form.elements[n] ? form.elements[n].value.trim() : ""), valores = {};
+    SV.ORDER.forEach(s => { if (form.elements["pv_" + s]) { const x = num(g("pv_" + s)); if (x > 0) valores[s] = x; } });
+    return { valores, dias: Math.round(num(g("pv_dias"))) || 15, obs: g("pv_obs"), marcar: !!(form.elements.pv_marcar && form.elements.pv_marcar.checked) };
+  }
+  function wireProposta(view, p, rerender) {
+    const f = $("#pv-form", view), P = root.N7Proposta; if (!f || !P) return;
+    const atual = () => { const s = lerProposta(f); ui.propVal[p.id] = s; return s; };
+    const modelo = s => P.model(p, { agencia: agency(), valores: s.valores, validadeDias: s.dias, obs: s.obs });
+    const lac = () => { const el = $("#pv-lac", view); if (el) el.innerHTML = lacunasHtml(modelo(atual())); };
+    $$("input,textarea", f).forEach(x => x.addEventListener("input", lac));
+    $("#pv-x", view).onclick = () => { ui.prop = null; rerender(); };
+    $("#pv-ok", view).onclick = async () => {
+      const s = atual(), m = modelo(s), btn = $("#pv-ok", view); btn.disabled = true;
+      try { if (root.N7Lazy) await root.N7Lazy.pptx(); await P.download(m); }
+      catch (e) { console.error(e); H.toast("Não foi possível gerar o PowerPoint. Tente de novo."); btn.disabled = false; return; }
+      const salvo = prospects().find(x => x.id === p.id);
+      if (salvo && H.canWrite) {
+        if (s.marcar && ["novo", "contato", "reuniao"].includes(salvo.etapa)) mover(p.id, "proposta");
+        registrar(p.id, "nota", hojeIso(), `Proposta gerada em PowerPoint${m.total != null ? ` (${brl0(m.total)}/mês${m.origem === "parcial" ? ", só itens com valor" : m.origem === "pacote" ? ", valor do pacote" : ""})` : " (valores a combinar)"}`);
+      }
+      ui.prop = null; H.toast("Proposta gerada. Abra no PowerPoint e revise antes de enviar."); rerender();
+    };
+    lac();
+  }
+
   /* histórico de contatos da ficha (ligação, WhatsApp, reunião, nota e mudanças de etapa) */
   function historico(f) {
     const l = (f.atividades || []).slice(), ro = !H.canWrite;
@@ -203,7 +242,7 @@
     const cur = ui.novo || (ui.edit && ui.edit.id === ui.sel ? ui.edit : null) || list.find(p => p.id === ui.sel) || null, sujo = !!(ui.novo ? ui.novoSujo : (ui.edit && ui.edit.id === ui.sel));
     const itens = list.map(p => { const fit = C.fit(p); return `<button type="button" class="cm-item${cur && cur.id === p.id ? " on" : ""}" data-pick="${esc(p.id)}"><b>${esc(p.nome)}</b><small>${esc(SV.SECTORS[p.setor] || "sem setor")} · ${esc(C.ETAPAS[p.etapa] || "")}</small><span class="badge ${NIVEL[fit.nivel][1]}">prioridade ${NIVEL[fit.nivel][0]}</span></button>`; }).join("");
     view.innerHTML = `<div class="cm-wrap"><aside class="cm-list"><div class="toolbar">${H.canWrite ? `<button type="button" class="btn primary sm" id="cm-new">+ Nova ficha</button>` : ""}<span class="src">${list.length} ficha(s)</span></div>${itens || `<p class="src">Nenhuma ficha ainda. Clique em Nova ficha para cadastrar um cliente em potencial.</p>`}</aside>
-      <section class="cm-main">${cur ? `<div class="panel">${H.banner("file", esc(cur.nome || "Nova ficha"), "ficha do cliente", H.canWrite ? `<span class="badge" id="cm-dirty"${sujo ? "" : " hidden"}>não salva</span><button type="button" class="btn sm primary" id="cm-save">Salvar</button>${prospects().some(p => p.id === cur.id) ? `${cur.cliente_chave ? `<span class="badge st-pub">cliente cadastrado (${esc(cur.cliente_chave)})</span>` : (cur.etapa === "fechado" ? `<button type="button" class="btn sm primary" id="cm-conv">Cadastrar como cliente</button>` : "")}<a class="btn sm" href="#comercial/contratos" id="cm-contract">Montar contrato</a><button type="button" class="btn sm" id="cm-del">Excluir</button>` : ""}` : "")}<div class="panel-body">${fichaForm(cur)}</div></div>${ui.conv === cur.id && cur.etapa === "fechado" && !cur.cliente_chave && prospects().some(p => p.id === cur.id) ? conversaHtml(cur) : ""}${prospects().some(p => p.id === cur.id) ? historico(cur) : `<p class="src">Salve a ficha para começar o histórico de contatos.</p>`}<h2 class="sec-title">Análise e posicionamento</h2><div id="cm-analise">${analiseHtml(cur)}</div>` : `<div class="panel"><div class="panel-body"><p class="src">Escolha uma ficha à esquerda ou crie uma nova. Ao preencher, a análise e o posicionamento sugerido aparecem aqui.</p></div></div>`}</section></div>`;
+      <section class="cm-main">${cur ? `<div class="panel">${H.banner("file", esc(cur.nome || "Nova ficha"), "ficha do cliente", H.canWrite ? `<span class="badge" id="cm-dirty"${sujo ? "" : " hidden"}>não salva</span><button type="button" class="btn sm primary" id="cm-save">Salvar</button>${prospects().some(p => p.id === cur.id) ? `${cur.cliente_chave ? `<span class="badge st-pub">cliente cadastrado (${esc(cur.cliente_chave)})</span>` : (cur.etapa === "fechado" ? `<button type="button" class="btn sm primary" id="cm-conv">Cadastrar como cliente</button>` : "")}<button type="button" class="btn sm" id="cm-prop">Gerar proposta</button><a class="btn sm" href="#comercial/contratos" id="cm-contract">Montar contrato</a><button type="button" class="btn sm" id="cm-del">Excluir</button>` : ""}` : "")}<div class="panel-body">${fichaForm(cur)}</div></div>${ui.conv === cur.id && cur.etapa === "fechado" && !cur.cliente_chave && prospects().some(p => p.id === cur.id) ? conversaHtml(cur) : ""}${ui.prop === cur.id && prospects().some(p => p.id === cur.id) ? propostaHtml(cur) : ""}${prospects().some(p => p.id === cur.id) ? historico(cur) : `<p class="src">Salve a ficha para começar o histórico de contatos.</p>`}<h2 class="sec-title">Análise e posicionamento</h2><div id="cm-analise">${analiseHtml(cur)}</div>` : `<div class="panel"><div class="panel-body"><p class="src">Escolha uma ficha à esquerda ou crie uma nova. Ao preencher, a análise e o posicionamento sugerido aparecem aqui.</p></div></div>`}</section></div>`;
     $$("[data-pick]", view).forEach(b => b.onclick = () => { ui.novo = null; ui.edit = null; ui.novoSujo = false; ui.sel = b.dataset.pick; render(view.closest("#view") || view, "novos", H); });
     const nw = $("#cm-new", view); if (nw) nw.onclick = () => { ui.edit = null; ui.novoSujo = false; ui.novo = { id: rid("p-"), nome: "", etapa: "novo", servicos: [] }; render(view.closest("#view") || view, "novos", H); };
     if (!cur) return;
@@ -225,6 +264,8 @@
     const mk = $("#cm-contract", view); if (mk) mk.onclick = () => { const r = refContrato(cur); ui.ct = null; ui.ctDraft = { novo: true, cliente_tipo: r.tipo, cliente_ref: r.ref }; };
     const cvb = $("#cm-conv", view); if (cvb) cvb.onclick = () => { ui.conv = cur.id; render(view.closest("#view") || view, "novos", H); };
     if (ui.conv === cur.id) wireConversa(view, cur, () => render(document.querySelector("#view") || view.closest("#view") || view, "novos", H));
+    const pvb = $("#cm-prop", view); if (pvb) pvb.onclick = () => { ui.prop = cur.id; render(view.closest("#view") || view, "novos", H); };
+    if (ui.prop === cur.id) wireProposta(view, cur, () => render(document.querySelector("#view") || view.closest("#view") || view, "novos", H));
     const ad = $("#at-add", view); if (ad) ad.onclick = () => { const t = ($("#at-txt", view).value || "").trim(), em = $("#at-em", view).value || hojeIso(); if (!t) return H.toast("Escreva o que foi falado ou combinado."); registrar(cur.id, $("#at-tipo", view).value, em, t); H.toast("Contato registrado."); render(view.closest("#view") || view, "novos", H); };
   }
 

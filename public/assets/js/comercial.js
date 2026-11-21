@@ -112,7 +112,7 @@
     const sazon = fx(f, "sazonalidade") ? [`Do cliente: ${fx(f, "sazonalidade")}`].concat(sec ? sec.seasons : []) : (sec ? sec.seasons.slice() : []);
     const plano = [`Semana 1: diagnóstico dos perfis e dos concorrentes${sec ? " e leitura da realidade do setor" : ""}; combinar acessos e quem aprova.`, "Semana 2: linha editorial, identidade e os pilares de conteúdo acima; definir horários fixos.", "Semana 3: calendário do mês e primeiras peças em aprovação.", `Semana 4: publicação e primeira medição (${rec.length ? rec.map(r => SV.SERVICES[r.servico] ? SV.SERVICES[r.servico].short.toLowerCase() : r.servico).join(", ") : "indicadores combinados"}), com a primeira reunião de resultados.`];
     return {
-      setor, tipo, proposta, partida: fx(f, "proposta_atual"), tom: tomDesejado ? `${tomDesejado} (o que o cliente pediu). Base do setor: ${tomSetor}` : tomSetor, territorio, pilares: pilarTipo.concat(PILARES[f.setor] || PILARES.outro), canais, formatos: sec ? sec.formats.slice() : [], sazonalidade: sazon,
+      setor, tipo, proposta, partida: fx(f, "proposta_atual"), tomPedido: tomDesejado, tomSetor, tom: tomDesejado ? `${tomDesejado} (o que o cliente pediu). Base do setor: ${tomSetor}` : tomSetor, territorio, pilares: pilarTipo.concat(PILARES[f.setor] || PILARES.outro), canais, formatos: sec ? sec.formats.slice() : [], sazonalidade: sazon,
       armadilhas: sec ? sec.pitfalls.slice() : [], cuidados: cuidadosBase,
       servicos: rec, indicadores: rec.map(r => ({ servico: r.servico, kpi: KPI[r.servico] || "" })).filter(x => x.kpi), plano30: plano, alertas, funil: sec ? sec.funnel : ""
     };
