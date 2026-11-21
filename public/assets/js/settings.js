@@ -248,7 +248,7 @@
     view.innerHTML = `
       <div class="page-head"><div><div class="eyebrow">Sistema · só administradores</div><h1>Configurações</h1>
         <p>Cadastre os clientes com os serviços que a Nova7 presta a cada um (o painel muda conforme o serviço) e dê acesso à equipe e aos usuários dos clientes.</p></div></div>
-      <nav class="subtabs" aria-label="Configurações"><a href="#config/usuarios" ${tab === "usuarios" ? 'aria-current="page"' : ""}>Usuários</a><a href="#config/clientes" ${tab === "clientes" ? 'aria-current="page"' : ""}>Clientes e serviços</a><a href="#config/fontes" ${tab === "fontes" ? 'aria-current="page"' : ""}>Fontes de dados</a></nav>
+      <nav class="subtabs in-side" aria-label="Configurações"><a href="#config/usuarios" ${tab === "usuarios" ? 'aria-current="page"' : ""}>Usuários</a><a href="#config/clientes" ${tab === "clientes" ? 'aria-current="page"' : ""}>Clientes e serviços</a><a href="#config/fontes" ${tab === "fontes" ? 'aria-current="page"' : ""}>Fontes de dados</a></nav>
       <div id="cfg-body" class="view" style="gap:16px"></div>`;
     if (tab === "clientes") clientsTab(view); else if (tab === "fontes") sourcesTab(view); else usersTab(view);
   }

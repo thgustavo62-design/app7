@@ -336,7 +336,7 @@
       <div class="page-head"><div><div class="eyebrow">Preço e promoção · só equipe</div><h1>Central de Promoções</h1>
         <p>Estoque e vendas de 60 e 90 dias de cada loja: o que está parado, o que gira, o que está para acabar e por quanto vender sem furar o piso de margem. As lojas nunca se misturam.</p></div>
         <div class="seg" id="pm-loja" role="group" aria-label="Loja">${lojas.map(l => `<button type="button" data-v="${esc(l.key)}" aria-pressed="${l.key === ui.loja}">${esc(l.name)}</button>`).join("")}</div></div>
-      <nav class="subtabs scroll" aria-label="Central de Promoções">${TABS.map(([id, n]) => `<a href="#promocoes${id === "visao" ? "" : "/" + id}" ${id === tab ? 'aria-current="page"' : ""}>${n}</a>`).join("")}</nav>
+      <nav class="subtabs scroll in-side" aria-label="Central de Promoções">${TABS.map(([id, n]) => `<a href="#promocoes${id === "visao" ? "" : "/" + id}" ${id === tab ? 'aria-current="page"' : ""}>${n}</a>`).join("")}</nav>
       ${tab === "candidatos" ? `<div class="toolbar"><label class="lbl" for="pm-regra" style="margin:0">Regra de preço</label><select id="pm-regra">${Object.values(P.REGRAS).map(x => `<option value="${x.id}" ${x.id === ui.regra ? "selected" : ""}>${esc(x.nome)} · piso ${pct(x.margemMin)}</option>`).join("")}</select></div>` : ""}
       <div id="pm-body" class="view" style="gap:16px"></div>`;
     $$("#pm-loja button", view).forEach(b => { b.onclick = () => { ui.loja = b.dataset.v; saveUi(); render(view, H, tab); }; });

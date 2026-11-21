@@ -202,7 +202,7 @@
   function render(view, sub, helpers) {
     H = helpers; const tab = ["novos", "contratos"].includes(sub) ? sub : "carteira";
     const titulo = { carteira: ["Carteira atual", "Como estão os clientes de hoje e onde dá para vender mais."], novos: ["Clientes novos", "Preencha a ficha de quem pode virar cliente e veja o posicionamento sugerido."], contratos: ["Contratos", "Monte o contrato a partir dos serviços, com valor, escopo e condições."] }[tab];
-    view.innerHTML = `<div class="page-head no-print"><div><div class="eyebrow">Comercial · só administradores</div><h1>${titulo[0]}</h1><p>${titulo[1]}</p></div></div><nav class="subtabs no-print" aria-label="Comercial">${[["carteira", "Carteira atual"], ["novos", "Clientes novos"], ["contratos", "Contratos"]].map(([k, n]) => `<a href="#comercial${k === "carteira" ? "" : "/" + k}"${k === tab ? ' aria-current="page"' : ""}>${n}</a>`).join("")}</nav><div id="cm-body" class="view" style="gap:16px"></div>`;
+    view.innerHTML = `<div class="page-head no-print"><div><div class="eyebrow">Comercial · só administradores</div><h1>${titulo[0]}</h1><p>${titulo[1]}</p></div></div><nav class="subtabs in-side no-print" aria-label="Comercial">${[["carteira", "Carteira atual"], ["novos", "Clientes novos"], ["contratos", "Contratos"]].map(([k, n]) => `<a href="#comercial${k === "carteira" ? "" : "/" + k}"${k === tab ? ' aria-current="page"' : ""}>${n}</a>`).join("")}</nav><div id="cm-body" class="view" style="gap:16px"></div>`;
     const body = $("#cm-body", view);
     (tab === "novos" ? novos : tab === "contratos" ? contratos : carteira)(body);
   }

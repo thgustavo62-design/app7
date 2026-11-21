@@ -67,9 +67,9 @@ button { font: inherit; cursor: pointer; color: inherit; }
 .nav-item:hover { background: var(--side-hover); color: #fff; }
 .nav-item.active { background: var(--violet); color: #fff; font-weight: 700; box-shadow: 0 0 0 2px rgba(255, 255, 255, .9); }
 .nav-item svg { width: 17px; height: 17px; flex: none; }
-.nav-sub { margin: 0 0 6px 18px; padding-left: 10px; border-left: 1px solid var(--side-line); display: flex; flex-direction: column; gap: 1px; }
-.nav-subitem { display: block; padding: 6px 10px; border-radius: 8px; font-size: 12.5px; color: var(--side-muted); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nav-subitem:hover { color: #fff; background: var(--side-hover); } .nav-subitem.on { color: #fff; font-weight: 700; background: rgba(255, 255, 255, .1); }
+.nav-sub { margin: 0 0 8px 20px; padding-left: 8px; border-left: 2px solid var(--side-line); display: flex; flex-direction: column; gap: 1px; }
+.nav-subitem { display: block; padding: 7px 10px; border-radius: 8px; font-size: 13px; color: var(--side-muted); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-subitem:hover { color: #fff; background: var(--side-hover); } .nav-subitem.on { color: #fff; font-weight: 700; background: rgba(255, 255, 255, .12); box-shadow: inset 3px 0 0 var(--violet); }
 .nav-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; margin: 0 4px; }
 .nav-count { margin-left: auto; font-size: 10.5px; background: #2d2c40; color: #e8e6f5; border-radius: 999px; padding: 0 7px; font-weight: 700; }
 .nav-item.active .nav-count { background: rgba(255, 255, 255, .25); }
@@ -700,3 +700,6 @@ html.is-offline body::before { content: "Sem conexão"; position: fixed; top: en
   .shell, .main, .content, #view, .view, .panel, .panel-body { display: block !important; margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; }
   .contrato { max-width: none; color: #000; } .contrato p { font-size: 11pt; }
 }
+
+/* as subpáginas ficam no menu da esquerda; a barra horizontal só aparece onde o menu vira gaveta (celular) */
+@media (min-width: 901px) { .subtabs.in-side { display: none; } }
