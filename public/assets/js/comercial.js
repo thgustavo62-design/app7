@@ -15,11 +15,34 @@
 
   /* ---------- ficha: completude ---------- */
   const CAMPOS = [["nome", "Nome"], ["setor", "Setor"], ["segmento", "Segmento"], ["cidade", "Cidade"], ["objetivo", "Objetivo principal"], ["publico", "Público-alvo"], ["diferenciais", "Diferenciais"], ["concorrentes", "Concorrentes"], ["canais", "Canais atuais"], ["dor", "Dor principal"], ["prazo", "Prazo desejado"]];
+  /* Ficha ampliada: o tipo de negócio escolhe quais perguntas aparecem. [chave, pergunta] */
+  const TIPOS = { loja_fisica: "Loja ou comércio de rua", servico_local: "Prestador de serviço local (clínica, escritório, oficina)", profissional: "Profissional liberal ou autoridade pessoal", online: "Loja online ou e-commerce", b2b: "Empresa que vende para empresas (B2B, indústria)", misto: "Físico e online" };
+  const FISICOS = ["loja_fisica", "servico_local", "misto"];
+  const F_COMUNS = [["proposta_atual", "Como ele se apresenta hoje (uma frase)"], ["tom_desejado", "Tom de voz que ele quer"], ["nao_quer", "O que ele NÃO quer ser ou parecer"], ["prova_social", "Provas: avaliações, depoimentos, prêmios, número de clientes"], ["sazonalidade", "Datas e épocas fortes do negócio"], ["presenca", "Presença digital hoje (Google Meu Negócio, WhatsApp Business, site, anúncios)"], ["instagram", "Instagram (@)"], ["site", "Site ou link principal"], ["ticket_medio", "Ticket médio (R$)"]];
+  const F_TIPO = {
+    loja_fisica: [["carro_chefe", "Produtos carro-chefe"], ["horario", "Horário de funcionamento"], ["fluxo", "Movimento: rua, shopping, estacionamento, ponto de referência"], ["delivery", "Faz entrega? Como?"], ["concorrente_proximo", "Concorrente mais próximo (e a distância)"]],
+    servico_local: [["servicos_principais", "Serviços principais"], ["agendamento", "Como o cliente agenda"], ["horario", "Horário de atendimento"], ["convenios", "Convênios e formas de pagamento"], ["diferencial_tecnico", "Diferencial técnico ou equipamento"]],
+    profissional: [["especialidade", "Especialidade"], ["credenciais", "Formação e registros (CRM, OAB, CRC...)"], ["onde_lembrado", "Onde quer ser lembrado ou convidado"]],
+    online: [["carro_chefe", "Produtos carro-chefe"], ["plataforma", "Plataforma (loja própria, marketplace)"], ["logistica", "Entrega e prazo"], ["recompra", "Frequência de recompra"]],
+    b2b: [["carro_chefe", "O que vende"], ["decisor", "Quem decide a compra"], ["ciclo", "Ciclo de venda (dias)"], ["cases", "Clientes de referência"]],
+    misto: [["carro_chefe", "Produtos carro-chefe"], ["horario", "Horário da loja física"], ["delivery", "Faz entrega? Como?"], ["plataforma", "Plataforma online"]]
+  };
+  const camposDoTipo = t => F_COMUNS.concat(F_TIPO[t] || []).filter((c, i, a) => a.findIndex(x => x[0] === c[0]) === i);
+  const FICHA_KEYS = [...new Set(F_COMUNS.concat(...Object.values(F_TIPO)).map(c => c[0]))];
+  const fx = (f, k) => String(((f && f.ficha) || {})[k] || "").trim();
+  const temPonto = f => !!f && f.lat !== "" && f.lat != null && f.lng !== "" && f.lng != null && isFinite(Number(f.lat)) && isFinite(Number(f.lng));
   function completude(f) {
-    const faltam = CAMPOS.filter(([k]) => !String((f && f[k]) || "").trim()).map(([, n]) => n);
-    if (!(f && (f.servicos || []).length)) faltam.push("Serviços de interesse");
-    const total = CAMPOS.length + 1;
-    return { pct: Math.round((total - faltam.length) / total * 100), faltam };
+    f = f || {};
+    const faltam = CAMPOS.filter(([k]) => !String(f[k] || "").trim()).map(([, n]) => n);
+    if (!(f.servicos || []).length) faltam.push("Serviços de interesse");
+    let total = CAMPOS.length + 2;
+    if (!f.tipo_negocio) faltam.push("Tipo de negócio");
+    else {
+      total += 3;
+      if (!fx(f, "proposta_atual")) faltam.push("Como ele se apresenta hoje"); if (!fx(f, "prova_social")) faltam.push("Provas (avaliações, depoimentos)"); if (!fx(f, "presenca")) faltam.push("Presença digital hoje");
+      if (FISICOS.includes(f.tipo_negocio)) { total += 1; if (!temPonto(f)) faltam.push("Ponto no mapa"); }
+    }
+    return { pct: Math.max(0, Math.round((total - faltam.length) / total * 100)), faltam };
   }
 
   /* ---------- serviços recomendados ---------- */
@@ -70,10 +93,27 @@
     if (!String(f.concorrentes || "").trim()) alertas.push({ nivel: "info", texto: "Concorrentes não informados: sem eles não há como comparar preço, tom e frequência de publicação." });
     if (REGULADOS.includes(f.setor)) alertas.push({ nivel: "regulado", texto: "Setor com regras próprias de publicidade: combine desde o início quem faz a revisão técnica e em quantos dias, porque ela entra no prazo de toda peça." });
     if (f.objetivo === "ser_referencia" && !rec.some(r => r.servico === "autoridade")) alertas.push({ nivel: "info", texto: "Referência na área pede o serviço de Autoridade e posicionamento, que acompanha ritmo, engajamento qualificado e convites." });
+    /* ficha ampliada: tipo de negócio, território, provas e presença digital */
+    const tipo = f.tipo_negocio || "", fisico = FISICOS.includes(tipo), territorio = [], canaisTipo = [], pilarTipo = [];
+    if (temPonto(f)) territorio.push(`Ponto marcado no mapa${f.bairro ? ` no bairro ${f.bairro}` : ""}${f.cidade ? `, em ${f.cidade}` : ""}.`);
+    if (f.raio_km !== "" && f.raio_km != null && Number(f.raio_km) > 0) territorio.push(`Atende num raio de ${Number(f.raio_km)} km: limite o público dos anúncios e os conteúdos locais a essa área, para a verba não comprar gente que não consegue comprar.`);
+    if (fisico) { canaisTipo.push("Google Meu Negócio (mapa, avaliações, horário e fotos): é a primeira vitrine de quem procura perto"); pilarTipo.push(tipo === "servico_local" ? "O atendimento passo a passo, do agendamento ao resultado" : "O lugar: fachada, vitrine, como chegar e onde estacionar"); }
+    if (tipo === "online" || tipo === "misto") { canaisTipo.push("Catálogo e WhatsApp com link direto de compra"); pilarTipo.push("Produto em uso, prazo de entrega e política de troca"); }
+    if (tipo === "profissional") { canaisTipo.push("Instagram e LinkedIn com ponto de vista próprio"); pilarTipo.push("Ponto de vista e casos reais, sem expor terceiros"); }
+    if (tipo === "b2b") { canaisTipo.push("LinkedIn e e-mail para quem decide a compra"); pilarTipo.push("Casos com número e o processo de entrega"); }
+    canaisTipo.forEach(c => { if (!canais.some(x => x.toLowerCase().includes(c.slice(0, 12).toLowerCase()))) canais.unshift(c); });
+    if (fisico && !temPonto(f)) alertas.push({ nivel: "atencao", texto: "Negócio com endereço físico sem ponto no mapa: marque o local na ficha. Anúncio e conteúdo locais dependem de saber onde o cliente está." });
+    if (tipo && !fx(f, "prova_social")) alertas.push({ nivel: "info", texto: "Sem provas coletadas (avaliações, depoimentos, prêmios, número de clientes). Combine desde já como o cliente vai juntar e autorizar o uso delas." });
+    if (fisico && fx(f, "presenca") && !has(fx(f, "presenca"), "google")) alertas.push({ nivel: "atencao", texto: "A presença digital informada não cita o Google Meu Negócio. Para quem vende perto, é o primeiro lugar onde o cliente decide: confira se o perfil existe e está completo." });
+    if (["vender_mais", "captar_leads"].includes(f.objetivo) && tipo && !fx(f, "ticket_medio")) alertas.push({ nivel: "info", texto: "Ticket médio não informado: sem ele não há como estimar quantas vendas pagam a verba de mídia." });
+    const nao = fx(f, "nao_quer"), tomDesejado = fx(f, "tom_desejado"), tomSetor = TOM[f.setor] || TOM[setor] || TOM.outro;
+    const cuidadosBase = PB.checks && PB.checks[f.setor] ? PB.checks[f.setor].slice() : ["Autorização por escrito para uso de imagem, depoimentos e marca", "Informações que podem ser comprovadas", "Dados pessoais de terceiros ocultos (LGPD)"];
+    if (nao) cuidadosBase.unshift(`Evitar, a pedido do cliente: ${nao}`);
+    const sazon = fx(f, "sazonalidade") ? [`Do cliente: ${fx(f, "sazonalidade")}`].concat(sec ? sec.seasons : []) : (sec ? sec.seasons.slice() : []);
     const plano = [`Semana 1: diagnóstico dos perfis e dos concorrentes${sec ? " e leitura da realidade do setor" : ""}; combinar acessos e quem aprova.`, "Semana 2: linha editorial, identidade e os pilares de conteúdo acima; definir horários fixos.", "Semana 3: calendário do mês e primeiras peças em aprovação.", `Semana 4: publicação e primeira medição (${rec.length ? rec.map(r => SV.SERVICES[r.servico] ? SV.SERVICES[r.servico].short.toLowerCase() : r.servico).join(", ") : "indicadores combinados"}), com a primeira reunião de resultados.`];
     return {
-      setor, proposta, tom: TOM[f.setor] || TOM[setor] || TOM.outro, pilares: (PILARES[f.setor] || PILARES.outro).slice(), canais, formatos: sec ? sec.formats.slice() : [], sazonalidade: sec ? sec.seasons.slice() : [],
-      armadilhas: sec ? sec.pitfalls.slice() : [], cuidados: (PB.checks && PB.checks[f.setor] ? PB.checks[f.setor].slice() : ["Autorização por escrito para uso de imagem, depoimentos e marca", "Informações que podem ser comprovadas", "Dados pessoais de terceiros ocultos (LGPD)"]),
+      setor, tipo, proposta, partida: fx(f, "proposta_atual"), tom: tomDesejado ? `${tomDesejado} (o que o cliente pediu). Base do setor: ${tomSetor}` : tomSetor, territorio, pilares: pilarTipo.concat(PILARES[f.setor] || PILARES.outro), canais, formatos: sec ? sec.formats.slice() : [], sazonalidade: sazon,
+      armadilhas: sec ? sec.pitfalls.slice() : [], cuidados: cuidadosBase,
       servicos: rec, indicadores: rec.map(r => ({ servico: r.servico, kpi: KPI[r.servico] || "" })).filter(x => x.kpi), plano30: plano, alertas, funil: sec ? sec.funnel : ""
     };
   }
@@ -248,5 +288,5 @@
     return { titulo, clausulas: cl, texto, html, total };
   }
 
-  root.N7Comercial = { OBJETIVOS, PORTES, ETAPAS, PROB, MOTIVOS, ATIVIDADES, ABERTAS, hojeIso, funil, retornos, sugerirCliente, contratosDoCliente, valorOk, ultimoContato, PARAMS, completude, recomendar, posicionamento, fit, carteira, valorContrato, extenso, escopoPadrao, gerarContrato, BRL };
+  root.N7Comercial = { TIPOS, FISICOS, F_COMUNS, F_TIPO, FICHA_KEYS, camposDoTipo, temPonto, OBJETIVOS, PORTES, ETAPAS, PROB, MOTIVOS, ATIVIDADES, ABERTAS, hojeIso, funil, retornos, sugerirCliente, contratosDoCliente, valorOk, ultimoContato, PARAMS, completude, recomendar, posicionamento, fit, carteira, valorContrato, extenso, escopoPadrao, gerarContrato, BRL };
 })(typeof window !== "undefined" ? window : globalThis);

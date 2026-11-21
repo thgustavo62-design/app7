@@ -236,7 +236,7 @@
   const NAVSUB = {
     semana: () => [["entrada", "Entrada dos números"], ["analise", "Análise e PowerPoint"]],
     autoridade: () => [["painel", "Painel de autoridade"], ["entrada", "Entrada dos números"]],
-    comercial: () => [["carteira", "Carteira atual"], ["funil", "Funil de vendas"], ["novos", "Clientes novos"], ["contratos", "Contratos"]],
+    comercial: () => [["carteira", "Carteira atual"], ["funil", "Funil de vendas"], ["novos", "Clientes novos"], ["mapa", "Mapa"], ["contratos", "Contratos"]],
     promocoes: () => [["", "Visão geral"], ["candidatos", "Candidatos"], ["campanha", "Montar campanha"], ["campanhas", "Campanhas"], ["resultado", "Resultado"], ["importar", "Importar"]],
     cerebro: () => [["", "Hoje"], ["clientes", "Clientes"], ["radar", "Radar"], ["agentes", "Agentes 3D"], ["servicos", "Serviços 3D"], ["conexoes", "Conexões"], ["memoria", "Memória"], ["regras", "Como pensa"]],
     config: () => [["usuarios", "Usuários"], ["clientes", "Clientes e serviços"], ["fontes", "Fontes de dados"]]

@@ -19,7 +19,10 @@ test('valor por extenso: reais e centavos, "e" entre grupos e milhões', () => {
 
 test('ficha: completude lista o que falta; prioridade comercial explica o porquê', () => {
   const vazio = C.completude({ nome: 'X' }); assert.ok(vazio.pct < 20); assert.ok(vazio.faltam.includes('Objetivo principal') && vazio.faltam.includes('Serviços de interesse'));
-  assert.equal(C.completude(ficha()).pct, 100);
+  assert.equal(C.completude(ficha()).pct, 92); assert.ok(C.completude(ficha()).faltam.includes('Tipo de negócio'), 'sem tipo de negócio a ficha não passa de 92%');
+  assert.equal(C.completude(ficha({ tipo_negocio: 'loja_fisica', lat: -19.52, lng: -41.01, ficha: { proposta_atual: 'a', prova_social: 'b', presenca: 'c' } })).pct, 100);
+  assert.deepEqual(C.completude(ficha({ tipo_negocio: 'loja_fisica', ficha: {} })).faltam, ['Como ele se apresenta hoje', 'Provas (avaliações, depoimentos)', 'Presença digital hoje', 'Ponto no mapa'], 'negócio físico precisa de ponto no mapa');
+  assert.equal(C.completude(ficha({ tipo_negocio: 'online', ficha: { proposta_atual: 'a', prova_social: 'b', presenca: 'c' } })).pct, 100, 'online não precisa de ponto no mapa');
   const alta = C.fit(ficha()); assert.equal(alta.nivel, 'alta'); assert.ok(alta.motivos.some(m => /Playbook/.test(m)));
   const baixa = C.fit({ nome: 'Y' }); assert.equal(baixa.nivel, 'baixa');
   const semVerba = C.fit(ficha({ orcamento_midia: '' })); assert.ok(semVerba.score < alta.score); assert.ok(semVerba.motivos.some(m => /verba de mídia não informada/.test(m)));
@@ -160,4 +163,36 @@ test('ficha fechada vira cliente: sugestão sem repetir chave, endereço e cor; 
   await assert.rejects(run(r, [pr({ cliente_chave: 'cs 2!', v: '1' })]), /Chave do cliente inválida/);
   const carteira = C.carteira({ clients: [{ key: 'CS2', name: 'Clínica Sorriso', services: ['redes'] }], contracts: C.contratosDoCliente([{ id: 'ct-1', cliente_tipo: 'prospect', cliente_ref: 'p-1', status: 'assinado', valores: { redes: 1500 } }], 'p-1', 'CS2') });
   assert.equal(carteira.resumo.mrr, 1500, 'depois de virar cliente, o contrato assinado entra na receita recorrente');
+});
+
+test('ficha ampliada: campos por tipo de negócio, território e posicionamento usam o que o cliente contou; servidor guarda e valida', async () => {
+  assert.deepEqual(Object.keys(C.TIPOS), ['loja_fisica', 'servico_local', 'profissional', 'online', 'b2b', 'misto']);
+  assert.ok(C.camposDoTipo('loja_fisica').some(c => c[0] === 'fluxo') && !C.camposDoTipo('online').some(c => c[0] === 'fluxo'), 'cada tipo tem as suas perguntas');
+  assert.ok(C.camposDoTipo('b2b').some(c => c[0] === 'decisor') && C.camposDoTipo('profissional').some(c => c[0] === 'credenciais'));
+  assert.equal(new Set(C.FICHA_KEYS).size, C.FICHA_KEYS.length, 'sem chave repetida');
+  const f = ficha({ tipo_negocio: 'loja_fisica', bairro: 'Centro', lat: -19.52, lng: -41.01, raio_km: 5, ficha: { nao_quer: 'parecer barato', tom_desejado: 'acolhedor e direto', sazonalidade: 'Dia das Mães', presenca: 'só Instagram', prova_social: '200 avaliações' } });
+  const p = C.posicionamento(f);
+  assert.ok(p.territorio.some(t => /bairro Centro/.test(t)) && p.territorio.some(t => /raio de 5 km/.test(t)));
+  assert.ok(/acolhedor e direto \(o que o cliente pediu\)/.test(p.tom) && /Base do setor/.test(p.tom));
+  assert.ok(p.cuidados[0] === 'Evitar, a pedido do cliente: parecer barato' && p.sazonalidade[0] === 'Do cliente: Dia das Mães');
+  assert.ok(p.canais[0].startsWith('Google Meu Negócio') && p.pilares[0].startsWith('O lugar'));
+  assert.ok(p.alertas.some(a => /não cita o Google Meu Negócio/.test(a.texto)), 'presença sem Google num negócio físico');
+  assert.ok(!p.alertas.some(a => /sem ponto no mapa/.test(a.texto)) && !p.alertas.some(a => /Sem provas coletadas/.test(a.texto)));
+  assert.ok(C.posicionamento(ficha({ tipo_negocio: 'servico_local' })).alertas.some(a => /sem ponto no mapa/.test(a.texto)), 'físico sem ponto no mapa avisa');
+  assert.ok(!C.posicionamento(ficha({ tipo_negocio: 'online' })).alertas.some(a => /sem ponto no mapa/.test(a.texto)), 'online não precisa de ponto');
+  /* servidor */
+  const model2 = require('../lib/model'); const src = require('fs').readFileSync(require.resolve('../lib/model'), 'utf8');
+  const lista = JSON.parse(src.match(/const FICHA_KEYS = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
+  assert.deepEqual(lista.slice().sort(), C.FICHA_KEYS.slice().sort(), 'a lista de campos do servidor bate com a do cliente');
+  const r = mk(); await run(r, [pr({ tipo_negocio: 'loja_fisica', endereco: 'Rua A, 10', bairro: 'Centro', lat: -19.52, lng: -41.0123456789, raio_km: 5, ficha: { carro_chefe: 'Pão francês', horario: '6h às 20h', inventada: 'x', site: '   ' } })]);
+  const q = (await model.loadState(new Repo(r.d))).prospects[0];
+  assert.deepEqual([q.tipo_negocio, q.endereco, q.bairro, q.lat, q.lng, q.raio_km], ['loja_fisica', 'Rua A, 10', 'Centro', -19.52, -41.012346, 5]);
+  assert.deepEqual(q.ficha, { horario: '6h às 20h', carro_chefe: 'Pão francês' }, 'campo desconhecido e campo em branco ficam de fora');
+  await assert.rejects(run(r, [pr({ lat: -19.5, lng: '', v: q.v })]), /juntas/);
+  await assert.rejects(run(r, [pr({ lat: 95, lng: 10, v: q.v })]), /Latitude inválida/);
+  await assert.rejects(run(r, [pr({ lat: 10, lng: 200, v: q.v })]), /Longitude inválida/);
+  await assert.rejects(run(r, [pr({ raio_km: 900, v: q.v })]), /0 a 500/);
+  await assert.rejects(run(r, [pr({ tipo_negocio: 'fabrica', v: q.v })]), /Tipo de negócio/);
+  await run(r, [pr({ lat: '', lng: '', raio_km: '', ficha: {}, tipo_negocio: '', v: q.v })]);
+  const z = (await model.loadState(new Repo(r.d))).prospects[0]; assert.deepEqual([z.lat, z.lng, z.raio_km, z.ficha], [null, null, null, {}], 'apagar o ponto volta a vazio, sem virar zero');
 });

@@ -714,3 +714,15 @@ html.is-offline body::before { content: "Sem conexão"; position: fixed; top: en
 .fn-move { margin-top: 4px; font-size: 12px; max-width: 100%; } .fn-empty { text-align: center; padding: 14px 4px; }
 .linkish { background: none; border: 0; padding: 0; color: inherit; cursor: pointer; text-align: left; font: inherit; } .linkish:hover { color: var(--violet-d); text-decoration: underline; }
 .cm-ativ li { padding: 4px 0; border-bottom: 1px solid var(--line); } .cm-ativ li:last-child { border-bottom: 0; }
+
+/* Comercial: mapa */
+.mp-box { height: 300px; border-radius: 12px; border: 1px solid var(--line); position: relative; z-index: 0; isolation: isolate; margin: 8px 0; background: var(--card); }
+.mp-box.grande { height: 460px; }
+.mp-pin-wrap { background: none; border: 0; }
+.mp-pin { display: block; width: 26px; height: 26px; border-radius: 50% 50% 50% 0; background: var(--pin, #7c4dff); transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .35); position: relative; margin: 2px; }
+.mp-pin::after { content: ""; position: absolute; width: 9px; height: 9px; border-radius: 50%; background: #fff; top: 50%; left: 50%; margin: -4.5px 0 0 -4.5px; }
+.mp-res { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+.mp-res button { text-align: left; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: inherit; cursor: pointer; font-size: 13px; }
+.mp-res button:hover { border-color: var(--violet); }
+.mp-leg { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12.5px; color: var(--text-2); } .mp-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+.leaflet-container { font-family: inherit; }

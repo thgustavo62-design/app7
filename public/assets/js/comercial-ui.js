@@ -148,16 +148,27 @@
   /* ================= Clientes novos ================= */
   const fld = (n, label, v, extra = "") => `<label class="fld"><span>${label}</span><input type="text" name="${n}" value="${esc(v ?? "")}" autocomplete="off"${extra}></label>`;
   const area = (n, label, v, rows = 2) => `<label class="fld wide"><span>${label}</span><textarea name="${n}" rows="${rows}" maxlength="800">${esc(v || "")}</textarea></label>`;
+  /* perguntas da conversa de posicionamento: as longas viram caixa de texto */
+  const LONGOS = ["proposta_atual", "nao_quer", "prova_social", "presenca", "sazonalidade", "fluxo", "diferencial_tecnico", "cases", "convenios", "onde_lembrado", "credenciais", "delivery"];
+  const fxCampo = (k, n, v) => (LONGOS.includes(k) ? `<label class="fld wide"><span>${esc(n)}</span><textarea name="fx_${k}" rows="2" maxlength="300">${esc(v || "")}</textarea></label>` : `<label class="fld"><span>${esc(n)}</span><input type="text" name="fx_${k}" value="${esc(v || "")}" maxlength="300" autocomplete="off"></label>`);
+  const coordTxt = f => (C.temPonto(f) ? `Ponto marcado: ${Number(f.lat).toFixed(5)}, ${Number(f.lng).toFixed(5)}. Arraste o pino para ajustar.` : "Sem ponto marcado. Busque o endereço ou clique no mapa para marcar o local.");
   function fichaForm(f) {
     const ro = !H.canWrite;
     return `<form id="cm-form" autocomplete="off" novalidate ${ro ? "" : ""}>
       <fieldset><legend>Quem é</legend><div class="fgrid">${fld("nome", "Nome do cliente", f.nome)}${fld("contato", "Contato (quem decide)", f.contato)}${fld("email", "E-mail", f.email)}${fld("telefone", "Telefone / WhatsApp", f.telefone)}${fld("cidade", "Cidade", f.cidade)}${fld("segmento", "Segmento (o que faz)", f.segmento)}
         <label class="fld"><span>Setor</span><select name="setor">${opts(SV.SECTORS, f.setor, "escolha")}</select></label>
+        <label class="fld"><span>Tipo de negócio</span><select name="tipo_negocio">${opts(C.TIPOS, f.tipo_negocio, "escolha")}</select></label>
         <label class="fld"><span>Porte</span><select name="porte">${opts(C.PORTES, f.porte, "escolha")}</select></label>${fld("tempo_mercado", "Tempo de mercado", f.tempo_mercado)}${fld("origem", "De onde veio", f.origem)}</div></fieldset>
       <fieldset><legend>O que ele quer</legend><div class="fgrid">
         <label class="fld"><span>Objetivo principal</span><select name="objetivo">${opts(C.OBJETIVOS, f.objetivo, "escolha")}</select></label>${fld("orcamento_midia", "Verba mensal de mídia (R$)", f.orcamento_midia == null ? "" : String(f.orcamento_midia).replace(".", ","), ' inputmode="decimal"')}${fld("prazo", "Prazo desejado", f.prazo)}${fld("canais", "Canais que usa hoje", f.canais)}</div>
         <div class="fgrid one">${area("publico", "Público-alvo (quem ele quer atingir)", f.publico)}${area("diferenciais", "Diferenciais (por que escolher ele)", f.diferenciais)}${area("concorrentes", "Concorrentes", f.concorrentes, 1)}${area("dor", "Dor principal (o que o fez procurar a agência)", f.dor)}</div>
         <p class="lbl">Serviços de interesse</p><div class="radio-row">${SV.ORDER.map(s => `<label class="check"><input type="checkbox" name="svc" value="${s}"${(f.servicos || []).includes(s) ? " checked" : ""}> ${esc(SV.SERVICES[s].name)}</label>`).join("")}</div></fieldset>
+      <fieldset><legend>Onde fica</legend><div class="fgrid">${fld("endereco", "Endereço (rua e número)", f.endereco)}${fld("bairro", "Bairro", f.bairro)}${fld("raio_km", "Raio de atendimento (km)", f.raio_km == null || f.raio_km === "" ? "" : String(f.raio_km).replace(".", ","), ' inputmode="decimal"')}</div>
+        <input type="hidden" name="lat" value="${C.temPonto(f) ? esc(f.lat) : ""}"><input type="hidden" name="lng" value="${C.temPonto(f) ? esc(f.lng) : ""}">
+        <div class="toolbar">${ro ? "" : `<button type="button" class="btn sm" id="mp-buscar">Localizar no mapa</button><button type="button" class="btn sm" id="mp-limpar">Remover ponto</button>`}<span class="src" id="mp-msg"></span></div>
+        <div class="mp-res" id="mp-res"></div><div class="mp-box" id="mp-box" role="application" aria-label="Mapa com o ponto do comércio"></div><p class="src" id="mp-coord">${coordTxt(f)}</p></fieldset>
+      <fieldset><legend>Conversa de posicionamento</legend>${f.tipo_negocio ? "" : `<p class="src">Escolha o tipo de negócio em "Quem é" para ver as perguntas certas. Enquanto isso valem as perguntas gerais.</p>`}
+        ${(() => { const cs = C.camposDoTipo(f.tipo_negocio), fx = f.ficha || {}; return `<div class="fgrid">${cs.filter(([k]) => !LONGOS.includes(k)).map(([k, n]) => fxCampo(k, n, fx[k])).join("")}</div><div class="fgrid one">${cs.filter(([k]) => LONGOS.includes(k)).map(([k, n]) => fxCampo(k, n, fx[k])).join("")}</div>`; })()}</fieldset>
       <fieldset><legend>Andamento</legend><div class="fgrid">
         <label class="fld"><span>Etapa</span><select name="etapa">${opts(C.ETAPAS, f.etapa || "novo")}</select></label>
         <label class="fld"><span>Responsável</span><select name="responsavel"><option value="">ninguém</option>${team().map(u => `<option value="${esc(u.email)}"${u.email === f.responsavel ? " selected" : ""}>${esc(u.nome)}</option>`).join("")}</select></label>${fld("motivo", "Motivo (se perdido)", f.motivo, ' list="cm-motivos"')}<datalist id="cm-motivos">${C.MOTIVOS.map(m => `<option value="${esc(m)}">`).join("")}</datalist>
@@ -167,7 +178,9 @@
   function readFicha(view, base) {
     const f = $("#cm-form", view), g = n => (f.elements[n] ? f.elements[n].value.trim() : "");
     const orc = g("orcamento_midia").replace(/\./g, "").replace(",", ".");
-    return Object.assign({}, base, { nome: g("nome"), contato: g("contato"), email: g("email"), telefone: g("telefone"), cidade: g("cidade"), segmento: g("segmento"), setor: g("setor"), porte: g("porte"), tempo_mercado: g("tempo_mercado"), origem: g("origem"), objetivo: g("objetivo"),
+    const rk = g("raio_km").replace(",", "."), coordN = n => (g(n) === "" || isNaN(Number(g(n))) ? null : Number(g(n)));
+    const fxLido = {}; $$("[name^=fx_]", f).forEach(x => { fxLido[x.name.slice(3)] = x.value.trim(); });
+    return Object.assign({}, base, { tipo_negocio: g("tipo_negocio"), endereco: g("endereco"), bairro: g("bairro"), raio_km: rk === "" || isNaN(Number(rk)) ? null : Number(rk), lat: coordN("lat"), lng: coordN("lng"), ficha: Object.assign({}, base.ficha || {}, fxLido), nome: g("nome"), contato: g("contato"), email: g("email"), telefone: g("telefone"), cidade: g("cidade"), segmento: g("segmento"), setor: g("setor"), porte: g("porte"), tempo_mercado: g("tempo_mercado"), origem: g("origem"), objetivo: g("objetivo"),
       orcamento_midia: orc === "" || isNaN(Number(orc)) ? null : Number(orc), valor_estimado: (() => { const t = g("valor_estimado").replace(/\./g, "").replace(",", "."); return t === "" || isNaN(Number(t)) ? null : Number(t); })(), proximo_contato: g("proximo_contato"), proximo_passo: g("proximo_passo"), prazo: g("prazo"), canais: g("canais"), publico: g("publico"), diferenciais: g("diferenciais"), concorrentes: g("concorrentes"), dor: g("dor"), servicos: $$("input[name=svc]:checked", f).map(x => x.value), etapa: g("etapa") || "novo", responsavel: g("responsavel"), motivo: g("motivo"), observacoes: g("observacoes") });
   }
   function analiseHtml(f) {
@@ -178,12 +191,40 @@
       <div class="panel">${H.banner("spark", "Serviços recomendados", "pelo objetivo e pelo setor")}<div class="panel-body">${pos.servicos.length ? `<ul class="plain">${pos.servicos.map(r => `<li><b>${esc(SV.SERVICES[r.servico].name)}</b>${r.interesse ? ` <span class="badge st-pub">o cliente pediu</span>` : ""}<div class="src">${esc(r.motivos.join("; "))}</div></li>`).join("")}</ul>` : `<p class="src">Escolha o objetivo principal para ver as recomendações.</p>`}</div></div>
       <div class="panel">${H.banner("eye", "Posicionamento sugerido", "rascunho montado com a ficha e o Playbook do setor: valide com o cliente")}<div class="panel-body">
         <p class="lbl">Proposta de valor (rascunho)</p><p><b>${esc(pos.proposta)}</b></p>
+        ${pos.partida ? `<p class="lbl">Como ele se apresenta hoje</p><p>${esc(pos.partida)}</p>` : ""}${pos.territorio.length ? `<p class="lbl">Território</p>${li(pos.territorio)}` : ""}
         <p class="lbl">Tom de voz</p><p>${esc(pos.tom)}</p>
         ${pos.funil ? `<p class="lbl">Como esse público decide</p><p>${esc(pos.funil)}</p>` : ""}
         <p class="lbl">Pilares de conteúdo</p>${li(pos.pilares)}<p class="lbl">Canais para priorizar</p>${li(pos.canais)}${pos.formatos.length ? `<p class="lbl">Formatos que funcionam no setor</p>${li(pos.formatos)}` : ""}${pos.sazonalidade.length ? `<p class="lbl">Datas e épocas do setor</p>${li(pos.sazonalidade)}` : ""}
         <p class="lbl">Cuidados antes de publicar</p>${li(pos.cuidados)}${pos.armadilhas.length ? `<p class="lbl">Erros comuns no setor</p>${li(pos.armadilhas)}` : ""}</div></div>
       <div class="panel">${H.banner("cal", "Primeiros 30 dias e indicadores", "o que combinar com o cliente")}<div class="panel-body">${li(pos.plano30)}<p class="lbl">O que vamos medir</p><ul class="plain">${pos.indicadores.map(i => `<li><b>${esc(SV.SERVICES[i.servico].short)}:</b> ${esc(i.kpi)}</li>`).join("") || "<li>Defina os serviços para ver os indicadores.</li>"}</ul></div></div>
       ${pos.alertas.length ? `<div class="panel">${H.banner("alert", "Pontos de atenção", `${pos.alertas.length}`)}<div class="panel-body">${pos.alertas.map(a => `<p class="notice${a.nivel === "info" ? " info" : ""}">${esc(a.texto)}</p>`).join("")}</div></div>` : ""}`;
+  }
+  /* mapa da ficha: busca o endereço, marca o ponto (clique ou arraste) e desenha o raio de atendimento */
+  function ligarMapa(view, f, onMudou) {
+    const M = root.N7ComercialMapa, box = $("#mp-box", view); if (!M || !box) return;
+    const msg = t => { const m = $("#mp-msg", view); if (m) m.textContent = t || ""; };
+    const lat = f.elements.lat, lng = f.elements.lng, coordEl = $("#mp-coord", view);
+    const raioNum = () => Number(String(f.elements.raio_km.value).replace(",", ".")) || 0;
+    let ctrl = null;
+    const gravaPonto = (la, ln) => { lat.value = la.toFixed(6); lng.value = ln.toFixed(6); coordEl.textContent = coordTxt({ lat: la, lng: ln }); onMudou(); };
+    M.ensure().then(() => { if (!document.body.contains(box)) return; ctrl = M.seletor(box, { lat: lat.value, lng: lng.value, raio: raioNum() }, { leitura: !H.canWrite }, gravaPonto); })
+      .catch(e => msg(e.message + " O restante da ficha continua funcionando."));
+    f.elements.raio_km.addEventListener("input", () => ctrl && ctrl.raio(raioNum()));
+    const bus = $("#mp-buscar", view);
+    if (bus) bus.onclick = async () => {
+      const q = [f.elements.endereco.value, f.elements.bairro.value, f.elements.cidade.value].map(x => x.trim()).filter(Boolean).join(", ");
+      if (!f.elements.endereco.value.trim() && !f.elements.cidade.value.trim()) return msg("Preencha o endereço ou a cidade para buscar.");
+      msg("Buscando…"); const res = $("#mp-res", view); res.innerHTML = "";
+      try {
+        await M.ensure(); const l = await M.buscar(q);
+        if (!l.length) return msg("Não achei esse endereço. Tente só a rua e a cidade, ou clique no mapa.");
+        if (l.length === 1) { msg("Endereço encontrado. Arraste o pino se precisar ajustar."); return ctrl && ctrl.definir(l[0].lat, l[0].lng); }
+        msg("Escolha o endereço certo:");
+        res.innerHTML = l.map((x, i) => `<button type="button" data-i="${i}">${esc(x.nome)}</button>`).join("");
+        $$("button", res).forEach(b => { b.onclick = () => { const x = l[Number(b.dataset.i)]; res.innerHTML = ""; msg("Ponto marcado. Arraste o pino se precisar ajustar."); if (ctrl) ctrl.definir(x.lat, x.lng); }; });
+      } catch (e) { msg("Não consegui buscar o endereço agora. Clique no mapa para marcar o ponto."); }
+    };
+    const lim = $("#mp-limpar", view); if (lim) lim.onclick = () => { if (ctrl) ctrl.limpar(); lat.value = ""; lng.value = ""; coordEl.textContent = coordTxt({}); msg("Ponto removido."); onMudou(); };
   }
   function novos(view) {
     const list = prospects().slice().sort((a, b) => (a.etapa === "fechado" || a.etapa === "perdido") - (b.etapa === "fechado" || b.etapa === "perdido") || (a.nome || "").localeCompare(b.nome || ""));
@@ -199,7 +240,8 @@
     if (!H.canWrite) $$("input,select,textarea", f).forEach(x => { x.disabled = true; });
     let draft = cur;
     const refresh = () => { draft = readFicha(view, cur); if (ui.novo) { ui.novo = draft; ui.novoSujo = true; } else ui.edit = draft; $("#cm-analise", view).innerHTML = analiseHtml(draft); const d = $("#cm-dirty", view); if (d) d.hidden = false; };
-    $$("input,select,textarea", f).forEach(x => x.addEventListener("change", refresh));
+    $$("input,select,textarea", f).forEach(x => x.addEventListener("change", () => { refresh(); if (x.name === "tipo_negocio") render(view.closest("#view") || view, "novos", H); }));
+    ligarMapa(view, f, refresh);
     const sv = $("#cm-save", view);
     if (sv) sv.onclick = () => {
       draft = readFicha(view, cur); if (!draft.nome) return H.toast("Dê um nome à ficha.");
@@ -213,6 +255,24 @@
     const cvb = $("#cm-conv", view); if (cvb) cvb.onclick = () => { ui.conv = cur.id; render(view.closest("#view") || view, "novos", H); };
     if (ui.conv === cur.id) wireConversa(view, cur, () => render(document.querySelector("#view") || view.closest("#view") || view, "novos", H));
     const ad = $("#at-add", view); if (ad) ad.onclick = () => { const t = ($("#at-txt", view).value || "").trim(), em = $("#at-em", view).value || hojeIso(); if (!t) return H.toast("Escreva o que foi falado ou combinado."); registrar(cur.id, $("#at-tipo", view).value, em, t); H.toast("Contato registrado."); render(view.closest("#view") || view, "novos", H); };
+  }
+
+  /* ================= Mapa das fichas ================= */
+  const COR_ETAPA = { novo: "#7c4dff", contato: "#2563eb", reuniao: "#d97706", proposta: "#db2777", fechado: "#16a34a", perdido: "#9ca3af" };
+  const abrirFicha = id => { ui.novo = null; ui.edit = null; ui.novoSujo = false; ui.sel = id; location.hash = "#comercial/novos"; };
+  function mapaTela(view) {
+    const M = root.N7ComercialMapa, todas = prospects(), com = todas.filter(p => C.temPonto(p)), sem = todas.filter(p => !C.temPonto(p) && p.etapa !== "perdido");
+    const leg = Object.entries(C.ETAPAS).map(([e, n]) => `<span><i style="background:${COR_ETAPA[e]}"></i>${esc(n)} (${com.filter(p => p.etapa === e).length})</span>`).join("");
+    view.innerHTML = `<div class="panel">${H.banner("target", "Mapa das fichas", `${com.length} no mapa · ${sem.length} sem ponto`)}<div class="panel-body"><div class="mp-leg">${leg}</div><div class="mp-box grande" id="mp-box" role="application" aria-label="Mapa das fichas"></div><p class="src" id="mp-msg"></p></div></div>
+      <div class="grid g2"><div class="panel">${H.banner("list", "Fichas no mapa", String(com.length))}<div class="panel-body">${com.length ? `<ul class="plain">${com.map(p => `<li><button type="button" class="linkish" data-foco="${esc(p.id)}"><b>${esc(p.nome)}</b></button> <small class="src">${esc(C.ETAPAS[p.etapa] || "")}${p.bairro ? ` · ${esc(p.bairro)}` : ""}${p.cidade ? ` · ${esc(p.cidade)}` : ""}</small></li>`).join("")}</ul>` : `<p class="src">Nenhuma ficha com ponto no mapa. Abra uma ficha e use "Localizar no mapa" em "Onde fica".</p>`}</div></div>
+        <div class="panel">${H.banner("alert", "Sem ponto no mapa", String(sem.length))}<div class="panel-body">${sem.length ? `<ul class="plain">${sem.map(p => `<li><button type="button" class="linkish" data-abrir-ficha="${esc(p.id)}">${esc(p.nome)}</button> <small class="src">${esc(C.ETAPAS[p.etapa] || "")}</small></li>`).join("")}</ul>` : `<p class="src">Toda ficha em aberto já tem ponto no mapa.</p>`}</div></div></div>`;
+    $$("[data-abrir-ficha]", view).forEach(b => { b.onclick = () => abrirFicha(b.dataset.abrirFicha); });
+    const box = $("#mp-box", view), msg = t => { const m = $("#mp-msg", view); if (m) m.textContent = t; };
+    let ctl = null;
+    if (!M) return;
+    const pontos = com.map(p => ({ id: p.id, lat: p.lat, lng: p.lng, cor: COR_ETAPA[p.etapa], html: `<b>${esc(p.nome)}</b><br>${esc(SV.SECTORS[p.setor] || "sem setor")} · ${esc(C.ETAPAS[p.etapa] || "")}${C.valorOk(p) ? `<br>${brl0(p.valor_estimado)}/mês` : ""}${p.endereco ? `<br>${esc(p.endereco)}` : ""}<br><button type="button" class="btn sm" data-pin-abrir="${esc(p.id)}">Abrir ficha</button>` }));
+    M.ensure().then(() => { if (!document.body.contains(box)) return; ctl = M.visao(box, pontos, abrirFicha); }).catch(e => msg(e.message));
+    $$("[data-foco]", view).forEach(b => { b.onclick = () => { if (ctl) ctl.foco(b.dataset.foco); box.scrollIntoView({ behavior: "smooth", block: "center" }); }; });
   }
 
   /* ================= Contratos ================= */
@@ -307,11 +367,12 @@
 
   /* ================= tela ================= */
   function render(view, sub, helpers) {
-    H = helpers; const tab = ["funil", "novos", "contratos"].includes(sub) ? sub : "carteira";
-    const titulo = { carteira: ["Carteira atual", "Como estão os clientes de hoje e onde dá para vender mais."], funil: ["Funil de vendas", "Cada cliente novo em sua etapa, com valor, próximo contato e o que está atrasado."], novos: ["Clientes novos", "Preencha a ficha de quem pode virar cliente e veja o posicionamento sugerido."], contratos: ["Contratos", "Monte o contrato a partir dos serviços, com valor, escopo e condições."] }[tab];
-    view.innerHTML = `<div class="page-head no-print"><div><div class="eyebrow">Comercial · só administradores</div><h1>${titulo[0]}</h1><p>${titulo[1]}</p></div></div><nav class="subtabs in-side no-print" aria-label="Comercial">${[["carteira", "Carteira atual"], ["funil", "Funil de vendas"], ["novos", "Clientes novos"], ["contratos", "Contratos"]].map(([k, n]) => `<a href="#comercial${k === "carteira" ? "" : "/" + k}"${k === tab ? ' aria-current="page"' : ""}>${n}</a>`).join("")}</nav><div id="cm-body" class="view" style="gap:16px"></div>`;
+    H = helpers; if (root.N7ComercialMapa) root.N7ComercialMapa.destruirTodos();
+    const tab = ["funil", "novos", "mapa", "contratos"].includes(sub) ? sub : "carteira";
+    const titulo = { carteira: ["Carteira atual", "Como estão os clientes de hoje e onde dá para vender mais."], funil: ["Funil de vendas", "Cada cliente novo em sua etapa, com valor, próximo contato e o que está atrasado."], novos: ["Clientes novos", "Preencha a ficha de quem pode virar cliente e veja o posicionamento sugerido."], mapa: ["Mapa das fichas", "Onde ficam os comércios que você está atendendo ou prospectando."], contratos: ["Contratos", "Monte o contrato a partir dos serviços, com valor, escopo e condições."] }[tab];
+    view.innerHTML = `<div class="page-head no-print"><div><div class="eyebrow">Comercial · só administradores</div><h1>${titulo[0]}</h1><p>${titulo[1]}</p></div></div><nav class="subtabs in-side no-print" aria-label="Comercial">${[["carteira", "Carteira atual"], ["funil", "Funil de vendas"], ["novos", "Clientes novos"], ["mapa", "Mapa"], ["contratos", "Contratos"]].map(([k, n]) => `<a href="#comercial${k === "carteira" ? "" : "/" + k}"${k === tab ? ' aria-current="page"' : ""}>${n}</a>`).join("")}</nav><div id="cm-body" class="view" style="gap:16px"></div>`;
     const body = $("#cm-body", view);
-    (tab === "funil" ? funilTela : tab === "novos" ? novos : tab === "contratos" ? contratos : carteira)(body);
+    (tab === "funil" ? funilTela : tab === "novos" ? novos : tab === "mapa" ? mapaTela : tab === "contratos" ? contratos : carteira)(body);
   }
 
   root.N7ComercialUI = { render };
