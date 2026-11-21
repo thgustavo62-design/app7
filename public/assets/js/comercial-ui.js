@@ -85,24 +85,24 @@
   function novos(view) {
     const list = prospects().slice().sort((a, b) => (a.etapa === "fechado" || a.etapa === "perdido") - (b.etapa === "fechado" || b.etapa === "perdido") || (a.nome || "").localeCompare(b.nome || ""));
     if (ui.novo) { ui.sel = ui.novo.id; }
-    const cur = ui.novo || list.find(p => p.id === ui.sel) || null;
+    const cur = ui.novo || (ui.edit && ui.edit.id === ui.sel ? ui.edit : null) || list.find(p => p.id === ui.sel) || null, sujo = !!(ui.novo ? ui.novoSujo : (ui.edit && ui.edit.id === ui.sel));
     const itens = list.map(p => { const fit = C.fit(p); return `<button type="button" class="cm-item${cur && cur.id === p.id ? " on" : ""}" data-pick="${esc(p.id)}"><b>${esc(p.nome)}</b><small>${esc(SV.SECTORS[p.setor] || "sem setor")} · ${esc(C.ETAPAS[p.etapa] || "")}</small><span class="badge ${NIVEL[fit.nivel][1]}">prioridade ${NIVEL[fit.nivel][0]}</span></button>`; }).join("");
     view.innerHTML = `<div class="cm-wrap"><aside class="cm-list"><div class="toolbar">${H.canWrite ? `<button type="button" class="btn primary sm" id="cm-new">+ Nova ficha</button>` : ""}<span class="src">${list.length} ficha(s)</span></div>${itens || `<p class="src">Nenhuma ficha ainda. Clique em Nova ficha para cadastrar um cliente em potencial.</p>`}</aside>
-      <section class="cm-main">${cur ? `<div class="panel">${H.banner("file", esc(cur.nome || "Nova ficha"), "ficha do cliente", H.canWrite ? `<span class="badge" id="cm-dirty" hidden>não salva</span><button type="button" class="btn sm primary" id="cm-save">Salvar</button>${prospects().some(p => p.id === cur.id) ? `<a class="btn sm" href="#comercial/contratos" id="cm-contract">Montar contrato</a><button type="button" class="btn sm" id="cm-del">Excluir</button>` : ""}` : "")}<div class="panel-body">${fichaForm(cur)}</div></div><h2 class="sec-title">Análise e posicionamento</h2><div id="cm-analise">${analiseHtml(cur)}</div>` : `<div class="panel"><div class="panel-body"><p class="src">Escolha uma ficha à esquerda ou crie uma nova. Ao preencher, a análise e o posicionamento sugerido aparecem aqui.</p></div></div>`}</section></div>`;
-    $$("[data-pick]", view).forEach(b => b.onclick = () => { ui.novo = null; ui.sel = b.dataset.pick; render(view.closest("#view") || view, "novos", H); });
-    const nw = $("#cm-new", view); if (nw) nw.onclick = () => { ui.novo = { id: rid("p-"), nome: "", etapa: "novo", servicos: [] }; render(view.closest("#view") || view, "novos", H); };
+      <section class="cm-main">${cur ? `<div class="panel">${H.banner("file", esc(cur.nome || "Nova ficha"), "ficha do cliente", H.canWrite ? `<span class="badge" id="cm-dirty"${sujo ? "" : " hidden"}>não salva</span><button type="button" class="btn sm primary" id="cm-save">Salvar</button>${prospects().some(p => p.id === cur.id) ? `<a class="btn sm" href="#comercial/contratos" id="cm-contract">Montar contrato</a><button type="button" class="btn sm" id="cm-del">Excluir</button>` : ""}` : "")}<div class="panel-body">${fichaForm(cur)}</div></div><h2 class="sec-title">Análise e posicionamento</h2><div id="cm-analise">${analiseHtml(cur)}</div>` : `<div class="panel"><div class="panel-body"><p class="src">Escolha uma ficha à esquerda ou crie uma nova. Ao preencher, a análise e o posicionamento sugerido aparecem aqui.</p></div></div>`}</section></div>`;
+    $$("[data-pick]", view).forEach(b => b.onclick = () => { ui.novo = null; ui.edit = null; ui.novoSujo = false; ui.sel = b.dataset.pick; render(view.closest("#view") || view, "novos", H); });
+    const nw = $("#cm-new", view); if (nw) nw.onclick = () => { ui.edit = null; ui.novoSujo = false; ui.novo = { id: rid("p-"), nome: "", etapa: "novo", servicos: [] }; render(view.closest("#view") || view, "novos", H); };
     if (!cur) return;
     const f = $("#cm-form", view); if (!f) return;
     if (!H.canWrite) $$("input,select,textarea", f).forEach(x => { x.disabled = true; });
     let draft = cur;
-    const refresh = () => { draft = readFicha(view, cur); $("#cm-analise", view).innerHTML = analiseHtml(draft); const d = $("#cm-dirty", view); if (d) d.hidden = false; };
+    const refresh = () => { draft = readFicha(view, cur); if (ui.novo) { ui.novo = draft; ui.novoSujo = true; } else ui.edit = draft; $("#cm-analise", view).innerHTML = analiseHtml(draft); const d = $("#cm-dirty", view); if (d) d.hidden = false; };
     $$("input,select,textarea", f).forEach(x => x.addEventListener("change", refresh));
     const sv = $("#cm-save", view);
     if (sv) sv.onclick = () => {
       draft = readFicha(view, cur); if (!draft.nome) return H.toast("Dê um nome à ficha.");
       const l = JSON.parse(JSON.stringify(prospects())), i = l.findIndex(p => p.id === draft.id);
       if (i >= 0) l[i] = Object.assign({}, draft, { v: l[i].v }); else l.push(draft);
-      S.set("prospects", l); ui.novo = null; ui.sel = draft.id; H.toast("Ficha salva."); render(view.closest("#view") || view, "novos", H);
+      S.set("prospects", l); ui.novo = null; ui.edit = null; ui.novoSujo = false; ui.sel = draft.id; H.toast("Ficha salva."); render(view.closest("#view") || view, "novos", H);
     };
     const del = $("#cm-del", view); if (del) { let armed = false; del.onclick = () => { if (!armed) { armed = true; del.textContent = "Confirmar"; setTimeout(() => { armed = false; del.textContent = "Excluir"; }, 3500); return; } S.set("prospects", prospects().filter(p => p.id !== cur.id)); ui.sel = null; ui.novo = null; H.toast("Ficha excluída."); render(view.closest("#view") || view, "novos", H); }; }
     const mk = $("#cm-contract", view); if (mk) mk.onclick = () => { ui.ct = null; ui.ctDraft = { novo: true, cliente_tipo: "prospect", cliente_ref: cur.id }; };
@@ -139,13 +139,13 @@
     wireContratos(view, root0);
   }
   function contratoEditor(ct) {
-    const d = ct.dados || {}, lock = ct.status === "assinado" || ct.status === "encerrado", cont = d.contratante || {}, cond = d.cond || {};
+    const d = ct.dados || {}, saved = contracts().find(c => c.id === ct.id), lock = !!saved && (saved.status === "assinado" || saved.status === "encerrado"), cont = d.contratante || {}, cond = d.cond || {};
     const svBlocks = SV.ORDER.map(s => { const on = (ct.servicos || []).includes(s), P = C.PARAMS[s] || []; return `<div class="ct-sv${on ? " on" : ""}"><label class="check"><input type="checkbox" name="ctsvc" value="${s}"${on ? " checked" : ""}> <b>${esc(SV.SERVICES[s].name)}</b></label>
         ${on ? `<div class="fgrid">${fld("val_" + s, "Valor mensal (R$)", (ct.valores[s] || "") === "" ? "" : String(ct.valores[s]).replace(".", ","), ' inputmode="decimal"')}${P.map(([k, n, def]) => fld(`par_${s}_${k}`, n, ((d.params || {})[s] || {})[k] ?? def, ' inputmode="numeric"')).join("")}</div>
         ${area("esc_" + s, "Escopo no contrato (editável)", (d.escopos || {})[s] || C.escopoPadrao(s, (d.params || {})[s] || {}), 3)}` : ""}</div>`; }).join("");
     const doc = montar(ct);
     return `<div class="no-print"><h2 class="sec-title">${esc(ct.cliente_nome || "Contrato")} <span class="badge ${ct.status === "assinado" ? "st-pub" : "p1"}">${esc(stNome[ct.status])}</span></h2>
-      ${lock ? `<p class="notice info">Contrato ${esc(stNome[ct.status].toLowerCase())}: o texto não é mais editável. Para mudar o que foi combinado, crie um novo contrato (aditivo).</p>` : ""}
+      ${lock ? `<p class="notice info">Contrato ${esc(stNome[saved.status].toLowerCase())}: o texto não é mais editável. Para mudar o que foi combinado, crie um novo contrato (aditivo).</p>` : ""}
       <div class="panel"><div class="panel-body"><form id="ct-form" autocomplete="off"><fieldset ${lock ? "disabled" : ""}><legend>Contratante</legend><div class="fgrid">${fld("c_nome", "Nome ou razão social", ct.cliente_nome)}${fld("c_doc", "CPF ou CNPJ", cont.doc)}${fld("c_end", "Endereço", cont.endereco)}${fld("c_cid", "Cidade e UF", cont.cidade)}${fld("c_rep", "Representante", cont.representante)}
         <label class="fld"><span>Setor (cláusula de conformidade)</span><select name="c_setor">${opts(SV.SECTORS, cont.setor, "nenhum")}</select></label></div></fieldset>
         <fieldset ${lock ? "disabled" : ""}><legend>Serviços e valores</legend>${svBlocks}</fieldset>
@@ -177,7 +177,7 @@
     const cur = ui.ct; if (!cur) return;
     const f = $("#ct-form", view); if (!f) return;
     let draft = cur;
-    const refresh = (full) => { draft = readContrato(view, cur); if (full) { ui.ct = draft; rerender(); } else $("#ct-prev", view).innerHTML = montar(draft).html; };
+    const refresh = (full) => { draft = readContrato(view, cur); ui.ct = draft; if (full) rerender(); else $("#ct-prev", view).innerHTML = montar(draft).html; };
     $$("input,select,textarea", f).forEach(x => x.addEventListener("change", () => refresh(x.name === "ctsvc" || /^par_/.test(x.name))));
     const sv = $("#ct-save", view);
     if (sv) sv.onclick = () => {
