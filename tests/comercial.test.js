@@ -212,3 +212,28 @@ test('clientes cadastrados guardam endereço, ponto no mapa e raio; vazio contin
   await run(r, [cli({ lat: '', lng: '', raio_km: '', endereco: '', v: c.v })]); c = await reg();
   assert.deepEqual([c.local.lat, c.local.lng, c.local.raio, c.local.endereco], [null, null, null, ''], 'apagar o ponto volta a vazio');
 });
+
+test('importar ficha: lê a tabela Campo | Valor, reconhece só o que o sistema oferece e não transforma "a confirmar" em dado', () => {
+  const tabela = [
+    '| Campo da ficha | Valor |', '| --- | --- |',
+    '| Nome do cliente | Maria Souza (Exemplo Contabilidade) |', '| Setor | Contabilidade |', '| Tipo de negócio | Profissional liberal ou autoridade pessoal |',
+    '| Segmento | Contabilidade e consultoria para empresários |', '| Cidade | A confirmar |', '| Objetivo principal | Ser referência na área |',
+    '| Público-alvo | Empresários que querem crescer com responsabilidade |', '| Serviços de interesse | Autoridade e posicionamento; Redes sociais (Criativos conforme o levantamento) |',
+    '| Etapa | Novo |', '| Como ele se apresenta hoje | “Consultora de empresários” |', '| Provas que já tem | 20 anos de mercado (declarado) |', '| Instagram | @exemplo |',
+    '| Valor estimado | Em branco até a conversa |', '| Verba mensal de mídia | R$ 1.500,50 |', '| Campo inventado | qualquer coisa |', '| Setor de teste | x |', '| Observações | Setor regulado: conferir regras |'
+  ].join('\n');
+  const r = C.importarFicha(tabela), f = r.f;
+  assert.equal(f.nome, 'Maria Souza (Exemplo Contabilidade)'); assert.equal(f.setor, 'contabilidade'); assert.equal(f.tipo_negocio, 'profissional'); assert.equal(f.objetivo, 'ser_referencia'); assert.equal(f.etapa, 'novo');
+  assert.deepEqual(f.servicos.slice().sort(), ['autoridade', 'redes']);
+  assert.equal(f.cidade, undefined, '“A confirmar” não vira cidade'); assert.ok(r.vazios.includes('Cidade') && r.vazios.includes('Valor estimado'));
+  assert.equal(f.valor_estimado, undefined, '“Em branco” não vira valor'); assert.equal(f.orcamento_midia, 1500.5);
+  assert.deepEqual(f.ficha, { proposta_atual: 'Consultora de empresários', prova_social: '20 anos de mercado (declarado)', instagram: '@exemplo' }, 'respostas da conversa vão para a ficha ampliada, sem as aspas');
+  assert.ok(r.ignorados.includes('Campo inventado') && r.ignorados.includes('Setor de teste'), 'rótulo desconhecido é listado, não importado'); assert.ok(!r.ignorados.includes('Campo da ficha'));
+  assert.equal(f.observacoes, 'Setor regulado: conferir regras');
+  const inv = C.importarFicha('Setor: Astrologia\nObjetivo principal: vender tudo\nServiços de interesse: nada\nVerba mensal de mídia: muito\nPorte: Microempresa');
+  assert.deepEqual(inv.invalidos.map(x => x.rotulo), ['Setor', 'Objetivo principal', 'Serviços de interesse', 'Verba mensal de mídia'], 'valor que o sistema não oferece é recusado com motivo');
+  assert.equal(inv.f.setor, undefined); assert.equal(inv.f.porte, 'micro');
+  const dois = C.importarFicha('Nome: Fulano\nCidade: Vitória, ES'); assert.equal(dois.f.nome, 'Fulano'); assert.equal(dois.f.cidade, 'Vitória, ES', 'linhas Campo: valor também funcionam');
+  const tab = C.importarFicha('Nome do cliente\tJoão Silva\nSetor\tAgro\nObjetivo principal\tVender mais'); assert.deepEqual([tab.f.nome, tab.f.setor, tab.f.objetivo], ['João Silva', 'agro', 'vender_mais'], 'tabela colada com tabulação também funciona');
+  assert.deepEqual(C.importarFicha('').reconhecidos, []);
+});

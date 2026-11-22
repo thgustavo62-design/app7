@@ -200,6 +200,56 @@
   /* Depois de virar cliente, os contratos da ficha passam a valer como contratos do cliente (só assim entram na receita recorrente). */
   const contratosDoCliente = (contratos, fichaId, chave) => (contratos || []).map(c => (c.cliente_tipo === "prospect" && c.cliente_ref === fichaId ? Object.assign({}, c, { cliente_tipo: "cliente", cliente_ref: chave }) : c));
 
+  /* ---------- importar ficha de um texto colado ---------- */
+  /* Aceita a tabela "Campo | Valor" (com barras, ou colada com tabulação) e linhas "Campo: valor". Só reconhece rótulos conhecidos;
+     texto como "a confirmar" ou "em branco" não vira dado. Nada é gravado aqui: devolve a ficha para a pessoa revisar e salvar. */
+  const normImp = t => semAcento(t).toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+  const VAZIO_IMP = /^(a confirmar|a levantar|a descobrir|a combinar|em branco.*|n\/a|nao informado|nenhum|-|—)?$/;
+  const IMPORTA = [
+    [["nome do cliente", "nome"], "nome", "t"], [["contato", "contato quem decide"], "contato", "t"], [["e mail", "email"], "email", "t"], [["telefone", "telefone whatsapp"], "telefone", "t"],
+    [["cidade"], "cidade", "t"], [["segmento"], "segmento", "t"], [["setor"], "setor", "setor"], [["porte"], "porte", "porte"], [["tipo de negocio"], "tipo_negocio", "tipo"],
+    [["tempo de mercado"], "tempo_mercado", "t"], [["de onde veio", "origem"], "origem", "t"], [["objetivo principal", "objetivo"], "objetivo", "objetivo"],
+    [["publico alvo", "publico"], "publico", "t"], [["diferenciais"], "diferenciais", "t"], [["concorrentes"], "concorrentes", "t"], [["canais que usa hoje", "canais"], "canais", "t"],
+    [["dor principal", "dor"], "dor", "t"], [["prazo desejado", "prazo"], "prazo", "t"], [["servicos de interesse", "servicos"], "servicos", "servicos"], [["etapa"], "etapa", "etapa"],
+    [["verba mensal de midia", "verba de midia"], "orcamento_midia", "num"], [["valor estimado"], "valor_estimado", "num"], [["proximo passo"], "proximo_passo", "t"], [["observacoes"], "observacoes", "t"],
+    [["endereco"], "endereco", "t"], [["bairro"], "bairro", "t"],
+    [["como ele se apresenta hoje"], "proposta_atual", "fx"], [["provas que ja tem"], "prova_social", "fx"], [["presenca digital hoje"], "presenca", "fx"], [["instagram"], "instagram", "fx"], [["site"], "site", "fx"],
+    [["tom de voz que ele quer"], "tom_desejado", "fx"], [["o que ele nao quer ser"], "nao_quer", "fx"], [["datas fortes", "sazonalidade"], "sazonalidade", "fx"], [["ticket medio"], "ticket_medio", "fx"]
+  ];
+  const paresImp = texto => String(texto || "").split(/\r?\n/).map(l => l.trim()).filter(l => l && !/^[\s|:\-]+$/.test(l)).map(l => {
+    let p;
+    if (l.includes("|")) p = l.split("|").map(x => x.trim()).filter((x, i, a) => !(x === "" && (i === 0 || i === a.length - 1)));
+    else if (l.includes("\t")) p = l.split("\t").map(x => x.trim());
+    else { const i = l.indexOf(":"); p = i > 0 ? [l.slice(0, i).trim(), l.slice(i + 1).trim()] : [l]; }
+    return p.length >= 2 ? [p[0], p.slice(1).join(" | ").replace(/^["“”']+|["“”']+$/g, "").trim()] : null;
+  }).filter(Boolean);
+  const achaChave = (mapa, valor) => { const v = normImp(valor); return Object.keys(mapa).find(k => normImp(k) === v || normImp(mapa[k]) === v) || ""; };
+  const numImp = v => { const t = String(v).replace(/R\$|\s/g, "").replace(/\./g, "").replace(",", "."); return /\d/.test(t) && isFinite(Number(t)) ? Number(t) : null; };
+  function importarFicha(texto) {
+    const f = { servicos: [], ficha: {}, etapa: "novo" }, reconhecidos = [], vazios = [], ignorados = [], invalidos = [];
+    const mapas = { setor: SV.SECTORS || {}, porte: PORTES, tipo: TIPOS, objetivo: OBJETIVOS, etapa: ETAPAS };
+    paresImp(texto).forEach(([rotulo, valor]) => {
+      const n = normImp(rotulo); if (n === "campo da ficha" || n === "campo") return;
+      const item = IMPORTA.find(([nomes]) => nomes.includes(n));
+      if (!item) { ignorados.push(rotulo); return; }
+      if (VAZIO_IMP.test(normImp(valor))) { vazios.push(rotulo); return; }
+      const [, destino, tipo] = item;
+      if (tipo === "t") f[destino] = valor.slice(0, 400);
+      else if (tipo === "fx") f.ficha[destino] = valor.slice(0, 300);
+      else if (tipo === "num") { const x = numImp(valor); if (x == null) { invalidos.push({ rotulo, valor, motivo: "não é um número" }); return; } f[destino] = x; }
+      else if (tipo === "servicos") {
+        const ids = valor.replace(/\([^)]*\)/g, "").split(/[;,]/).map(s => normImp(s)).filter(Boolean).map(s => SV.ORDER.find(id => id === s || normImp(SV.SERVICES[id].name) === s || normImp(SV.SERVICES[id].short || "") === s)).filter(Boolean);
+        if (!ids.length) { invalidos.push({ rotulo, valor, motivo: "nenhum serviço reconhecido" }); return; }
+        f.servicos = [...new Set(ids)];
+      } else {
+        const chave = achaChave(mapas[tipo], valor); if (!chave) { invalidos.push({ rotulo, valor, motivo: "valor que o sistema não oferece nesse campo" }); return; }
+        f[destino === "tipo_negocio" ? "tipo_negocio" : destino] = chave;
+      }
+      reconhecidos.push({ rotulo, valor });
+    });
+    return { f, reconhecidos, vazios, ignorados, invalidos };
+  }
+
   /* Lista de retornos de hoje para frente, mais urgentes primeiro (alimenta a Minha fila do responsável). */
   const retornos = (pros, hoje = hojeIso(), email = "") => (pros || []).filter(p => ABERTAS.includes(p.etapa) && p.proximo_contato && p.proximo_contato <= hoje && (!email || p.responsavel === email)).sort((a, b) => a.proximo_contato.localeCompare(b.proximo_contato));
 
@@ -288,5 +338,5 @@
     return { titulo, clausulas: cl, texto, html, total };
   }
 
-  root.N7Comercial = { TIPOS, FISICOS, F_COMUNS, F_TIPO, FICHA_KEYS, camposDoTipo, temPonto, OBJETIVOS, PORTES, ETAPAS, PROB, MOTIVOS, ATIVIDADES, ABERTAS, hojeIso, funil, retornos, sugerirCliente, contratosDoCliente, valorOk, ultimoContato, PARAMS, completude, recomendar, posicionamento, fit, carteira, valorContrato, extenso, escopoPadrao, gerarContrato, BRL };
+  root.N7Comercial = { TIPOS, FISICOS, F_COMUNS, F_TIPO, FICHA_KEYS, camposDoTipo, temPonto, OBJETIVOS, PORTES, ETAPAS, PROB, MOTIVOS, ATIVIDADES, ABERTAS, hojeIso, funil, retornos, sugerirCliente, contratosDoCliente, importarFicha, valorOk, ultimoContato, PARAMS, completude, recomendar, posicionamento, fit, carteira, valorContrato, extenso, escopoPadrao, gerarContrato, BRL };
 })(typeof window !== "undefined" ? window : globalThis);
