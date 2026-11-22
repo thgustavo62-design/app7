@@ -237,3 +237,22 @@ test('importar ficha: lê a tabela Campo | Valor, reconhece só o que o sistema 
   const tab = C.importarFicha('Nome do cliente\tJoão Silva\nSetor\tAgro\nObjetivo principal\tVender mais'); assert.deepEqual([tab.f.nome, tab.f.setor, tab.f.objetivo], ['João Silva', 'agro', 'vender_mais'], 'tabela colada com tabulação também funciona');
   assert.deepEqual(C.importarFicha('').reconhecidos, []);
 });
+
+test('importar sobre ficha existente: mostra antes e depois, soma serviços, mescla respostas e não mexe em etapa, histórico nem responsável', () => {
+  const atual = { id: 'p-1', nome: 'Fulano', setor: 'varejo', cidade: '', etapa: 'reuniao', responsavel: 'a@x.test', servicos: ['redes'], atividades: [{ em: '2026-11-01', tipo: 'nota', texto: 'x' }], valor_estimado: 1500, ficha: { instagram: '@antigo', prova_social: 'mantida' } };
+  const imp = C.importarFicha(['Nome do cliente | Fulano', 'Setor | Contabilidade', 'Cidade | Vitória', 'Etapa | Novo', 'Serviços de interesse | Redes sociais; Criativos', 'Instagram | @novo', 'Link do dossiê | https://exemplo.test/dossie', 'Próximo contato | 05/12/2026', 'Valor estimado | Em branco até a conversa', 'Dor principal | A confirmar'].join('\n'));
+  assert.equal(imp.f.proximo_contato, '2026-12-05', 'data em DD/MM/AAAA vira AAAA-MM-DD'); assert.equal(imp.f.ficha.dossie, 'https://exemplo.test/dossie');
+  const dif = C.compararFicha(atual, imp.f), campos = dif.map(d => d.campo);
+  assert.deepEqual(campos.sort(), ['cidade', 'ficha.dossie', 'ficha.instagram', 'proximo_contato', 'servicos', 'setor'].sort(), 'só o que realmente muda; nome igual, etapa e valor em branco ficam de fora');
+  assert.deepEqual(dif.find(d => d.campo === 'setor'), { campo: 'setor', rotulo: 'Setor', antes: SV_NAME('varejo'), depois: SV_NAME('contabilidade') });
+  assert.equal(dif.find(d => d.campo === 'servicos').depois, 'Redes sociais, Criativos e design', 'serviços novos são somados, nunca removidos');
+  assert.deepEqual([dif.find(d => d.campo === 'ficha.instagram').antes, dif.find(d => d.campo === 'ficha.instagram').depois], ['@antigo', '@novo']);
+  const novo = C.aplicarImportacao(atual, imp.f);
+  assert.deepEqual([novo.etapa, novo.responsavel, novo.valor_estimado, novo.atividades.length, novo.id], ['reuniao', 'a@x.test', 1500, 1, 'p-1'], 'etapa, responsável, valor, histórico e id ficam como estavam');
+  assert.deepEqual([novo.setor, novo.cidade, novo.servicos, novo.proximo_contato], ['contabilidade', 'Vitória', ['redes', 'criativos'], '2026-12-05']);
+  assert.deepEqual(novo.ficha, { instagram: '@novo', prova_social: 'mantida', dossie: 'https://exemplo.test/dossie' }, 'respostas novas entram e as que não vieram ficam');
+  assert.equal(atual.setor, 'varejo', 'não altera a ficha original');
+  assert.deepEqual(C.compararFicha(novo, imp.f), [], 'importar duas vezes o mesmo texto não muda mais nada');
+  assert.equal(C.importarFicha('Próximo contato | 31/02/2026').invalidos.length, 1, 'data impossível é recusada');
+});
+function SV_NAME(k) { return globalThis.N7Services.SECTORS[k]; }

@@ -18,7 +18,7 @@
   /* Ficha ampliada: o tipo de negócio escolhe quais perguntas aparecem. [chave, pergunta] */
   const TIPOS = { loja_fisica: "Loja ou comércio de rua", servico_local: "Prestador de serviço local (clínica, escritório, oficina)", profissional: "Profissional liberal ou autoridade pessoal", online: "Loja online ou e-commerce", b2b: "Empresa que vende para empresas (B2B, indústria)", misto: "Físico e online" };
   const FISICOS = ["loja_fisica", "servico_local", "misto"];
-  const F_COMUNS = [["proposta_atual", "Como ele se apresenta hoje (uma frase)"], ["tom_desejado", "Tom de voz que ele quer"], ["nao_quer", "O que ele NÃO quer ser ou parecer"], ["prova_social", "Provas: avaliações, depoimentos, prêmios, número de clientes"], ["sazonalidade", "Datas e épocas fortes do negócio"], ["presenca", "Presença digital hoje (Google Meu Negócio, WhatsApp Business, site, anúncios)"], ["instagram", "Instagram (@)"], ["site", "Site ou link principal"], ["ticket_medio", "Ticket médio (R$)"]];
+  const F_COMUNS = [["proposta_atual", "Como ele se apresenta hoje (uma frase)"], ["tom_desejado", "Tom de voz que ele quer"], ["nao_quer", "O que ele NÃO quer ser ou parecer"], ["prova_social", "Provas: avaliações, depoimentos, prêmios, número de clientes"], ["sazonalidade", "Datas e épocas fortes do negócio"], ["presenca", "Presença digital hoje (Google Meu Negócio, WhatsApp Business, site, anúncios)"], ["instagram", "Instagram (@)"], ["site", "Site ou link principal"], ["ticket_medio", "Ticket médio (R$)"], ["dossie", "Link do dossiê ou materiais"]];
   const F_TIPO = {
     loja_fisica: [["carro_chefe", "Produtos carro-chefe"], ["horario", "Horário de funcionamento"], ["fluxo", "Movimento: rua, shopping, estacionamento, ponto de referência"], ["delivery", "Faz entrega? Como?"], ["concorrente_proximo", "Concorrente mais próximo (e a distância)"]],
     servico_local: [["servicos_principais", "Serviços principais"], ["agendamento", "Como o cliente agenda"], ["horario", "Horário de atendimento"], ["convenios", "Convênios e formas de pagamento"], ["diferencial_tecnico", "Diferencial técnico ou equipamento"]],
@@ -214,7 +214,8 @@
     [["verba mensal de midia", "verba de midia"], "orcamento_midia", "num"], [["valor estimado"], "valor_estimado", "num"], [["proximo passo"], "proximo_passo", "t"], [["observacoes"], "observacoes", "t"],
     [["endereco"], "endereco", "t"], [["bairro"], "bairro", "t"],
     [["como ele se apresenta hoje"], "proposta_atual", "fx"], [["provas que ja tem"], "prova_social", "fx"], [["presenca digital hoje"], "presenca", "fx"], [["instagram"], "instagram", "fx"], [["site"], "site", "fx"],
-    [["tom de voz que ele quer"], "tom_desejado", "fx"], [["o que ele nao quer ser"], "nao_quer", "fx"], [["datas fortes", "sazonalidade"], "sazonalidade", "fx"], [["ticket medio"], "ticket_medio", "fx"]
+    [["tom de voz que ele quer"], "tom_desejado", "fx"], [["o que ele nao quer ser"], "nao_quer", "fx"], [["datas fortes", "sazonalidade"], "sazonalidade", "fx"], [["ticket medio"], "ticket_medio", "fx"],
+    [["link do dossie", "dossie", "materiais"], "dossie", "fx"], [["proximo contato"], "proximo_contato", "data"]
   ];
   const paresImp = texto => String(texto || "").split(/\r?\n/).map(l => l.trim()).filter(l => l && !/^[\s|:\-]+$/.test(l)).map(l => {
     let p;
@@ -237,7 +238,11 @@
       if (tipo === "t") f[destino] = valor.slice(0, 400);
       else if (tipo === "fx") f.ficha[destino] = valor.slice(0, 300);
       else if (tipo === "num") { const x = numImp(valor); if (x == null) { invalidos.push({ rotulo, valor, motivo: "não é um número" }); return; } f[destino] = x; }
-      else if (tipo === "servicos") {
+      else if (tipo === "data") {
+        const m = valor.match(/^(\d{4})-(\d{2})-(\d{2})$/) || valor.match(/^(\d{2})\/(\d{2})\/(\d{4})$/), iso = m ? (m[1].length === 4 ? `${m[1]}-${m[2]}-${m[3]}` : `${m[3]}-${m[2]}-${m[1]}`) : "", d = iso && new Date(iso + "T00:00:00Z");
+        if (!iso || isNaN(d) || d.toISOString().slice(0, 10) !== iso) { invalidos.push({ rotulo, valor, motivo: "use AAAA-MM-DD ou DD/MM/AAAA" }); return; }
+        f[destino] = iso;
+      } else if (tipo === "servicos") {
         const ids = valor.replace(/\([^)]*\)/g, "").split(/[;,]/).map(s => normImp(s)).filter(Boolean).map(s => SV.ORDER.find(id => id === s || normImp(SV.SERVICES[id].name) === s || normImp(SV.SERVICES[id].short || "") === s)).filter(Boolean);
         if (!ids.length) { invalidos.push({ rotulo, valor, motivo: "nenhum serviço reconhecido" }); return; }
         f.servicos = [...new Set(ids)];
@@ -248,6 +253,27 @@
       reconhecidos.push({ rotulo, valor });
     });
     return { f, reconhecidos, vazios, ignorados, invalidos };
+  }
+
+  /* Importar sobre uma ficha que já existe: mostra o que muda (antes e depois) e aplica só o que veio preenchido.
+     Etapa, responsável, histórico e identificador não são alterados; serviços só se somam; respostas da conversa se mesclam. */
+  const ROT_FICHA = { nome: "Nome do cliente", contato: "Contato", email: "E-mail", telefone: "Telefone", cidade: "Cidade", segmento: "Segmento", setor: "Setor", porte: "Porte", tipo_negocio: "Tipo de negócio", tempo_mercado: "Tempo de mercado", origem: "De onde veio", objetivo: "Objetivo principal", publico: "Público-alvo", diferenciais: "Diferenciais", concorrentes: "Concorrentes", canais: "Canais que usa hoje", dor: "Dor principal", prazo: "Prazo desejado", servicos: "Serviços de interesse", orcamento_midia: "Verba mensal de mídia", valor_estimado: "Valor estimado", proximo_contato: "Próximo contato", proximo_passo: "Próximo passo", observacoes: "Observações", endereco: "Endereço", bairro: "Bairro" };
+  const rotuloFx = k => (F_COMUNS.concat(...Object.values(F_TIPO)).find(c => c[0] === k) || [k, k])[1];
+  function compararFicha(atual, imp) {
+    const a = atual || {}, i = imp || {}, saida = [], mapas = { setor: SV.SECTORS || {}, porte: PORTES, tipo_negocio: TIPOS, objetivo: OBJETIVOS };
+    const txt = (k, v) => (v == null || v === "" ? "" : mapas[k] && mapas[k][v] ? mapas[k][v] : String(v));
+    Object.keys(ROT_FICHA).forEach(k => { if (k === "servicos") return; const novo = i[k]; if (novo == null || novo === "") return; if (String(a[k] == null ? "" : a[k]) !== String(novo)) saida.push({ campo: k, rotulo: ROT_FICHA[k], antes: txt(k, a[k]), depois: txt(k, novo) }); });
+    const novosSv = (i.servicos || []).filter(s => !(a.servicos || []).includes(s));
+    if (novosSv.length) saida.push({ campo: "servicos", rotulo: ROT_FICHA.servicos, antes: (a.servicos || []).map(s => SV.SERVICES[s].name).join(", "), depois: [...new Set([...(a.servicos || []), ...novosSv])].map(s => SV.SERVICES[s].name).join(", ") });
+    Object.keys(i.ficha || {}).forEach(k => { const antes = String((a.ficha || {})[k] || ""), depois = i.ficha[k]; if (depois && antes !== depois) saida.push({ campo: "ficha." + k, rotulo: rotuloFx(k), antes, depois }); });
+    return saida;
+  }
+  function aplicarImportacao(atual, imp) {
+    const f = JSON.parse(JSON.stringify(atual || {})), i = imp || {};
+    Object.keys(ROT_FICHA).forEach(k => { if (k !== "servicos" && i[k] != null && i[k] !== "") f[k] = i[k]; });
+    f.servicos = [...new Set([...(f.servicos || []), ...(i.servicos || [])])];
+    f.ficha = Object.assign({}, f.ficha || {}, i.ficha || {});
+    return f;
   }
 
   /* Lista de retornos de hoje para frente, mais urgentes primeiro (alimenta a Minha fila do responsável). */
@@ -338,5 +364,5 @@
     return { titulo, clausulas: cl, texto, html, total };
   }
 
-  root.N7Comercial = { TIPOS, FISICOS, F_COMUNS, F_TIPO, FICHA_KEYS, camposDoTipo, temPonto, OBJETIVOS, PORTES, ETAPAS, PROB, MOTIVOS, ATIVIDADES, ABERTAS, hojeIso, funil, retornos, sugerirCliente, contratosDoCliente, importarFicha, valorOk, ultimoContato, PARAMS, completude, recomendar, posicionamento, fit, carteira, valorContrato, extenso, escopoPadrao, gerarContrato, BRL };
+  root.N7Comercial = { TIPOS, FISICOS, F_COMUNS, F_TIPO, FICHA_KEYS, camposDoTipo, temPonto, OBJETIVOS, PORTES, ETAPAS, PROB, MOTIVOS, ATIVIDADES, ABERTAS, hojeIso, funil, retornos, sugerirCliente, contratosDoCliente, importarFicha, compararFicha, aplicarImportacao, valorOk, ultimoContato, PARAMS, completude, recomendar, posicionamento, fit, carteira, valorContrato, extenso, escopoPadrao, gerarContrato, BRL };
 })(typeof window !== "undefined" ? window : globalThis);

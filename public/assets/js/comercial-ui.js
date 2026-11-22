@@ -236,8 +236,10 @@
   }
   /* importar ficha: cola uma tabela "Campo | Valor" (ou linhas "Campo: valor"), confere o que foi lido e abre a ficha para revisar e salvar */
   function importHtml() {
+    const alvo = ui.impAlvo && prospects().find(p => p.id === ui.impAlvo);
     return `<div class="panel">${H.banner("file", "Importar ficha", "cole o texto; nada é salvo antes de você revisar")}<div class="panel-body">
       <p class="src">Cole a tabela de campos e valores (por exemplo, a ficha pronta de um dossiê) ou linhas como <b>Setor: Contabilidade</b>. Só entram rótulos que a ficha conhece, e textos como "a confirmar" ou "em branco" ficam de fora.</p>
+      ${alvo ? `<div class="radio-row"><label class="check"><input type="radio" name="im-modo" value="atualizar" checked> Atualizar a ficha aberta: <b>${esc(alvo.nome)}</b></label><label class="check"><input type="radio" name="im-modo" value="nova"> Criar uma nova ficha</label></div><p class="src">Ao atualizar, você vê o antes e o depois de cada campo. A etapa, o responsável e o histórico não mudam, e os serviços só são somados.</p>` : ""}
       <textarea id="im-txt" rows="12" maxlength="12000" placeholder="Campo da ficha | Valor&#10;Nome do cliente | ...&#10;Setor | Contabilidade">${esc(ui.impTxt || "")}</textarea>
       <div class="toolbar"><button type="button" class="btn sm primary" id="im-ler">Ler o texto</button><button type="button" class="btn sm" id="im-x">Cancelar</button></div><div id="im-res"></div></div></div>`;
   }
@@ -246,13 +248,22 @@
     $("#im-x", view).onclick = () => { ui.imp = false; ui.impTxt = ""; rerender(); };
     $("#im-ler", view).onclick = () => {
       const txt = $("#im-txt", view).value; ui.impTxt = txt; const r = C.importarFicha(txt), res = $("#im-res", view);
+      const alvo = ui.impAlvo && prospects().find(p => p.id === ui.impAlvo), atualizar = !!alvo && (($("input[name=im-modo]:checked", view) || {}).value === "atualizar");
+      const base = atualizar ? (ui.edit && ui.edit.id === alvo.id ? ui.edit : alvo) : null, dif = atualizar ? C.compararFicha(base, r.f) : [];
       if (!r.reconhecidos.length) { res.innerHTML = `<p class="notice">Não reconheci nenhum campo. Confira se o texto tem o formato "Campo | Valor" ou "Campo: valor".</p>`; return; }
       const lista = (t, l, fn) => (l.length ? `<p class="lbl">${t} (${l.length})</p><ul class="plain">${l.map(fn).join("")}</ul>` : "");
-      res.innerHTML = `${r.f.nome ? "" : `<p class="notice">Sem o campo "Nome do cliente" não dá para criar a ficha.</p>`}
-        <table style="margin-top:10px"><thead><tr><th>Campo lido</th><th>Valor</th></tr></thead><tbody>${r.reconhecidos.map(x => `<tr><td>${esc(x.rotulo)}</td><td>${esc(x.valor)}</td></tr>`).join("")}</tbody></table>
+      const mudar = atualizar ? `<p class="lbl">O que vai mudar em ${esc(alvo.nome)} (${dif.length})</p>${dif.length ? `<table><thead><tr><th>Campo</th><th>Antes</th><th>Depois</th></tr></thead><tbody>${dif.map(d => `<tr><td>${esc(d.rotulo)}</td><td>${d.antes ? esc(d.antes) : `<span class="na">vazio</span>`}</td><td>${esc(d.depois)}</td></tr>`).join("")}</tbody></table>` : `<p class="src">Nada a mudar: a ficha já tem tudo o que veio no texto.</p>`}` : "";
+      res.innerHTML = `${atualizar || r.f.nome ? "" : `<p class="notice">Sem o campo "Nome do cliente" não dá para criar a ficha.</p>`}${mudar}
+        <p class="lbl" style="margin-top:12px">Campos lidos do texto</p><table><thead><tr><th>Campo lido</th><th>Valor</th></tr></thead><tbody>${r.reconhecidos.map(x => `<tr><td>${esc(x.rotulo)}</td><td>${esc(x.valor)}</td></tr>`).join("")}</tbody></table>
         ${lista("Em branco ou a combinar, não importados", r.vazios, x => `<li>${esc(x)}</li>`)}${lista("Valores que o sistema não aceitou", r.invalidos, x => `<li>${esc(x.rotulo)}: <small class="src">${esc(x.valor)} (${esc(x.motivo)})</small></li>`)}${lista("Campos não reconhecidos, ignorados", r.ignorados, x => `<li>${esc(x)}</li>`)}
-        <div class="toolbar"><button type="button" class="btn primary sm" id="im-ok"${r.f.nome ? "" : " disabled"}>Abrir a ficha para revisar</button></div>`;
-      const ok = $("#im-ok", view); if (ok) ok.onclick = () => { ui.novo = Object.assign({ id: rid("p-") }, r.f); ui.novoSujo = true; ui.edit = null; ui.imp = false; ui.impTxt = ""; H.toast("Ficha preenchida. Revise e clique em Salvar."); rerender(); };
+        <div class="toolbar"><button type="button" class="btn primary sm" id="im-ok"${atualizar ? (dif.length ? "" : " disabled") : (r.f.nome ? "" : " disabled")}>${atualizar ? "Aplicar na ficha e revisar" : "Abrir a ficha para revisar"}</button></div>`;
+      const ok = $("#im-ok", view);
+      if (ok) ok.onclick = () => {
+        if (atualizar) {
+          const f = C.aplicarImportacao(base, r.f); f.atividades = [{ em: hojeIso(), tipo: "nota", texto: `Ficha atualizada por importação (${dif.length} campo${dif.length === 1 ? "" : "s"})` }, ...(f.atividades || [])].slice(0, 60);
+          ui.edit = f; ui.novo = null; ui.sel = f.id; ui.novoSujo = false; ui.imp = false; ui.impTxt = ""; H.toast(`${dif.length} campo(s) aplicados. Revise e clique em Salvar.`); rerender();
+        } else { ui.novo = Object.assign({ id: rid("p-") }, r.f); ui.novoSujo = true; ui.edit = null; ui.imp = false; ui.impTxt = ""; H.toast("Ficha preenchida. Revise e clique em Salvar."); rerender(); }
+      };
     };
   }
 
@@ -267,7 +278,7 @@
       <section class="cm-main">${ui.imp ? importHtml() : cur ?`<div class="panel">${H.banner("file", esc(cur.nome || "Nova ficha"), "ficha do cliente", H.canWrite ? `<span class="badge" id="cm-dirty"${sujo ? "" : " hidden"}>não salva</span><button type="button" class="btn sm primary" id="cm-save">Salvar</button>${prospects().some(p => p.id === cur.id) ? `${cur.cliente_chave ? `<span class="badge st-pub">cliente cadastrado (${esc(cur.cliente_chave)})</span>` : (cur.etapa === "fechado" ? `<button type="button" class="btn sm primary" id="cm-conv">Cadastrar como cliente</button>` : "")}<button type="button" class="btn sm" id="cm-prop">Gerar proposta</button><a class="btn sm" href="#comercial/contratos" id="cm-contract">Montar contrato</a><button type="button" class="btn sm" id="cm-del">Excluir</button>` : ""}` : "")}<div class="panel-body">${fichaForm(cur)}</div></div>${ui.conv === cur.id && cur.etapa === "fechado" && !cur.cliente_chave && prospects().some(p => p.id === cur.id) ? conversaHtml(cur) : ""}${ui.prop === cur.id && prospects().some(p => p.id === cur.id) ? propostaHtml(cur) : ""}${prospects().some(p => p.id === cur.id) ? historico(cur) : `<p class="src">Salve a ficha para começar o histórico de contatos.</p>`}<h2 class="sec-title">Análise e posicionamento</h2><div id="cm-analise">${analiseHtml(cur)}</div>` : `<div class="panel"><div class="panel-body"><p class="src">Escolha uma ficha à esquerda ou crie uma nova. Ao preencher, a análise e o posicionamento sugerido aparecem aqui.</p></div></div>`}</section></div>`;
     $$("[data-pick]", view).forEach(b => b.onclick = () => { ui.imp = false; ui.novo = null; ui.edit = null; ui.novoSujo = false; ui.sel = b.dataset.pick; render(view.closest("#view") || view, "novos", H); });
     const nw = $("#cm-new", view); if (nw) nw.onclick = () => { ui.imp = false; ui.edit = null; ui.novoSujo = false; ui.novo = { id: rid("p-"), nome: "", etapa: "novo", servicos: [] }; render(view.closest("#view") || view, "novos", H); };
-    const im = $("#cm-imp", view); if (im) im.onclick = () => { ui.imp = true; ui.impTxt = ""; render(view.closest("#view") || view, "novos", H); };
+    const im = $("#cm-imp", view); if (im) im.onclick = () => { ui.imp = true; ui.impTxt = ""; ui.impAlvo = prospects().some(p => p.id === ui.sel) ? ui.sel : null; render(view.closest("#view") || view, "novos", H); };
     if (ui.imp) { wireImport(view); return; }
     if (!cur) return;
     const f = $("#cm-form", view); if (!f) return;
