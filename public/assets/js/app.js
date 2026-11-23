@@ -742,7 +742,7 @@
     const wait = IS_CLIENT ? awaitingClient(ps) : [];
     v.innerHTML = `
       <div class="hero p-${SVC.ORDER.find(s => has(c, s)) || "redes"}${!IS_CLIENT && activeSub(c.id, sub) ? " compact" : ""}"><span class="client-avatar" style="background:var(${c.color})">${esc(c.short[0])}</span>
-        <div style="min-width:0"><div class="eyebrow" style="color:#b9a2ff">${IS_CLIENT ? "Sua empresa" : "Cliente · " + esc(SVC.label(c))}</div><h1>${esc(c.name)}</h1>${c.about ? `<p>${esc(c.about)}</p>` : ""}
+        <div style="min-width:0"><div class="eyebrow">${IS_CLIENT ? "Sua empresa" : "Cliente · " + esc(SVC.label(c))}</div><h1>${esc(c.name)}</h1>${c.about ? `<p>${esc(c.about)}</p>` : ""}
           <div class="meta"><span>${esc(c.segment)}</span>${c.handle ? `<span>${esc(c.handle)}</span>` : ""}${c.postsProfile ? `<span>${int(c.postsProfile)} posts no perfil</span>` : ""}${c.club ? `<span>${esc(c.club)}</span>` : ""}</div>${svcChips(c)}</div>
         <div class="actions toolbar">${ig ? `<a class="btn" href="${esc(ig)}" target="_blank" rel="noopener">${ico("ig")} Instagram</a>` : ""}${!IS_CLIENT && c.docs[0] ? `<a class="btn" href="${esc(c.docs[0][1])}" target="_blank" rel="noopener">${ico("file")} Pasta no Drive</a>` : ""}</div></div>
       ${IS_CLIENT ? `<div class="kpis k3">${kpi("Aguardando sua aprovação", String(wait.length), wait.length ? "abra a pauta para aprovar ou pedir ajustes" : "nada pendente com você", "bell", wait.length ? "red" : "green")}${kpi("Publicadas", `${ps.filter(p => p.status === "pub").length} de ${ps.length}`, "no plano de novembro e dezembro", "list", "green")}${kpi("Atrasadas", String(ps.filter(p => p.late).length), "pautas com data vencida", "alert", "amber")}</div>
