@@ -154,7 +154,10 @@
     }
     const who = $("#who");
     who.hidden = false;
-    who.innerHTML = `<span title="${esc(user.email)}">${esc(user.nome || user.email)}</span><span class="role">${esc({ admin: "administrador", editor: "editor", leitura: "leitura", cliente: "cliente" }[user.papel] || user.papel)}</span><button type="button" class="btn sm" id="logout">Sair</button>`;
+    /* avatar com as iniciais, numa cor fixa para cada pessoa (sai do e-mail), e nome com a função embaixo */
+    const nome = String(user.nome || user.email || "").trim(), partes = nome.split(/[\s@._-]+/).filter(Boolean), ini = ((partes[0] || "?")[0] + (partes.length > 1 ? partes[partes.length - 1][0] : "")).toUpperCase();
+    const cor = 1 + [...String(user.email || nome)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 8, 0), papel = { admin: "administrador", editor: "editor", leitura: "leitura", cliente: "cliente" }[user.papel] || user.papel;
+    who.innerHTML = `<span class="who-av" style="--av:var(--c${cor})" aria-hidden="true">${esc(ini)}</span><span class="who-nm" title="${esc(user.email)}"><b>${esc(nome.split(/\s+/)[0] || nome)}</b><small>${esc(papel)}</small></span><button type="button" class="btn sm" id="logout">Sair</button>`;
     $("#logout").onclick = async () => { await post("logout"); location.reload(); };
     addEventListener("beforeunload", e => { if (window.__n7pending && window.__n7pending()) { e.preventDefault(); e.returnValue = ""; } });
     await loadScript("assets/js/app.js");

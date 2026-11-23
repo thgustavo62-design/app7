@@ -550,7 +550,7 @@ html.is-offline body::before { content: "Sem conexão"; position: fixed; top: en
   .topbar { flex-wrap: nowrap; gap: 8px; padding-top: calc(8px + env(safe-area-inset-top, 0px)); padding-bottom: 8px; }
   .topbar .spacer, .topbar .stamp:not(#sync) { display: none; }
   .crumb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-  .who > span { display: none; }
+  .who > .who-nm { display: none; }
   .nav-item { min-height: 46px; } .nav-subitem { min-height: 40px; display: flex; align-items: center; font-size: 13.5px; }
   .kpis, .kpis.k3 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .kpis > .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
@@ -1018,3 +1018,10 @@ dialog.drawer { border-radius: 28px 0 0 28px; }
   .content { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
   .toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* quem está entrando: avatar com iniciais e nome com a função embaixo */
+.who { gap: 10px; }
+.who-av { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--av, var(--violet)); color: #fff; font: 700 12.5px var(--f-head); letter-spacing: .02em; box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px color-mix(in srgb, var(--av, var(--violet)) 45%, transparent); }
+.who-nm { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.who-nm b { font-size: 13px; font-weight: 700; color: var(--text); }
+.who-nm small { font-size: 11px; font-weight: 500; color: var(--muted); }

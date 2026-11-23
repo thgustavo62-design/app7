@@ -39,6 +39,10 @@
   /* quem está usando e quais empresas existem (cadastro vem do servidor; os detalhes antigos vêm do conjunto de dados) */
   const SVC = window.N7Services, AN = window.N7Analysis;
   const ME = window.N7User || { tipo: "equipe", papel: "admin", empresas: [] };
+  /* saudação pelo horário, com o primeiro nome de quem entrou */
+  const primeiroNome = () => { const n = String(ME.nome || "").trim().split(/\s+/)[0] || String(ME.email || "").split("@")[0] || ""; return n ? n[0].toUpperCase() + n.slice(1) : ""; };
+  const saudacao = () => { const h = new Date().getHours(), s = h < 5 ? "Boa noite" : h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite", n = primeiroNome(); return n ? `${s}, ${n}` : s; };
+  const dataLonga = () => { const t = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" }); return t[0].toUpperCase() + t.slice(1); };
   const REG = window.N7Registry || { clients: [], users: [] };
   const IS_CLIENT = ME.tipo === "cliente", IS_ADMIN = !IS_CLIENT && ME.papel === "admin";
   const CAN_WRITE = !IS_CLIENT && (ME.papel === "admin" || ME.papel === "editor");
@@ -399,8 +403,8 @@
     if (an) varejo.forEach(c => { const cc = clientAt(an, c); if (cc && cc.row.vendas != null) kp.push(kpiS(`Planilha Semanas · ${periodTxt(ini)}`)(`Vendas · ${c.short} ${periodTxt(ini)}`, brl(cc.row.vendas), cc.mesmosDias && cc.mesmosDias.pct != null ? `${delta(cc.mesmosDias.pct)} nos mesmos dias da semana` : "sem base de comparação", "money", "green")); });
     if (kp.length < 4 && anyPosts) kp.push(kpiS(srcPlan())("Aguardando aprovação", String(ps.filter(p => p.status === "apr").length), "pautas na etapa de aprovação", "list", "amber"));
     v.innerHTML = `
-      <div class="page-head"><div><div class="eyebrow">Gestão interna · ${CLIENTS.length} contas</div><h1>Painel da agência</h1>
-        <p>${ini ? `Última semana com números: ${esc(AN.period("semana", ini).label)}.` : "Ainda não há números de semana."} Cada cliente mostra o que importa para os serviços que a Nova7 presta a ele.</p></div>
+      <div class="page-head"><div><div class="eyebrow">Painel da agência · ${CLIENTS.length} contas</div><h1>${esc(saudacao())}</h1>
+        <p>${esc(dataLonga())}. ${ini ? `Última semana com números: ${esc(AN.period("semana", ini).label)}.` : "Ainda não há números de semana."} Cada cliente mostra o que importa para os serviços que a Nova7 presta a ele.</p></div>
         <div class="toolbar">${CAN_WRITE ? `<a class="btn" href="#semana">${ico("file")} Semana</a>` : ""}${anyPosts ? `<a class="btn primary" href="#calendario">${ico("cal")} Abrir calendário</a>` : ""}</div></div>
       ${ACCESS.cerebro() ? window.N7Cerebro.mini(brainHelpers()) : ""}
       ${queuePanel()}
@@ -438,9 +442,8 @@
     const ps = posts(), mon = monday(TODAY), sun = addDays(mon, 6);
     const week = ps.filter(p => { const d = toDate(p.date); return d >= mon && d <= sun; }).sort((a, b) => a.date.localeCompare(b.date));
     const wait = awaitingClient(ps).sort((a, b) => a.date.localeCompare(b.date));
-    const first = (ME.nome || "").split(" ")[0];
     v.innerHTML = `
-      <div class="page-head"><div><div class="eyebrow">Área do cliente</div><h1>${first ? `Olá, ${esc(first)}` : "Olá"}</h1>
+      <div class="page-head"><div><div class="eyebrow">Área do cliente</div><h1>${esc(saudacao())}</h1>
         <p>Aqui você acompanha o que a Nova7 está produzindo e aprova as peças antes de irem ao ar.</p></div>
         <div class="toolbar"><a class="btn primary" href="#calendario">${ico("cal")} Ver calendário</a></div></div>
       <div class="kpis k3">
