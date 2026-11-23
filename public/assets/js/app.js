@@ -388,6 +388,51 @@
     const today = toIso(TODAY);
     return `<div class="panel">${banner("list", "Minha fila", `${q.length} etapa(s) comigo`)}<div class="panel-body"><div class="post-list">${q.slice(0, 6).map(x => `<button type="button" class="post-row" data-open="${x.p.code}" style="background:none;text-align:left">${fmtBadge(x.p.format)}<span class="t">${esc(STEP_NAMES[x.st])} · ${esc(x.p.title)}<small>${esc(CL[x.p.b].short)} · ${x.p.code} · ${x.at < today ? `<b style="color:var(--red)">atrasada, era para ${dm(x.at)}</b>` : `até ${DOW[toDate(x.at).getDay()]} ${dm(x.at)}`}</small></span></button>`).join("")}</div>${q.length > 6 ? `<p class="src">e mais ${q.length - 6} etapa(s).</p>` : ""}${retHtml}${tarefas.length ? `<span class="col-title">Tarefas do cérebro</span><div class="post-list">${tarefas.slice(0, 4).map(d => `<a class="post-row" href="#cerebro/radar"><span class="t">${esc(d.titulo)}<small>${d.ate < todayIso ? `<b style="color:var(--red)">vencida, era para ${dm(d.ate)}</b>` : `até ${dm(d.ate)}`}</small></span></a>`).join("")}</div>` : ""}</div></div>`;
   };
+  /* ---------- Painel: calendário do mês e cartão Assistente ---------- */
+  let calMes = null, calSel = TODAY_ISO;                     /* mês mostrado e dia escolhido; ficam enquanto o app estiver aberto */
+  const nomeMes = d => { const t = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).replace(" de ", " "); return t[0].toUpperCase() + t.slice(1); };
+  const mesCal = () => calMes || new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
+  const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+  function calInner(ps) {
+    const base = mesCal(), y = base.getFullYear(), m = base.getMonth(), por = {};
+    ps.forEach(p => { if (p.date) (por[p.date] = por[p.date] || []).push(p); });
+    const off = (new Date(y, m, 1).getDay() + 6) % 7, dias = new Date(y, m + 1, 0).getDate(), total = Math.ceil((off + dias) / 7) * 7;
+    let cel = "";
+    for (let i = 0; i < total; i++) {
+      const d = new Date(y, m, 1 - off + i), iso = toIso(d), l = por[iso] || [];
+      const est = !l.length ? "" : l.some(p => p.late) ? "late" : l.some(p => p.status !== "pub") ? "plan" : "done";
+      cel += `<button type="button" class="cd ${d.getMonth() !== m ? "out " : ""}${est}${iso === TODAY_ISO ? " today" : ""}${iso === calSel ? " sel" : ""}" data-cal-dia="${iso}" aria-label="${d.getDate()} de ${esc(nomeMes(d))}${l.length ? `, ${plural(l.length, "pauta", "pautas")}` : ""}" aria-pressed="${iso === calSel}">${d.getDate()}</button>`;
+    }
+    const sel = por[calSel] || [], dSel = toDate(calSel);
+    const lista = sel.slice(0, 4).map(p => `<button type="button" class="cal-ev" data-open="${p.code}"><i style="background:var(${(CL[p.b] || {}).color || "--c8"})"></i><span><b>${esc(p.title)}</b><small>${esc((CL[p.b] || {}).short || "")} · ${esc(p.format)} · ${p.late ? "atrasada" : esc(STATUS[p.status].name)}</small></span></button>`).join("");
+    return `<div class="cal-top"><h3>Agenda</h3><div class="cal-mes"><button type="button" class="cal-nav" data-cal-prev aria-label="Mês anterior">‹</button><b>${esc(nomeMes(base))}</b><button type="button" class="cal-nav" data-cal-next aria-label="Próximo mês">›</button></div></div>
+      <div class="cal-dow" aria-hidden="true">${["S", "T", "Q", "Q", "S", "S", "D"].map(x => `<span>${x}</span>`).join("")}</div><div class="cal-grid">${cel}</div>
+      <div class="cal-leg"><span><i class="late"></i>atrasada</span><span><i class="plan"></i>agendada</span><span><i class="done"></i>publicada</span>${y !== TODAY.getFullYear() || m !== TODAY.getMonth() ? `<button type="button" class="linkbtn" data-cal-hoje>Voltar para hoje</button>` : ""}</div>
+      <div class="cal-dia"><div class="cal-dia-h"><b>${dSel.getDate()} de ${esc(dSel.toLocaleDateString("pt-BR", { month: "long" }))}</b><small>${sel.length ? plural(sel.length, "pauta", "pautas") : "livre"}</small></div>
+        ${sel.length ? lista + (sel.length > 4 ? `<a class="src" href="#calendario">+ ${sel.length - 4} no calendário</a>` : "") : `<p class="src">Nada marcado para esse dia.</p>`}</div>`;
+  }
+  function bindCal(v, ps) {
+    const box = $("#pcal", v); if (!box) return;
+    const refaz = foco => { box.innerHTML = calInner(ps); bindCal(v, ps); bindOpen(box); const f = foco && $(foco, box); if (f) f.focus(); };
+    const irMes = n => { const b = mesCal(); calMes = new Date(b.getFullYear(), b.getMonth() + n, 1); calSel = calMes.getMonth() === TODAY.getMonth() && calMes.getFullYear() === TODAY.getFullYear() ? TODAY_ISO : toIso(calMes); };
+    $$("[data-cal-dia]", box).forEach(b => b.onclick = () => { calSel = b.dataset.calDia; refaz(`[data-cal-dia="${calSel}"]`); });
+    $("[data-cal-prev]", box).onclick = () => { irMes(-1); refaz("[data-cal-prev]"); };
+    $("[data-cal-next]", box).onclick = () => { irMes(1); refaz("[data-cal-next]"); };
+    const hoje = $("[data-cal-hoje]", box); if (hoje) hoje.onclick = () => { calMes = null; calSel = TODAY_ISO; refaz(); };
+  }
+  function assistente(ps) {
+    const late = ps.filter(p => p.late), wait = awaitingClient(ps), hoje = ps.filter(p => p.date === TODAY_ISO && p.status !== "pub");
+    const porMarca = l => { const m = {}; l.forEach(p => { const k = (CL[p.b] || {}).short || p.b; m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${esc(k)} ${n}`).join(" · "); };
+    const t = [];
+    if (late.length) t.push({ tom: "red", ic: "alert", cap: "Atrasadas", tit: plural(late.length, "pauta atrasada", "pautas atrasadas"), det: porMarca(late), href: "#calendario" });
+    if (wait.length) t.push({ tom: "amber", ic: "bell", cap: "Aprovação do cliente", tit: plural(wait.length, "peça esperando o cliente", "peças esperando o cliente"), det: porMarca(wait), href: "#calendario" });
+    t.push(hoje.length ? { tom: "green", ic: "cal", cap: "Hoje", tit: plural(hoje.length, "pauta para publicar", "pautas para publicar"), det: esc(hoje[0].title), href: "#calendario" } : { tom: "", ic: "cal", cap: "Hoje", tit: "Nenhuma publicação marcada", det: "Dia livre no calendário", href: "#calendario" });
+    if (IS_ADMIN && window.N7Comercial) { const r = window.N7Comercial.retornos(store.get("prospects", []) || [], TODAY_ISO); if (r.length) t.push({ tom: "violet", ic: "money", cap: "Comercial", tit: plural(r.length, "retorno de cliente novo", "retornos de clientes novos"), det: esc(r[0].nome), href: "#comercial/funil" }); }
+    const avisos = t.filter(x => x.tom && x.tom !== "green").length;
+    if (!avisos && !late.length) t.unshift({ tom: "green", ic: "shield", cap: "Tudo em dia", tit: "Nada atrasado nem esperando aprovação", det: "", href: "#calendario" });
+    return `<div class="panel asst-card">${banner("spark", "Assistente", "o que pede atenção agora", `<span class="pill-light">${plural(avisos, "aviso", "avisos")}</span>`)}<div class="panel-body asst-list">${t.map(x => `<a class="asst${x.tom ? " t-" + x.tom : ""}" href="${x.href}"><span class="asst-ic">${ico(x.ic)}</span><span class="asst-t"><small>${esc(x.cap)}</small><b>${x.tit}</b>${x.det ? `<em>${x.det}</em>` : ""}</span></a>`).join("")}</div></div>`;
+  }
+
   function renderPainel(v) {
     if (IS_CLIENT) return renderPainelCliente(v);
     const ps = posts(), anyPosts = CLIENTS.some(c => has(c, "redes") || has(c, "criativos"));
@@ -406,9 +451,13 @@
       <div class="page-head"><div><div class="eyebrow">Painel da agência · ${CLIENTS.length} contas</div><h1>${esc(saudacao())}</h1>
         <p>${esc(dataLonga())}. ${ini ? `Última semana com números: ${esc(AN.period("semana", ini).label)}.` : "Ainda não há números de semana."} Cada cliente mostra o que importa para os serviços que a Nova7 presta a ele.</p></div>
         <div class="toolbar">${CAN_WRITE ? `<a class="btn" href="#semana">${ico("file")} Semana</a>` : ""}${anyPosts ? `<a class="btn primary" href="#calendario">${ico("cal")} Abrir calendário</a>` : ""}</div></div>
+      <div class="bento">
+        <div class="kpis">${kp.slice(0, 4).join("")}</div>
+        <div class="panel cal-card" id="pcal">${calInner(ps)}</div>
+        ${assistente(ps)}
+      </div>
       ${ACCESS.cerebro() ? window.N7Cerebro.mini(brainHelpers()) : ""}
       ${queuePanel()}
-      <div class="kpis">${kp.slice(0, 4).join("")}</div>
       <div class="section-title"><h2>Clientes</h2><span>clique para abrir a página do cliente</span></div>
       ${CLIENTS.length ? `<div class="grid g4">${CLIENTS.map(c => clientCard(c, ps)).join("")}</div>` : `<div class="empty">Nenhum cliente ativo. ${IS_ADMIN ? `Cadastre em <a href="#config/clientes">Configurações</a>.` : ""}</div>`}
       <div class="grid g2">
@@ -433,6 +482,7 @@
       if (sers.some(x => x.s.some(p => p.valor != null))) C.bars(sh, { cats: sers[0].s.map(p => dm(p.inicio)), series: sers.map(x => ({ name: x.c.name, color: x.c.color, values: x.s.map(p => p.valor) })), fmt: brlK, tipFmt: brl });
       else sh.parentElement.innerHTML = `<p class="src">Nenhuma semana com vendas totais informadas.</p>`;
     }
+    bindCal(v, ps);
     bindOpen(v);
     $$(".client-card", v).forEach(el => { el.addEventListener("click", () => { location.hash = el.dataset.go; }); el.addEventListener("keydown", e => { if (e.key === "Enter") location.hash = el.dataset.go; }); });
   }
