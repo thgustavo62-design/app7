@@ -46,8 +46,10 @@ test('retryNow: depois de desistir das tentativas, a volta da internet envia na 
   const fetchFn = async () => { calls++; if (!online) throw new Error('offline'); return { ok: true, status: 200, json: async () => ({ ok: true, results: [{}] }) }; };
   Store.hydrate({ goals: {} });
   const sync = createSync({ store: Store, fetchFn, retryMs: 1 });
-  Store.set('goals', { 'M-sales': 1 }); await wait(80);            // 6 tentativas e desiste
+  /* espera pelo resultado, não por um tempo fixo: com a suíte inteira rodando junto o computador pode demorar mais que 80 ms */
+  const ate = async (cond, max = 2000) => { for (let t = 0; t < max && !cond(); t += 10) await wait(10); };
+  Store.set('goals', { 'M-sales': 1 }); await ate(() => calls >= 6); await wait(30);   // 6 tentativas e desiste
   const antes = calls; assert.ok(antes >= 6); assert.equal(sync.pending(), 1);
-  online = true; sync.retryNow(); await wait(10);
+  online = true; sync.retryNow(); await ate(() => sync.pending() === 0);
   assert.equal(sync.pending(), 0); assert.ok(calls > antes);
 });

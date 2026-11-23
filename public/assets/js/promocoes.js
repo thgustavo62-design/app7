@@ -269,8 +269,8 @@
     if (tab === "visao") { const cb = $("#pm-cmp", view); if (cb) cb.onclick = () => { ui.compare = !ui.compare; redraw(); }; }
     if (tab === "candidatos") {
       $$("#pm-listas button", view).forEach(b => { b.onclick = () => { ui.lista = b.dataset.v; ui.limit = 50; saveUi(); redraw(); }; });
-      $("#pm-cat", view).onchange = e => { ui.cat = e.target.value; ui.limit = 50; redraw(); };
-      let tm; $("#pm-q", view).oninput = e => { ui.q = e.target.value; ui.limit = 50; clearTimeout(tm); tm = setTimeout(() => { redraw(); setTimeout(() => { const q = $("#pm-q", view); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }, 0); }, 250); };
+      const cat = $("#pm-cat", view); if (cat) cat.onchange = e => { ui.cat = e.target.value; ui.limit = 50; redraw(); };   /* sem dados da loja, a tela só mostra o aviso e esses campos não existem */
+      const busca = $("#pm-q", view); let tm; if (busca) busca.oninput = e => { ui.q = e.target.value; ui.limit = 50; clearTimeout(tm); tm = setTimeout(() => { redraw(); setTimeout(() => { const q = $("#pm-q", view); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }, 0); }, 250); };
       const more = $("#pm-more", view); if (more) more.onclick = () => { ui.limit += 100; redraw(); };
       $$("[data-add]", view).forEach(b => { b.onclick = () => {
         const cart = cartOf(ui.loja), it = c.a.items.find(i => i.barras === b.dataset.add), s = P.suggest(it, regra());
