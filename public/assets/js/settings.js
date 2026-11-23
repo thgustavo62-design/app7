@@ -41,7 +41,7 @@
     v.querySelector("#cfg-body").innerHTML = `
       <div class="panel">${C.banner("list", "Clientes e serviços", `${list.filter(c => c.active).length} ativos · o painel de cada cliente segue os serviços marcados`, ed ? "" : `<button type="button" class="btn sm primary" id="c-new">Novo cliente</button>`)}
         <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Serviços</th><th>Setor</th><th>Situação</th><th></th></tr></thead><tbody>
-        ${list.map(c => `<tr class="${c.active ? "" : "inactive"}"><td><span class="client-avatar" style="background:var(${c.color});width:26px;height:26px;font-size:12px;display:inline-grid;vertical-align:middle;margin-right:8px">${C.esc(c.short[0])}</span><b>${C.esc(c.name)}</b><div class="src">${C.esc(c.handle || c.segment)} · #${C.esc(c.id)} · chave ${C.esc(c.key)}</div></td>
+        ${list.map(c => `<tr class="${c.active ? "" : "inactive"}"><td>${window.N7Logos.avatar(c, "width:26px;height:26px;font-size:12px;display:inline-grid;vertical-align:middle;margin-right:8px")}<b>${C.esc(c.name)}</b><div class="src">${C.esc(c.handle || c.segment)} · #${C.esc(c.id)} · chave ${C.esc(c.key)}</div></td>
           <td><span class="svc-chips" style="margin:0">${SVC.ORDER.filter(s => (c.services || []).includes(s)).map(svcChip).join("")}</span></td><td>${C.esc(SVC.SECTORS[c.setor] || c.setor)}</td><td>${c.active ? `<span class="badge st-pub">ativo</span>` : `<span class="badge">desativado</span>`}</td>
           <td style="text-align:right"><button type="button" class="btn sm" data-edit-client="${C.esc(c.key)}">Editar</button></td></tr>`).join("") || `<tr><td colspan="5"><div class="empty">Nenhum cliente cadastrado.</div></td></tr>`}
         </tbody></table></div></div>

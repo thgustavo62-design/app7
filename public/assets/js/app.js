@@ -267,7 +267,7 @@
       ${ACCESS.autoridade() ? `<a class="nav-item" href="#autoridade">${ico("eye")}<span>Autoridade</span></a>${subLinks("autoridade")}` : ""}
       ${ACCESS.comercial() ? `<a class="nav-item" href="#comercial">${ico("money")}<span>Comercial</span></a>${subLinks("comercial")}` : ""}
       ${CLIENTS.length ? `<div class="nav-group">${IS_CLIENT ? "Sua empresa" : "Clientes"}</div>
-      ${CLIENTS.map(c => `<a class="nav-item" href="#${c.id}"><i class="nav-dot" style="background:var(${c.color})"></i><span>${esc(c.name)}</span>${late(c.id) && !IS_CLIENT ? `<span class="nav-count" title="pautas atrasadas">${late(c.id)}</span>` : ""}</a>${subLinks(c.id)}`).join("")}` : ""}
+      ${CLIENTS.map(c => `<a class="nav-item" href="#${c.id}">${window.N7Logos.marca(c)}<span>${esc(c.name)}</span>${late(c.id) && !IS_CLIENT ? `<span class="nav-count" title="pautas atrasadas">${late(c.id)}</span>` : ""}</a>${subLinks(c.id)}`).join("")}` : ""}
       ${ops.length ? `<div class="nav-group">Operação</div>${ops.map(([id, ic, name, extra]) => `<a class="nav-item" href="#${id}">${ico(ic)}<span>${name}</span>${extra}</a>`).join("")}` : ""}
       ${IS_ADMIN ? `<div class="nav-group">Sistema</div><a class="nav-item" href="#config">${ico("sliders")}<span>Configurações</span></a>${subLinks("config")}` : ""}`;
   }
@@ -401,7 +401,7 @@
     for (let i = 0; i < total; i++) {
       const d = new Date(y, m, 1 - off + i), iso = toIso(d), l = por[iso] || [];
       const est = !l.length ? "" : l.some(p => p.late) ? "late" : l.some(p => p.status !== "pub") ? "plan" : "done";
-      cel += `<button type="button" class="cd ${d.getMonth() !== m ? "out " : ""}${est}${iso === TODAY_ISO ? " today" : ""}${iso === calSel ? " sel" : ""}" data-cal-dia="${iso}" aria-label="${d.getDate()} de ${esc(nomeMes(d))}${l.length ? `, ${plural(l.length, "pauta", "pautas")}` : ""}" aria-pressed="${iso === calSel}">${d.getDate()}</button>`;
+      cel += `<button type="button" class="cd ${d.getMonth() !== m ? "out " : ""}${est}${iso === TODAY_ISO ? " hoje" : ""}${iso === calSel ? " sel" : ""}" data-cal-dia="${iso}" aria-label="${d.getDate()} de ${esc(nomeMes(d))}${l.length ? `, ${plural(l.length, "pauta", "pautas")}` : ""}" aria-pressed="${iso === calSel}">${d.getDate()}</button>`;
     }
     const sel = por[calSel] || [], dSel = toDate(calSel);
     const lista = sel.slice(0, 4).map(p => `<button type="button" class="cal-ev" data-open="${p.code}"><i style="background:var(${(CL[p.b] || {}).color || "--c8"})"></i><span><b>${esc(p.title)}</b><small>${esc((CL[p.b] || {}).short || "")} · ${esc(p.format)} · ${p.late ? "atrasada" : esc(STATUS[p.status].name)}</small></span></button>`).join("");
@@ -521,7 +521,7 @@
     const head = !IS_CLIENT && has(c, "redes") && mine.length ? (() => { const h = health(c, ps); return `<div class="health-row"><span class="health-num tone-${h.light.tone}">${h.score}</span><div><b>${h.light.name}</b><div class="src">mais fraca: ${h.weakest.name} (${Math.round(h.weakest.value)})</div></div></div>`; })() : "";
     return `<div class="panel client-card" tabindex="0" role="link" data-go="${c.id}">
       <div class="panel-body">
-        <div style="display:flex;gap:10px;align-items:center"><span class="client-avatar" style="background:var(${c.color})">${esc(c.short[0])}</span><div style="min-width:0"><h3 style="font-size:14px">${esc(c.name)}</h3><div class="src">${esc(c.handle || c.segment)}</div></div></div>
+        <div style="display:flex;gap:10px;align-items:center">${window.N7Logos.avatar(c)}<div style="min-width:0"><h3 style="font-size:14px">${esc(c.name)}</h3><div class="src">${esc(c.handle || c.segment)}</div></div></div>
         ${svcChips(c)}${head}
         ${rows.length ? `<div class="metric-box"><h4>${IS_CLIENT ? "Andamento" : "Resumo"}</h4>${rows.join("")}</div>` : ""}
         ${mine.length ? `<div><div class="mrow" style="padding:0 0 5px"><span>Plano Nov–Dez</span><b>${pub}/${mine.length}</b></div><div class="bar"><i style="width:${pub / mine.length * 100}%;background:var(${c.color})"></i></div></div>` : ""}
@@ -794,7 +794,7 @@
     const alerts = D.ALERTS.filter(a => a.b === c.key), findings = D.FINDINGS.filter(x => x.b === c.key);
     const wait = IS_CLIENT ? awaitingClient(ps) : [];
     v.innerHTML = `
-      <div class="hero p-${SVC.ORDER.find(s => has(c, s)) || "redes"}${!IS_CLIENT && activeSub(c.id, sub) ? " compact" : ""}"><span class="client-avatar" style="background:var(${c.color})">${esc(c.short[0])}</span>
+      <div class="hero p-${SVC.ORDER.find(s => has(c, s)) || "redes"}${!IS_CLIENT && activeSub(c.id, sub) ? " compact" : ""}">${window.N7Logos.avatar(c)}
         <div style="min-width:0"><div class="eyebrow">${IS_CLIENT ? "Sua empresa" : "Cliente · " + esc(SVC.label(c))}</div><h1>${esc(c.name)}</h1>${c.about ? `<p>${esc(c.about)}</p>` : ""}
           <div class="meta"><span>${esc(c.segment)}</span>${c.handle ? `<span>${esc(c.handle)}</span>` : ""}${c.postsProfile ? `<span>${int(c.postsProfile)} posts no perfil</span>` : ""}${c.club ? `<span>${esc(c.club)}</span>` : ""}</div>${svcChips(c)}</div>
         <div class="actions toolbar">${ig ? `<a class="btn" href="${esc(ig)}" target="_blank" rel="noopener">${ico("ig")} Instagram</a>` : ""}${!IS_CLIENT && c.docs[0] ? `<a class="btn" href="${esc(c.docs[0][1])}" target="_blank" rel="noopener">${ico("file")} Pasta no Drive</a>` : ""}</div></div>
@@ -1086,7 +1086,7 @@
     const done = DONE_BY[p.status];
     const steps = Object.entries(p.steps);
     const dlg = $("#drawer");
-    dlg.innerHTML = `<div class="drawer-head"><span class="client-avatar" style="background:var(${CL[p.b].color})">${CL[p.b].short[0]}</span><div><small style="color:var(--banner-muted)">${p.code} · ${esc(CL[p.b].name)} · ${p.format}</small><h2>${esc(p.title)}</h2></div><button type="button" class="x" id="d-close">Fechar</button></div>
+    dlg.innerHTML = `<div class="drawer-head">${window.N7Logos.avatar(CL[p.b])}<div><small style="color:var(--banner-muted)">${p.code} · ${esc(CL[p.b].name)} · ${p.format}</small><h2>${esc(p.title)}</h2></div><button type="button" class="x" id="d-close">Fechar</button></div>
       <div class="drawer-body">
         <div class="toolbar">${stBadge(p)}${fmtBadge(p.format)}${p.fromIdea ? `<span class="badge">criada no quadro de ideias</span>` : ""}${p.edited ? `<span class="badge">editado neste navegador</span>` : ""}</div>
         ${p.note ? `<p class="notice">${esc(p.note)}</p>` : ""}
@@ -1222,7 +1222,7 @@
            <select id="ie-slot">${free.map(s => `<option value="${s.date}|${s.time}">${esc(slotLabel(s))}</option>`).join("")}</select>
            <div class="toolbar"><button type="button" class="btn primary" id="ie-go">Agendar como pauta</button></div>
            <p class="src">A pauta nasce em "A planejar", com as datas de roteiro, gravação, edição, aprovação e agendamento no padrão da Central.</p></div>`;
-    dlg.innerHTML = `<div class="drawer-head"><span class="client-avatar" style="background:var(${CL[i.b].color})">${CL[i.b].short[0]}</span><div><small style="color:var(--banner-muted)">Ideia · ${esc(CL[i.b].name)}</small><h2>${esc(i.title)}</h2></div><button type="button" class="x" id="d-close">Fechar</button></div>
+    dlg.innerHTML = `<div class="drawer-head">${window.N7Logos.avatar(CL[i.b])}<div><small style="color:var(--banner-muted)">Ideia · ${esc(CL[i.b].name)}</small><h2>${esc(i.title)}</h2></div><button type="button" class="x" id="d-close">Fechar</button></div>
       <div class="drawer-body">
         <div class="form-row"><div><label class="lbl" for="ie-brand">Cliente</label><select id="ie-brand">${CLIENTS.map(c => `<option value="${c.key}" ${c.key === i.b ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></div>
           <div><label class="lbl" for="ie-format">Formato</label><select id="ie-format">${F.FORMATS.map(f => `<option ${f === i.format ? "selected" : ""}>${f}</option>`).join("")}</select></div></div>
@@ -1256,7 +1256,7 @@
   }
   function openSlot(brand, date, time, format) {
     const dlg = $("#drawer"), ideas = F.getIdeas().filter(i => i.b === brand && i.stage === "aprovada" && (format === "Qualquer" || i.format === format));
-    dlg.innerHTML = `<div class="drawer-head"><span class="client-avatar" style="background:var(${CL[brand].color})">${CL[brand].short[0]}</span><div><small style="color:var(--banner-muted)">Horário livre · ${esc(CL[brand].name)}</small><h2>${esc(slotLabel({ date, time, format }))}</h2></div><button type="button" class="x" id="d-close">Fechar</button></div>
+    dlg.innerHTML = `<div class="drawer-head">${window.N7Logos.avatar(CL[brand])}<div><small style="color:var(--banner-muted)">Horário livre · ${esc(CL[brand].name)}</small><h2>${esc(slotLabel({ date, time, format }))}</h2></div><button type="button" class="x" id="d-close">Fechar</button></div>
       <div class="drawer-body">
         ${ideas.length ? `<span class="col-title">Ideias aprovadas que cabem aqui</span><div class="post-list">${ideas.map(i => `<div class="post-row" style="grid-template-columns:78px 1fr auto">${fmtBadge(i.format)}<span class="t">${esc(i.title)}<small>${esc(i.src || "")}</small></span><button type="button" class="btn sm primary" data-pick="${i.id}">Agendar aqui</button></div>`).join("")}</div>`
         : `<p class="notice info">Não há ideia <b>aprovada</b> de ${esc(CL[brand].short)} para ${format === "Qualquer" ? "este horário" : format}. Aprove uma no quadro de ideias para agendá-la aqui.</p><div class="toolbar"><button type="button" class="btn primary" id="sl-ideas">Abrir quadro de ideias</button></div>`}
