@@ -87,7 +87,7 @@ test('perfil, ordem e pastas: só quem edita grava; cliente lê só a própria e
   await assert.rejects(F.carregar(repo, cliente, 'F', { drive: null }), /não tem acesso/);
   await assert.rejects(F.carregar(repo, admin, 'ZZ', { drive: null }), /não tem acesso/);
   await assert.rejects(F.salvar(repo, admin, 'M', { perfil: { bio: 'x'.repeat(301) } }), /passa de 300/);
-  assert.equal((await F.carregar(repo, admin, 'F', { drive: null })).perfil.handle, 'farmaefarmabq', 'perfis conhecidos já vêm preenchidos');
+  assert.equal((await F.carregar(repo, admin, 'F', { drive: null })).perfil.handle, 'farmaefarmabg', 'perfis conhecidos já vêm preenchidos');
 });
 test('rota /api/feed: exige login, lê, grava e recusa pedido de outra origem', async () => {
   const session = require('../lib/session'), { cfg } = require('../lib/config');
