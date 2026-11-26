@@ -48,7 +48,7 @@ const NOME = String(arg('--nome') || os.hostname()).slice(0, 60);
 const nuc = Math.max(1, Math.min(Number(arg('--nucleos')) || os.availableParallelism(), 16));
 const PARTE = 3500000;
 if (!TOKEN || TOKEN.length < 24) { console.error('Falta o token do computador. Rode  .\\Agente.ps1 -Configurar  (ou crie %USERPROFILE%\\.nova7\\agente.json).'); process.exit(2); }
-const LOG = path.join(os.homedir(), '.nova7', 'agente.log');
+const LOG = process.env.N7_LOG || (process.env.N7_ARMAZEM ? path.join(process.env.N7_ARMAZEM, 'agente.log') : path.join(os.homedir(), '.nova7', 'agente.log'));   /* testes (armazém isolado) não sujam o log real */
 const log = (...a) => {
   const linha = new Date().toLocaleString('pt-BR') + ' ' + a.join(' ');
   console.log(new Date().toLocaleTimeString('pt-BR'), ...a);
@@ -154,7 +154,7 @@ const slug = t => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toL
 /* ideias de conteúdo a partir das análises de Mercado: no máximo 3 por rodada, uma por categoria e semana */
 async function criarIdeias(cerebro) {
   const lista = [...(cerebro.radar || []), ...(cerebro.ganhos || [])].filter(f => ['categorias', 'cesta', 'foco'].includes(f.agente) && f.marca).slice(0, 3);
-  const ideias = lista.map(f => ({ id: `auto-${f.marca}-${f.agente}-${slug(f.titulo)}-${semana()}`.slice(0, 80), b: f.marca, format: f.agente === 'cesta' ? 'Reels' : 'Carrossel', title: f.titulo, note: [f.evidencia, f.acao].filter(Boolean).join(' — '), src: f.agente }));
+  const ideias = lista.map(f => ({ id: `auto-${f.marca}-${f.agente}-${slug(f.titulo).slice(0, 22)}-${semana()}`.slice(0, 58), b: f.marca, format: f.agente === 'cesta' ? 'Reels' : 'Carrossel', title: f.titulo, note: [f.evidencia, f.acao].filter(Boolean).join(' — '), src: f.agente }));
   if (!ideias.length) return;
   const r = await chamar('ideias', {}, { metodo: 'POST', corpo: { ideias } });
   if (r.criadas && r.criadas.length) log(`Criei ${r.criadas.length} ideia(s) de conteúdo no banco de ideias do site a partir das análises.`);
