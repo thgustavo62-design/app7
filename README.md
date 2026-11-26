@@ -58,7 +58,7 @@ public/                 o site (só esta pasta é servida como arquivos)
 api/                    funções da Vercel: auth, state, mutate, data
 lib/                    sessão, login Google, cliente do Sheets, repositório, validação, escopo por empresa (scope.js) e dados filtrados (dataset.js)
 private/data.js         dados dos clientes (não é servido como arquivo)
-tests/                  48 testes: node --test tests/*.test.js
+tests/                  230 testes (6 do Postgres só rodam com PG_TEST_URL): node --test tests/*.test.js
 dev-server.js           servidor local com dados em memória
 vercel.json             pasta pública, cabeçalhos de segurança (CSP) e função de dados
 ```
@@ -225,7 +225,7 @@ Regras: o Windsor só troca os campos que vieram com valor (vendas, anotações 
 A raiz do site (`/`) é a **landing page da Nova7**, aberta a qualquer pessoa (serviços, como trabalhamos, diferenciais, contato). O sistema de gestão fica em **`/app`** (com login, sem indexação nos buscadores; `robots.txt` bloqueia `/app` e `/api/`). Arquivos: `public/index.html`, `public/assets/css/landing.css`, `public/assets/js/landing.js`, imagem de compartilhamento `public/assets/brand/og-nova7.png`.
 
 - **Contato:** edite só o objeto `CONTACT` no início de `landing.js` (WhatsApp com DDI e DDD, e-mail, Instagram). Sem WhatsApp, os botões usam o e-mail; sem e-mail, o Instagram.
-- **Clientes:** a landing **não cita clientes nem resultados**, porque a autorização de case ainda está pendente na Central. Um teste automático garante isso.
+- **Clientes:** a landing só cita quem autorizou (hoje, só a **Altus Contabilidade**, seção "Clientes") e **não cita resultados**. Um teste automático garante que nenhum outro cliente aparece.
 - A imagem de compartilhamento (`og:image`) usa o endereço atual da Vercel; ao ligar um domínio próprio, troque a URL em `index.html`.
 
 ## Central de Inteligência (o "cérebro")
@@ -292,3 +292,8 @@ A landing segue o manual de identidade da Nova7 (preto `#0B0C11`, grafite `#1719
 3. A seção **Bastidores** aparece sozinha quando a lista tem fotos. Sem fotos, ela fica escondida.
 
 **Não use fotos ou artes de clientes sem autorização** (regra do próprio manual); registre a autorização no ACERVO & AUTORIZAÇÃO.
+
+
+## Análise local no PowerShell (sem IA, no processador do computador)
+
+`scripts/analise-local/Analisar.ps1` baixa os dados (ou usa os de exemplo com `-Fonte local`) e roda em paralelo, em *worker threads*, o cérebro com os 21 agentes, a análise de cada semana fechada, o calendário de cada cliente, as ideias e a qualidade dos dados. As regras são as do próprio site (os módulos de `public/assets/js` são reaproveitados). Saída em `scripts/analise-local/saida/` (ignorada pelo git): `resumo.md` e `resultado.json`. A senha é pedida na hora e nunca gravada; o arquivo com os dados dos clientes é apagado no fim. Exemplo: `.\Analisar.ps1 -Nucleos 2 -NaoAbrir`. Um teste confere que o resultado é igual com 1 ou 3 núcleos.

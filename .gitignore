@@ -6,3 +6,4 @@ node_modules/
 *-key.json
 chave*.json
 .vercel/
+scripts/analise-local/saida/
