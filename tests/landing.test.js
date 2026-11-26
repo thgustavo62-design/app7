@@ -26,8 +26,10 @@ test('landing: nenhum script dentro do HTML (a política de segurança do site p
   assert.ok(!/\son[a-z]+="/i.test(html), 'sem manipuladores de evento inline');
   JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
 });
-test('landing: não cita clientes nem promete números (autorização de case pendente)', () => {
+test('landing: só cita cliente que autorizou (Altus) e não promete números', () => {
   ['Minas Farma', 'Farma e Farma', 'Campo Forte', 'Minas Club', 'Farma Club'].forEach(n => assert.ok(!html.includes(n), `não cita ${n}`));
+  assert.ok(/Altus Contabilidade/.test(html), 'a Altus autorizou aparecer no portfólio');
+  assert.equal((html.match(/<article class="case">/g) || []).length, 1, 'só quem autorizou aparece (hoje, só a Altus)');
   assert.ok(!/\d+\s?%/.test(html.replace(/<[^>]+>/g, ' ')), 'sem percentuais de resultado inventados');
 });
 test('landing: contato configurável em um só lugar e com plano B (WhatsApp, e-mail, Instagram)', () => {

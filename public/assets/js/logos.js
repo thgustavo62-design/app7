@@ -7,7 +7,9 @@
     "minas-farma": "assets/clientes/minas-farma.png",
     "farma-e-farma": "assets/clientes/farma-e-farma.png",
     "campo-forte": "assets/clientes/campo-forte.png",
-    "nova7": "assets/clientes/nova7.png"
+    "nova7": "assets/clientes/nova7.png",
+    "junior-lopes-contador": "assets/clientes/junior-lopes-contador.png",
+    "altus-contabilidade": "assets/clientes/altus-contabilidade.png"
   };
   var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
   /* c: { id, color, short }; estilo: CSS extra opcional (tamanho) */

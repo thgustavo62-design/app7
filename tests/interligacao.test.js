@@ -33,7 +33,7 @@ test('ícones das empresas: todo arquivo mapeado existe, todo PNG de assets/clie
   assert.deepEqual(Object.values(mapa).filter(u => !existe(u)), [], 'ícone mapeado sem arquivo');
   assert.deepEqual(arquivos.filter(f => !Object.values(mapa).includes('assets/clientes/' + f)), [], 'arquivo em assets/clientes sem linha no logos.js');
   assert.deepEqual(Object.values(mapa).filter(u => !SHELL.includes('/' + u)), [], 'ícone fora do SHELL (não funcionaria sem internet)');
-  const { defaults } = require('../lib/clients'); const ids = defaults().map(c => c.id);
+  const { defaults } = require('../lib/clients'); const ids = defaults().map(c => c.id).concat(['junior-lopes-contador', 'altus-contabilidade']);   /* os dois últimos foram cadastrados depois, em Configurações > Clientes */
   assert.deepEqual(Object.keys(mapa).filter(id => !ids.includes(id)), [], 'ícone para empresa que não existe no cadastro inicial');
   const html = globalThis.N7Logos.avatar({ id: 'sem-arquivo', color: '--c3', short: 'Zé' }, 'width:20px'); assert.match(html, /^<span class="client-avatar" style="background:var\(--c3\);width:20px">Z<\/span>$/, 'empresa sem ícone usa a inicial colorida');
   assert.match(globalThis.N7Logos.avatar({ id: 'nova7', color: '--c4', short: 'N' }), /<img src="assets\/clientes\/nova7\.png"/);
