@@ -72,15 +72,25 @@ async function chamar(acao, params = {}, { metodo = 'GET', corpo, bin = false } 
 }
 
 let ativos = 0, ultimaAtividade = 0, parar = false; const esperaCalc = new Map();
+/* pasta dos relatórios HTML: Documentos\\Nova7 Relatórios (ou N7_RELATORIOS) */
+const REL_DIR = process.env.N7_RELATORIOS || path.join(fs.existsSync(path.join(os.homedir(), 'Documents')) ? path.join(os.homedir(), 'Documents') : path.join(os.homedir(), '.nova7'), 'Nova7 Relatórios');
+const MARCA = String(cfgArq.marca || 'Nova7');
+/* recalcula a loja inteira a partir do armazém, publica no site e grava o relatório executivo em HTML (o mais novo e uma cópia com a data) */
+async function calcularEPublicar(loja, motivo) {
+  const t0 = Date.now(), dados = (await ler('calcular', loja, Buffer.alloc(0))).dados;
+  if (!dados) { log(`Loja ${loja}: ainda sem vendas no armazém para analisar.`); return; }
+  await chamar('publicar', { loja }, { metodo: 'POST', corpo: Buffer.from(JSON.stringify(dados)) });
+  let arq = '';
+  try {
+    const RH = require('./relatorio-html'), dir = path.join(REL_DIR, String(loja).replace(/[^A-Za-z0-9_-]/g, '_')), html = RH.gerar(dados, { marca: MARCA }), hoje = new Date().toISOString().slice(0, 10);
+    fs.mkdirSync(dir, { recursive: true }); arq = path.join(dir, `relatorio-${loja}.html`); fs.writeFileSync(arq, html); fs.writeFileSync(path.join(dir, `relatorio-${loja}-${hoje}.html`), html);
+  } catch (e) { log(`Relatório HTML da loja ${loja} não gravado: ${e.message}`); }
+  log(`Análise completa da loja ${loja} ${motivo || 'recalculada'} em ${((Date.now() - t0) / 1000).toFixed(1)} s e publicada no site (${dados.cobertura.dias} dias, ${dados.geral.cupons} cupons).${arq ? ' Relatório: ' + arq : ''}`);
+}
 function recalcular(loja) {
   clearTimeout(esperaCalc.get(loja));
   esperaCalc.set(loja, setTimeout(async () => {
-    try {
-      const t0 = Date.now(), dados = (await ler('calcular', loja, Buffer.alloc(0))).dados;
-      if (!dados) { log(`Loja ${loja}: ainda sem vendas no armazém para analisar.`); return; }
-      await chamar('publicar', { loja }, { metodo: 'POST', corpo: Buffer.from(JSON.stringify(dados)) });
-      log(`Análise completa da loja ${loja} recalculada em ${((Date.now() - t0) / 1000).toFixed(1)} s e publicada no site (${dados.cobertura.dias} dias, ${dados.geral.cupons} cupons).`);
-    } catch (e) { log(`Não consegui publicar a análise da loja ${loja}: ${e.message}`); }
+    try { await calcularEPublicar(loja, 'recalculada (relatório novo)'); } catch (e) { log(`Não consegui publicar a análise da loja ${loja}: ${e.message}`); }
   }, 4000));
 }
 async function processar(job) {
@@ -110,6 +120,13 @@ async function processar(job) {
 }
 
 const dorme = ms => new Promise(r => setTimeout(r, ms));
+/* rotina automática: ao ligar e de tempos em tempos, refaz a análise e o relatório de cada loja do armazém, sem ninguém pedir */
+async function rotina() {
+  const Z = require('./armazem');
+  for (const loja of Z.lojas()) { try { await calcularEPublicar(loja, 'atualizada pela rotina automática'); } catch (e) { log(`Rotina automática, loja ${loja}: ${e.message}`); } }
+}
+const ROTINA_MS = Number(process.env.N7_ROTINA_MS) || 6 * 3600e3;
+setTimeout(rotina, Number(process.env.N7_ROTINA_INICIO_MS) || 20000); setInterval(rotina, ROTINA_MS);
 (async () => {
   log(`Agente Nova7 v${VERSAO} ligado: ${nuc} núcleo(s), buscando arquivos em ${URL_BASE}. Deixe esta janela aberta; Ctrl+C desliga.`);
   let falhasSeguidas = 0, avisouOffline = false;

@@ -55,7 +55,7 @@ test('fila de leitura: arquivo enviado ao site é lido e conferido pelo agente (
     const n = await call(adm, 'nova', { body: { loja, tipo, nome, bytes: buf.length, partes: 1 } }); assert.equal(n.s, 200, JSON.stringify(n.j));
     assert.equal((await call(adm, 'parte', { raw: buf, params: `&id=${n.j.id}&n=0` })).s, 200); assert.equal((await call(adm, 'pronto', { body: {}, params: `&id=${n.j.id}` })).s, 200); return n.j.id;
   };
-  let agente = null;
+  let agente = null, armazemTmp = null;
   try {
     assert.equal((await call(adm, 'estado')).j.online, false, 'sem agente ligado o site sabe que o computador está desligado');
     assert.equal((await call(adm, 'proximo')).s, 401, 'a fila do computador exige o token');
@@ -71,7 +71,8 @@ test('fila de leitura: arquivo enviado ao site é lido e conferido pelo agente (
     assert.equal((await call(outro, 'status', { params: `&id=${idOk}` })).s, 404, 'o arquivo de outra pessoa não aparece');
     assert.equal((await call(adm, 'status', { params: `&id=${idOk}` })).j.estado, 'aguardando');
 
-    agente = spawn(process.execPath, [path.join(__dirname, '..', 'scripts', 'analise-local', 'agente.js'), '--url', base, '--token', TOKEN, '--nucleos', '2', '--nome', 'PC-teste'], { stdio: 'pipe' });
+    armazemTmp = require('node:fs').mkdtempSync(path.join(require('node:os').tmpdir(), 'n7-arm-fila-'));
+    agente = spawn(process.execPath, [path.join(__dirname, '..', 'scripts', 'analise-local', 'agente.js'), '--url', base, '--token', TOKEN, '--nucleos', '2', '--nome', 'PC-teste'], { stdio: 'pipe', env: Object.assign({}, process.env, { N7_ARMAZEM: armazemTmp }) });   /* nunca grava no armazém real */
     let saida = ''; agente.stdout.on('data', d => { saida += d; }); agente.stderr.on('data', d => { saida += d; });
     const espera = async id => { for (let i = 0; i < 80; i++) { const st = await call(adm, 'status', { params: `&id=${id}` }); if (['pronto', 'erro'].includes(st.j.estado)) return st.j; await new Promise(r => setTimeout(r, 500)); } throw new Error('não terminou: ' + saida); };
     const resultado = async st => { const bufs = []; for (let n = 0; n < st.resultadoPartes; n++) bufs.push((await call(adm, 'resultado', { params: `&id=${st.id}&n=${n}` })).t); return JSON.parse(Buffer.concat(bufs).toString('utf8')); };
@@ -83,5 +84,5 @@ test('fila de leitura: arquivo enviado ao site é lido e conferido pelo agente (
     const e = await resultado(await espera(idEst)); assert.equal(e.ok, true); assert.equal(e.items.length, 2);
     const est = await call(adm, 'estado'); assert.equal(est.j.online, true); assert.equal(est.j.computador, 'PC-teste'); assert.equal(est.j.nucleos, 2);
     assert.equal((await call(adm, 'limpar', { body: {}, params: `&id=${idOk}` })).s, 200); assert.equal((await call(adm, 'status', { params: `&id=${idOk}` })).s, 404);
-  } finally { if (agente) agente.kill(); srv.close(); delete process.env.LEITURA_TOKEN; db._resetMemory(); require('../lib/fila').reset(); }
+  } finally { if (agente) agente.kill(); if (armazemTmp) require('node:fs').rmSync(armazemTmp, { recursive: true, force: true }); srv.close(); delete process.env.LEITURA_TOKEN; db._resetMemory(); require('../lib/fila').reset(); }
 });

@@ -64,3 +64,23 @@ test('armazém: relatórios fracionados entram aos poucos, o repetido não conta
     assert.equal((await fetch(`${base}/api/leitura?acao=analise`)).status, 401);
   } finally { if (agente) agente.kill(); srv.close(); delete process.env.LEITURA_TOKEN; delete process.env.N7_ARMAZEM; db._resetMemory(); require('../lib/fila').reset(); fs.rmSync(armazem, { recursive: true, force: true }); }
 });
+
+test('rotina automática: com o armazém já cheio, o agente recalcula, publica no site e grava o relatório HTML sozinho, sem ninguém pedir', async () => {
+  const TOKEN = 'teste-token-rotina-da-agencia-0123456789abcd', armazem = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-arm-rot-')), relat = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-rel-rot-'));
+  process.env.LEITURA_TOKEN = TOKEN; process.env.N7_ARMAZEM = armazem; db._resetMemory(); require('../lib/fila').reset();
+  const linha = (d, n, b, desc, v) => ({ data: d, hora: '10:15', lanc: String(n), usu: '000020', barras: b, desc, preco: v, qtd: 1, valor: v, oper: 'A VISTA', emp: '000000000', cli: '00000000', cx: '00001' });
+  const rows = [1, 2, 3].flatMap(i => [linha(`2026-08-0${i}`, 100 + i, '7896112486787', 'ARADOIS 50MG C/30 CPR', 20), linha(`2026-08-0${i}`, 100 + i, '7899095201187', 'SODIX 50MG C/20 CPR', 5)]);
+  Z.guardar('M', { rows, ajustes: [], cobertura: { inicio: '2026-08-01', fim: '2026-08-03' }, emissao: { data: '2026-08-05', hora: '09:00' }, arquivo: 'pre-existente.pdf' });
+  const session = require('../lib/session'), { cfg } = require('../lib/config'), { createServer } = require('../dev-server');
+  const srv = createServer(); await new Promise(r => srv.listen(0, r)); const base = 'http://localhost:' + srv.address().port;
+  const adm = 'n7_session=' + encodeURIComponent(session.create({ email: 'dev@local', nome: 'Dev', papel: 'admin', tipo: 'equipe', empresas: [] }, cfg().sessionSecret, 600));
+  let agente = null;
+  try {
+    agente = spawn(process.execPath, [path.join(__dirname, '..', 'scripts', 'analise-local', 'agente.js'), '--url', base, '--token', TOKEN, '--nucleos', '2'], { stdio: 'pipe', env: Object.assign({}, process.env, { N7_ROTINA_INICIO_MS: '300', N7_RELATORIOS: relat }) });
+    let saida = ''; agente.stdout.on('data', d => { saida += d; });
+    let pub = null; for (let i = 0; i < 60 && !pub; i++) { const r = await fetch(`${base}/api/leitura?acao=analise`, { headers: { cookie: adm, 'x-n7': '1' } }); const j = await r.json(); if (j.lojas && j.lojas.M) pub = j.lojas.M; else await new Promise(r2 => setTimeout(r2, 400)); }
+    assert.ok(pub, 'a rotina publicou sem ninguém enviar arquivo: ' + saida); assert.equal(pub.geral.cupons, 3);
+    const html = path.join(relat, 'M', 'relatorio-M.html'); for (let i = 0; i < 20 && !fs.existsSync(html); i++) await new Promise(r => setTimeout(r, 200));
+    assert.ok(fs.existsSync(html), 'relatório HTML gravado'); assert.match(fs.readFileSync(html, 'utf8'), /Resumo executivo/); assert.ok(fs.readdirSync(path.join(relat, 'M')).some(n => /relatorio-M-\d{4}-\d{2}-\d{2}\.html/.test(n)), 'cópia com a data');
+  } finally { if (agente) agente.kill(); srv.close(); delete process.env.LEITURA_TOKEN; delete process.env.N7_ARMAZEM; db._resetMemory(); require('../lib/fila').reset(); fs.rmSync(armazem, { recursive: true, force: true }); fs.rmSync(relat, { recursive: true, force: true }); }
+});
