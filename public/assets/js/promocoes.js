@@ -181,6 +181,7 @@
     const d = c.data, imp = d.importacoes;
     return `
       ${!podeEditar ? `<p class="notice info">Seu acesso é só de leitura: você vê as importações, mas não importa.</p>` : ""}
+      <div id="im-agente"></div>
       <div class="grid g2" style="align-items:start">
         <div class="panel">${H.banner("file", "1. Estoque (.xlsx)", "exportação de estoque do sistema da farmácia")}
           <div class="panel-body">
@@ -197,16 +198,64 @@
         </tbody></table></div></div>`;
   }
 
+  /* ---------- leitura no computador da agência (PowerShell) ----------
+     De qualquer aparelho: o arquivo vai em pedaços para a fila do site, o computador da agência (Agente.ps1) busca, lê, CONFERE ao centavo e devolve;
+     o resultado volta para esta tela e é gravado pelo fluxo de sempre. Se o computador estiver desligado, a leitura é feita aqui no navegador. */
+  const ag = { ok: false, info: null, em: 0 }, PARTE = 3500000, dorme = ms => new Promise(r => setTimeout(r, ms));
+  async function detectarAgente(force) {
+    if (!force && Date.now() - ag.em < 5000) return ag.ok;
+    ag.em = Date.now();
+    try { const j = await api("/api/leitura?acao=estado"); ag.ok = !!j.online; ag.info = j; } catch (e) { ag.ok = false; ag.info = null; }
+    return ag.ok;
+  }
+  const rawPost = async (url, body, tipo) => { const r = await fetch(url, { method: "POST", headers: { "X-N7": "1", "Content-Type": tipo || "application/json" }, body }), j = await r.json().catch(() => ({})); if (r.status === 401) { location.reload(); throw new Error("Sua sessão terminou."); } if (!r.ok) throw new Error(j.error || "Falha ao enviar o arquivo."); return j; };
+  async function lerNoAgente(rota, file, onStatus = () => {}) {
+    const tipo = rota === "/ler-vendas" ? "vendas" : "estoque", partes = Math.max(1, Math.ceil(file.size / PARTE));
+    const { id } = await rawPost("/api/leitura?acao=nova", JSON.stringify({ loja: ui.loja, tipo, nome: file.name, bytes: file.size, partes }));
+    let pronto = false;
+    try {
+      for (let n = 0; n < partes; n++) { onStatus(`enviando para o computador da agência (${n + 1}/${partes})…`); await rawPost(`/api/leitura?acao=parte&id=${id}&n=${n}`, file.slice(n * PARTE, (n + 1) * PARTE), "application/octet-stream"); }
+      await rawPost(`/api/leitura?acao=pronto&id=${id}`, "{}");
+      const t0 = Date.now(); let st;
+      for (;;) {
+        await dorme(1500); st = await api(`/api/leitura?acao=status&id=${id}`);
+        if (st.estado === "pronto") break;
+        if (st.estado === "erro") throw new Error(st.erro || "O computador da agência não conseguiu ler o arquivo.");
+        if (st.estado === "cancelado") throw new Error("A leitura foi cancelada.");
+        const seg = Math.round((Date.now() - t0) / 1000);
+        onStatus(st.estado === "lendo" ? `lendo no computador da agência… ${seg} s` : `na fila do computador da agência… ${seg} s`);
+        if (st.estado === "aguardando" && seg > 45 && !(await detectarAgente(true))) throw new Error("O computador da agência parou de responder (Agente.ps1 desligado?).");
+        if (seg > 20 * 60) throw new Error("A leitura demorou demais (mais de 20 minutos).");
+      }
+      const bufs = []; for (let n = 0; n < st.resultadoPartes; n++) { const r = await fetch(`/api/leitura?acao=resultado&id=${id}&n=${n}`, { headers: { "X-N7": "1" } }); if (!r.ok) throw new Error("Não consegui baixar o resultado da leitura."); bufs.push(new Uint8Array(await r.arrayBuffer())); }
+      const all = new Uint8Array(bufs.reduce((t, b) => t + b.length, 0)); let o = 0; bufs.forEach(b => { all.set(b, o); o += b.length; });
+      pronto = true; rawPost(`/api/leitura?acao=limpar&id=${id}`, "{}").catch(() => {});
+      return JSON.parse(new TextDecoder().decode(all));
+    } catch (e) { if (!pronto) rawPost(`/api/leitura?acao=cancelar&id=${id}`, "{}").catch(() => {}); throw e; }
+  }
+  const confLista = checks => `<ul class="conf">${checks.map(c => `<li class="${c.ok ? (c.aviso ? "w" : "ok") : "x"}">${c.ok ? (c.aviso ? "⚠" : "✔") : "✘"} ${esc(c.aviso ? c.detalhe : c.msg)}${!c.ok && c.detalhe ? `<br><code>${esc(JSON.stringify(c.detalhe).slice(0, 300))}</code>` : ""}</li>`).join("")}</ul>`;
+  const agenteBadge = () => ag.ok
+    ? `<p class="notice info"><b>Leitura no computador da agência (PowerShell): ligada</b>${ag.info && ag.info.computador ? " · " + esc(ag.info.computador) : ""} · ${int((ag.info && ag.info.nucleos) || 0)} núcleo(s). Pode enviar o arquivo de qualquer aparelho: ele é lido e conferido ao centavo com o total do relatório antes de gravar.</p>`
+    : `<p class="notice"><b>Computador da agência desligado.</b> Vou ler aqui no navegador, sem a conferência ao centavo com o total do relatório. Para ligar: no computador da agência, abra o PowerShell, entre na pasta <code>scripts\\analise-local</code> e rode <code>.\\Agente.ps1</code> (deixe a janela aberta). <button type="button" class="btn sm" id="im-agente-rv">Verificar de novo</button></p>`;
+
   async function prepareStock(v, c, file) {
     const out = $("#im-est-out", v); out.innerHTML = `<p class="src">Lendo ${esc(file.name)}…</p>`;
     try {
-      const grid = await F.readStockFile(file), r = I.parseStockGrid(grid);
+      let r, conf = null;
+      if (await detectarAgente()) {
+        try {
+          conf = await lerNoAgente("/ler-estoque", file, m => { out.innerHTML = `<p class="src">${esc(file.name)}: ${esc(m)}</p>`; });
+          if (!conf.ok) { out.innerHTML = `<div class="paste-res"><b>${esc(file.name)}: arquivo recusado pela conferência</b>${confLista(conf.checks)}</div>`; return; }
+          r = { items: conf.items, stats: Object.assign({}, conf.stats, { linhas: conf.produtosNoArquivo }), erro: null };
+        } catch (e) { conf = null; ag.ok = false; H.toast("Leitura no computador da agência falhou (" + e.message + "). Lendo aqui no navegador."); }
+      }
+      if (!conf) { const grid = await F.readStockFile(file); r = I.parseStockGrid(grid); }
       if (r.erro) { out.innerHTML = `<p class="notice">${esc(r.erro)}</p>`; return; }
       const bases = {}; for (const l of lojas) { const x = cache[l.key] || (l.key === ui.loja ? c : null); if (x) bases[l.key] = x.data.items; }
       const prov = P.lojaProvavel(r.items, bases), mine = prov[ui.loja], other = Object.keys(prov).find(k => k !== ui.loja);
       const trocada = other && prov[other].pct != null && prov[other].pct >= 0.7 && !(mine && mine.pct != null && mine.pct >= 0.5);
       const st = r.stats; pend.estoque = { items: r.items, arquivo: file.name };
-      out.innerHTML = `<div class="paste-res"><b>${int(st.linhas)} produtos lidos</b> · ${int(st.semCusto)} sem custo (${pct(st.semCusto / st.linhas)})${st.duplicados ? ` · ${st.duplicados} duplicados ignorados` : ""}${st.semBarras ? ` · ${st.semBarras} sem código de barras ignorados` : ""}
+      out.innerHTML = `<div class="paste-res">${conf ? confLista(conf.checks) + (conf.omitidosSemEstoque ? `<p class="notice info">Para caber no limite do site, só os ${int(r.items.length)} produtos <b>com estoque</b> serão gravados (${int(conf.omitidosSemEstoque)} com estoque zero ficam de fora; a promoção não usa produto sem estoque).</p>` : "") : ""}<b>${int(st.linhas)} produtos lidos</b> · ${int(st.semCusto)} sem custo (${pct(st.semCusto / st.linhas)})${st.duplicados ? ` · ${st.duplicados} duplicados ignorados` : ""}${st.semBarras ? ` · ${st.semBarras} sem código de barras ignorados` : ""}
         ${!st.temCusto ? `<p class="notice">A planilha não tem a coluna de custo (Últ. Prc. Entrada): sem custo não existe piso.</p>` : ""}
         ${st.semCusto / st.linhas > 0.3 ? `<p class="notice"><b>Muitos itens sem custo.</b> Neles dá para sugerir preço, mas não dá para afirmar que o piso é respeitado.</p>` : ""}
         ${trocada ? `<p class="notice"><b>Esta planilha parece ser de ${esc(clientOf(other).name)}, não de ${esc(clientOf(ui.loja).name)}:</b> o custo dos produtos em comum bate com a outra loja (${pct(prov[other].pct)}). Confira antes de gravar.</p>` : (mine && mine.pct != null ? `<p class="src">Conferência: o custo de ${pct(mine.pct)} dos produtos em comum bate com a base atual desta loja.</p>` : "")}
@@ -215,11 +264,33 @@
     } catch (e) { out.innerHTML = `<p class="notice">${esc(e.message)}</p>`; }
   }
 
+  /* resultado do agente local para um PDF de vendas: mostra a conferência e só deixa gravar se TUDO fechou */
+  function cardAgente(card, file, j, last) {
+    const h = j.header || {}, cov = j.cobertura, cnpjDiff = last && h.cnpj && last !== h.cnpj;
+    const naOutra = h.cnpj && lojas.find(l => l.key !== ui.loja && cache[l.key] && cache[l.key].data.importacoes.some(x => String(x.arquivo || "").includes("CNPJ " + h.cnpj)));
+    const nomeOutra = lojas.find(l => l.key !== ui.loja && h.empresa && new RegExp(String(l.name).split(" ")[0], "i").test(h.empresa) && !new RegExp(String(clientOf(ui.loja).name).split(" ")[0], "i").test(h.empresa));
+    const outraLoja = naOutra || nomeOutra, bloqueio = outraLoja ? `<p class="notice"><b>Este PDF parece ser de ${esc(outraLoja.name)}, não de ${esc(clientOf(ui.loja).name)}</b> (${h.cnpj && naOutra ? "o CNPJ " + esc(h.cnpj) + " já foi importado lá" : "a empresa do cabeçalho é " + esc(h.empresa)}). Troque a loja no topo da tela e envie de novo; nada será gravado aqui.</p>` : "";
+    card.innerHTML = `<b>${esc(file.name)}</b> <span class="src">${j.ok ? "✔ conferido ao centavo" : "✘ recusado pela conferência"}</span><div class="src">${esc(h.empresa || "empresa não identificada")}${h.cnpj ? " · CNPJ " + esc(h.cnpj) : ""} · ${int(j.paginas)} página(s) · emitido ${h.emissao ? dm(h.emissao.data) + " " + esc(h.emissao.hora) : "—"} · lido em ${dec((j.ms || 0) / 1000, 1)} s</div>
+      <p><b>${int(j.linhas)} vendas lidas</b>${j.ajustes ? ` (+ ${j.ajustes} ajuste(s) de arredondamento)` : ""}${h.periodo ? ` · período ${dm(h.periodo.inicio)} a ${dm(h.periodo.fim)}` : ""} · ${int(j.nProdutos)} produtos · ${brl((j.totalProdutosCentavos || 0) / 100)} em produtos</p>
+      ${confLista(j.checks || [])}
+      ${j.diaParcial ? `<p class="notice info">O relatório saiu no último dia durante o expediente: <b>${dm(j.diaParcial)} fica de fora</b> por estar cortado. Cobertura gravada: ${cov ? dm(cov.inicio) + " a " + dm(cov.fim) : "—"}.</p>` : ""}
+      ${bloqueio}${cnpjDiff ? `<p class="notice"><b>O CNPJ deste PDF (${esc(h.cnpj)}) é diferente do último importado nesta loja (${esc(last)}).</b> Confira se é a loja certa antes de gravar.</p>` : ""}`;
+    pend.vendas.push({ nome: file.name, produtos: j.produtos, inicio: cov && cov.inicio, fim: cov && cov.fim, dia: j.diaParcial || "", linhas: j.linhas, cand: j.linhas, cnpj: h.cnpj || "", ok: !!(j.ok && cov && !outraLoja), conf: { totalCentavos: j.totalRodapeCentavos, somaCentavos: j.somaCentavos } });
+  }
+
   async function prepareSales(v, c, files) {
     const out = $("#im-ven-out", v); pend.vendas = []; out.innerHTML = "";
     const last = c.data.importacoes.filter(x => x.tipo === "vendas" && /CNPJ (\d{14})/.test(x.arquivo)).map(x => (x.arquivo.match(/CNPJ (\d{14})/) || [])[1])[0];
-    for (const file of files) {
-      const card = document.createElement("div"); card.className = "paste-res"; card.innerHTML = `<b>${esc(file.name)}</b> <span class="src">lendo…</span>`; out.appendChild(card);
+    const usaAgente = await detectarAgente();
+    const cards = files.map(file => { const card = document.createElement("div"); card.className = "paste-res"; card.innerHTML = `<b>${esc(file.name)}</b> <span class="src">${usaAgente ? "enviando para o computador da agência…" : "lendo…"}</span>`; out.appendChild(card); return card; });
+    const lidos = usaAgente ? files.map((f, i) => lerNoAgente("/ler-vendas", f, m => { const s = cards[i].querySelector(".src"); if (s) s.textContent = m; }).catch(e => ({ falhaAgente: e }))) : null;
+    for (let fi = 0; fi < files.length; fi++) {
+      const file = files[fi], card = cards[fi];
+      if (lidos) {
+        const j = await lidos[fi];
+        if (!j.falhaAgente) { cardAgente(card, file, j, last); continue; }
+        ag.ok = false; card.querySelector(".src").textContent = "o computador da agência não respondeu (" + j.falhaAgente.message + "); lendo aqui no navegador…";
+      }
       try {
         const { lines, paginas } = await F.readPdfLines(await file.arrayBuffer(), (p, n) => { card.querySelector(".src").textContent = `lendo página ${p} de ${n}…`; });
         const r = I.parseSalesLines(lines), h = r.header;
@@ -236,12 +307,12 @@
       } catch (e) { card.innerHTML = `<b>${esc(file.name)}</b><p class="notice">${esc(e.message || "Não consegui ler este PDF.")}</p>`; }
     }
     const bloq = pend.vendas.filter(x => !x.ok); pend.vendas = pend.vendas.filter(x => x.ok);                /* leitura abaixo de 99,9% nunca é gravada */
-    if (bloq.length) { const n = document.createElement("p"); n.className = "notice"; n.innerHTML = `<b>${bloq.length} relatório(s) bloqueado(s):</b> a leitura ficou abaixo de 99,9% e não substitui vendas já gravadas (${esc(bloq.map(x => x.nome).join(", "))}). Emita o relatório de novo; se passou de 1 MB, dia a dia.`; out.appendChild(n); }
+    if (bloq.length) { const n = document.createElement("p"); n.className = "notice"; n.innerHTML = `<b>${bloq.length} relatório(s) bloqueado(s):</b> a leitura não passou na conferência (veja os itens com ✘ acima) e não substitui vendas já gravadas (${esc(bloq.map(x => x.nome).join(", "))}). Emita o relatório de novo; se passou de 1 MB, dia a dia.`; out.appendChild(n); }
     if (pend.vendas.length && podeEditar) {
       const b = document.createElement("button"); b.type = "button"; b.className = "btn primary"; b.id = "im-ven-go"; b.textContent = `Gravar ${pend.vendas.length} relatório(s) de vendas de ${clientOf(ui.loja).name}`; out.appendChild(b);
       b.onclick = () => commit(v, b, async () => {
         let n = 0;
-        for (const x of pend.vendas) { b.textContent = `Gravando ${++n} de ${pend.vendas.length}…`; await api("/api/promo", { action: "vendas", loja: ui.loja, produtos: x.produtos, inicio: x.inicio, fim: x.fim, diaDescartado: x.dia, linhas: x.linhas, candidatas: x.cand, arquivo: (x.nome + (x.cnpj ? " · CNPJ " + x.cnpj : "")).slice(0, 120) }); }
+        for (const x of pend.vendas) { b.textContent = `Gravando ${++n} de ${pend.vendas.length}…`; await api("/api/promo", { action: "vendas", loja: ui.loja, produtos: x.produtos, inicio: x.inicio, fim: x.fim, diaDescartado: x.dia, linhas: x.linhas, candidatas: x.cand, conferencia: x.conf || undefined, arquivo: (x.nome + (x.cnpj ? " · CNPJ " + x.cnpj : "") + (x.conf ? " · conferido" : "")).slice(0, 120) }); }
         return `${pend.vendas.length} relatório(s) de vendas gravados.`;
       });
     }
@@ -320,6 +391,8 @@
       }; });
     }
     if (tab === "importar") {
+      const mostra = async force => { await detectarAgente(force); const el = $("#im-agente", view); if (el) { el.innerHTML = agenteBadge(); const b = $("#im-agente-rv", view); if (b) b.onclick = () => mostra(true); } };
+      mostra(true);
       $("#im-est", view).onchange = e => { if (e.target.files[0]) prepareStock(view, c, e.target.files[0]); };
       $("#im-ven", view).onchange = e => { if (e.target.files.length) prepareSales(view, c, [...e.target.files]); };
     }

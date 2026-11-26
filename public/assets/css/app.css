@@ -1200,3 +1200,11 @@ h2, h3, h4 { letter-spacing: -.005em; word-spacing: .05em; }
   .fd-screen { height: auto; min-height: 0; max-height: 78vh; }
 }
 @media (max-width: 420px) { .fd-phone { border-radius: 34px; padding: 8px; } .fd-screen { border-radius: 27px; } }
+
+/* Central de Promoções: lista de conferência da leitura (agente local) */
+.conf { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 4px; font-size: .86rem; }
+.conf li { padding: 6px 10px; border-radius: 10px; background: var(--surface-2, rgba(127,127,127,.08)); line-height: 1.35; }
+.conf li.ok { border-left: 3px solid #2e9e6b; }
+.conf li.w { border-left: 3px solid #d99a1f; }
+.conf li.x { border-left: 3px solid #d64545; background: rgba(214,69,69,.1); font-weight: 600; }
+.conf code { font-size: .78rem; word-break: break-all; }

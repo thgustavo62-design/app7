@@ -16,7 +16,7 @@ function loadPdfjs() {
 /* Extrai os pedaços de texto de cada página (texto, x, y), sem montar linhas: assim o agrupamento pode ser feito de mais de um jeito e conferido. */
 async function extrairPdf(arquivo) {
   const pdfjs = await loadPdfjs();
-  const buf = fs.readFileSync(arquivo);
+  const buf = Buffer.isBuffer(arquivo) ? arquivo : fs.readFileSync(arquivo);
   const doc = await pdfjs.getDocument({ data: new Uint8Array(buf), isEvalSupported: false, useSystemFonts: false, disableFontFace: true, verbosity: 0 }).promise;
   const paginas = [];
   for (let p = 1; p <= doc.numPages; p++) {
@@ -66,7 +66,7 @@ const colIndex = ref => { let n = 0; for (const ch of ref.replace(/[^A-Z]/gi, ''
 const textosDe = x => [...x.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map(m => ent(m[1])).join('');
 
 function lerXlsx(arquivo) {
-  const buf = fs.readFileSync(arquivo), z = entradasZip(buf), ler = n => lerEntrada(buf, z.get(n));
+  const buf = Buffer.isBuffer(arquivo) ? arquivo : fs.readFileSync(arquivo), z = entradasZip(buf), ler = n => lerEntrada(buf, z.get(n));
   const wb = ler('xl/workbook.xml'); if (!wb) throw new Error('Não achei xl/workbook.xml: o arquivo não parece um .xlsx.');
   const first = wb.match(/<sheet\b[^>]*>/); const rid = first && (first[0].match(/r:id="([^"]+)"/) || [])[1];
   let alvo = 'worksheets/sheet1.xml'; const rels = ler('xl/_rels/workbook.xml.rels') || '';
