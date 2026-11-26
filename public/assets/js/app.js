@@ -179,6 +179,7 @@
     relatorios: { title: "Relatórios", render: v => window.N7Relatorios.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS, posts }) },
     cerebro: { title: "Central de Inteligência", render: (v, sub) => window.N7Cerebro.render(v, sub, brainHelpers()) },
     calendario: { title: "Calendário Kanban", render: renderKanban },
+    feed: { title: "Preview de Feed", render: v => window.N7Feed.render(v, { ico, banner, toast, clients: () => CLIENTS, pautas: b => posts().filter(p => p.b === b), openPauta: code => openDrawer(code), status: STATUS, today: TODAY_ISO, isClient: IS_CLIENT }) },
     alertas: { title: "Alertas", render: renderAlertas },
     fluxo: { title: "Fluxo e horários", render: renderFluxo },
     playbook: { title: "Playbook", render: renderPlaybook },
@@ -196,6 +197,7 @@
     autoridade: () => !IS_CLIENT && CLIENTS.some(c => has(c, "autoridade")),
     comercial: () => IS_ADMIN,
     calendario: () => anyPostClients(),
+    feed: () => anyPostClients(),
     fluxo: () => !IS_CLIENT && anyPostClients(),
     alertas: () => !IS_CLIENT && D.ALERTS.length > 0,
     playbook: () => !IS_CLIENT,
@@ -255,7 +257,7 @@
     const ps = posts();
     const late = id => ps.filter(p => p.b === byId[id].key && p.late).length;
     const p0 = D.ALERTS.filter(a => a.p === "P0").length;
-    const ops = [["calendario", "cal", "Calendário Kanban", ""], ["fluxo", "sliders", "Fluxo e horários", ""], ["alertas", "bell", "Alertas", `<span class="nav-count">${p0} P0</span>`], ["playbook", "file", "Playbook", ""]].filter(([id]) => ACCESS[id]());
+    const ops = [["calendario", "cal", "Calendário Kanban", ""], ["feed", "ig", "Preview de Feed", ""], ["fluxo", "sliders", "Fluxo e horários", ""], ["alertas", "bell", "Alertas", `<span class="nav-count">${p0} P0</span>`], ["playbook", "file", "Playbook", ""]].filter(([id]) => ACCESS[id]());
     $("#nav").innerHTML = `
       <div class="nav-group">Visão</div>
       <a class="nav-item" href="#painel">${ico("home")}<span>Painel</span></a>

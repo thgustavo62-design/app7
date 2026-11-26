@@ -38,7 +38,7 @@ O ID da planilha não fica no repositório: vai na variável de ambiente `SHEET_
 | `PromoImportacoes` | registro do que foi importado (estoque ou vendas), com período, linhas, arquivo (e CNPJ do PDF) | id, loja, tipo, inicio, fim, linhas, arquivo, dia_descartado, por, em |
 | `PromoCampanhas` | campanhas montadas (itens e totais em JSON) | id, loja, nome, tipo, regra, inicio, fim, status, itens_json, totais_json, versao, criado_por, criado_em, atualizado_em |
 | `LinksAprovacao` | links de aprovação enviados a clientes | jti, codigo, tipo, criado_por, criado_em, expira_em, usado_em, usado_por |
-| `Config` | versão do esquema e fuso | chave, valor |
+| `Config` | versão do esquema e fuso; perfil, ordem e pastas do Preview de Feed (chave `feed:<empresa>`, ver `preview-de-feed.md`) | chave, valor |
 
 `Clientes` já vem com os quatro clientes iniciais (mais o Werllem Polac, setor `executivo`, serviços `redes,autoridade`). Setores aceitos: saude, agro, contabilidade, executivo, agencia, varejo e outro. `Ideias`, `Politicas`, `Horarios` e `Config` já vêm com os dados iniciais (4 ideias, 4 políticas, 12 horários). `Semanas` e `SemanasGeral` vêm com as semanas de 19/10, 26/10 e 02/11 (6 linhas e 1 linha de contexto), só com o que consta nos relatórios; as colunas são texto, com ponto decimal (`109842.42`).
 
