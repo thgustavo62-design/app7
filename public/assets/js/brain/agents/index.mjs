@@ -7,5 +7,6 @@ import { oportunidades } from "./estrategia.mjs";
 import { dados, calendario } from "./contexto.mjs";
 import { autoridade, dadosAutoridade } from "./autoridade.mjs";
 import { estoque, ruptura, margem, campanha, dadosPromo } from "./promocao.mjs";
+import { categorias, horarios, cesta, fidelizacao, foco } from "./mercado.mjs";
 
-export const RUNNERS = [aprovacao, producao, pipeline, capacidade, editorial, qualidade, fromAnalysis, estoque, ruptura, margem, campanha, oportunidades, dados, dadosPromo, autoridade, dadosAutoridade, calendario];
+export const RUNNERS = [aprovacao, producao, pipeline, capacidade, editorial, qualidade, fromAnalysis, estoque, ruptura, margem, campanha, categorias, horarios, cesta, fidelizacao, foco, oportunidades, dados, dadosPromo, autoridade, dadosAutoridade, calendario];

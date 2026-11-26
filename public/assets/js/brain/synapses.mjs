@@ -27,6 +27,12 @@ export function connect(open, ctx, allKeys) {
   const hol = open.filter(f => f.agente === "calendario" && (f.tags[0] || "").startsWith("feriado:") && +f.tags[0].slice(8) <= 3)[0];
   if (hol) brands.forEach(k => { const hit = by(k, f => (f.agente === "producao" && f.chave !== `prod-empty-${k}`) || f.agente === "pipeline"); hit.forEach(f => { add(f, 6); f.evidencia.push(`Feriado em breve (${hol.titulo}): falta dia útil para recuperar`); rel(f, hol, "feriado-prazo", "Feriado perto do prazo"); }); if (hit.length) fire("feriado-prazo", k, `${hit.length} achado(s) apertados pelo feriado`); });
 
+  /* mercado: categoria perdendo força + dinheiro parado na mesma loja = queima focada naquela categoria */
+  brands.forEach(k => {
+    const cat = by(k, f => f.agente === "categorias" && /^cat-(defender|reanimar)/.test(f.chave))[0], est = by(k, "estoque")[0];
+    if (cat && est) { rel(est, cat, "cat-estoque", "A categoria " + (cat.chave.split("-").slice(3).join("-") || "em queda") + " também perde força: focar a queima nela"); rel(cat, est, "cat-estoque", "Há dinheiro parado em estoque nesta loja: use na campanha"); add(est, 4); est.evidencia.push("Categoria em queda na mesma loja: " + cat.titulo); fire("cat-estoque", k, cat.titulo + " + " + est.titulo); }
+  });
+
   /* promoções: base velha baixa a confiança; estoque parado + falta de campanha; ruptura com anúncio no ar */
   brands.forEach(k => {
     const stale = by(k, f => f.agente === "dados" && f.tags.includes("stale"))[0];

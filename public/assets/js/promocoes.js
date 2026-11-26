@@ -8,7 +8,7 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const TABS = [["visao", "Visão geral"], ["candidatos", "Candidatos"], ["campanha", "Montar campanha"], ["campanhas", "Campanhas"], ["resultado", "Resultado"], ["importar", "Importar"]];
+  const TABS = [["visao", "Visão geral"], ["candidatos", "Candidatos"], ["campanha", "Montar campanha"], ["campanhas", "Campanhas"], ["resultado", "Resultado"], ["analise", "Análise completa"], ["importar", "Importar"]];
   const LISTAS = [["queima", "Queima", "Estoque parado ou encalhado com preço que respeita o piso"], ["atrair", "Atrair", "Isca e giro: itens que puxam cliente"], ["margem", "Margem", "Proteger: vendem bem com boa margem"], ["ruptura", "Ruptura", "Vendem bem e o estoque acaba em poucos dias"], ["semCusto", "Sem custo", "Sem custo não existe piso"], ["semDescontoReal", "Sem desconto real", "O piso fica igual ou acima do preço atual"]];
   const ui = Object.assign({ loja: "", regra: "padrao", lista: "queima", cat: "all", q: "", limit: 50, ord: "", compare: false }, (() => { try { return S.get("promoui", {}) || {}; } catch (e) { return {}; } })());
   const cache = {};                                  /* loja -> { data, a } */
@@ -238,6 +238,14 @@
     ? `<p class="notice info"><b>Leitura no computador da agência (PowerShell): ligada</b>${ag.info && ag.info.computador ? " · " + esc(ag.info.computador) : ""} · ${int((ag.info && ag.info.nucleos) || 0)} núcleo(s). Pode enviar o arquivo de qualquer aparelho: ele é lido e conferido ao centavo com o total do relatório antes de gravar.</p>`
     : `<p class="notice"><b>Computador da agência desligado.</b> Vou ler aqui no navegador, sem a conferência ao centavo com o total do relatório. Para ligar: no computador da agência, abra o PowerShell, entre na pasta <code>scripts\\analise-local</code> e rode <code>.\\Agente.ps1</code> (deixe a janela aberta). <button type="button" class="btn sm" id="im-agente-rv">Verificar de novo</button></p>`;
 
+  /* Análise completa: o que o computador da agência publicou para esta loja */
+  async function analiseView() {
+    let a = null;
+    try { const j = await api("/api/leitura?acao=analise"); a = (j.lojas || {})[ui.loja] || null; } catch (e) { return `<p class="notice">${esc(e.message)}</p>`; }
+    if (!a) return `<div class="panel">${H.banner("target", "Análise completa de ${esc(clientOf(ui.loja).name)}", "ainda não há análise publicada")}<div class="panel-body"><p class="notice info">Esta análise é feita pelo <b>computador da agência</b> (PowerShell) com os relatórios de vendas já conferidos, e vai crescendo conforme você solta relatórios <b>novos</b> em <a href="#promocoes/importar">Importar</a> (fracionados por dia, semana ou mês; o que já foi lido não conta duas vezes). Deixe o <code>Agente.ps1</code> ligado e solte o primeiro PDF.</p></div></div>`;
+    return root.N7AnaliseVendas.html(a, H);
+  }
+
   async function prepareStock(v, c, file) {
     const out = $("#im-est-out", v); out.innerHTML = `<p class="src">Lendo ${esc(file.name)}…</p>`;
     try {
@@ -264,6 +272,50 @@
     } catch (e) { out.innerHTML = `<p class="notice">${esc(e.message)}</p>`; }
   }
 
+  /* ---------- janela inteira do relatório: semana a semana, dia a dia ---------- */
+  const R$ = c => (c == null ? "—" : brl(c / 100));
+  function janelaHtml(jn) {
+    if (!jn) return "";
+    const comp = jn.semanas.filter(w => w.completa).length;
+    return `<details class="jan"><summary><b>Janela de ${int(jn.nDias)} dias</b> (${dm(jn.inicio)} a ${dm(jn.fim)}) · ${comp} semana(s) completa(s) · ${R$(jn.vendasCentavos)} — ver semana a semana e dia a dia</summary>
+      <div class="table-wrap"><table><thead><tr><th>Semana</th><th></th><th class="num">Vendas</th><th class="num">Cupons</th><th class="num">Ticket</th><th class="num">Cestas &gt; R$ 100</th></tr></thead><tbody>${jn.semanas.map(w => `<tr><td>${dm(w.inicio)} a ${dm(w.fim)}</td><td>${w.completa ? "completa" : `parcial (${w.diasCobertos} d)`}</td><td class="num">${R$(w.vendasCentavos)}</td><td class="num">${int(w.cupons)}</td><td class="num">${R$(w.ticketCentavos)}</td><td class="num">${int(w.c100n)}</td></tr>`).join("")}</tbody></table></div>
+      ${jn.diasSemVenda.length ? `<p class="notice">Dias dentro da janela <b>sem nenhuma venda</b>: ${esc(jn.diasSemVenda.map(dm).join(", "))}. Loja fechada ou relatório incompleto?</p>` : ""}
+      ${jn.diasAtipicos.length ? `<p class="src">Fora do padrão (contra a mediana do mesmo dia da semana): ${esc(jn.diasAtipicos.slice(0, 8).map(a => dm(a.d) + " " + R$(a.vendasCentavos)).join(" · "))}</p>` : ""}
+      <div class="table-wrap"><table><thead><tr><th>Dia</th><th class="num">Vendas</th><th class="num">Cupons</th><th class="num">Itens</th></tr></thead><tbody>${jn.porDia.map(x => `<tr><td>${dm(x.d)}</td><td class="num">${R$(x.v)}</td><td class="num">${int(x.cupons)}</td><td class="num">${int(x.itens)}</td></tr>`).join("")}</tbody></table></div></details>`;
+  }
+  const semanaLoja = (inicio, loja) => (((root.N7Store && root.N7Store.get("weeks", [])) || []).find(r => r.tipo === "semana" && r.inicio === inicio && r.marca === loja)) || null;
+  /* semanas completas dos PDFs conferidos; se dois PDFs trazem a mesma semana, vale o emitido por último */
+  function semanasPendentes() {
+    const m = new Map(); (pend.janelas || []).forEach(x => x.semanas.forEach(w => { const o = m.get(w.inicio); if (!o || x.emissao >= o.emissao) m.set(w.inicio, { w, emissao: x.emissao, nome: x.nome }); }));
+    return [...m.values()].map(x => x.w).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(w => {
+      const old = semanaLoja(w.inicio, ui.loja), igual = old && Math.round((old.vendas || 0) * 100) === w.vendasCentavos && (old.compras || 0) === w.cupons;
+      return { w, old, estado: !old || old.vendas == null ? "nova" : igual ? "igual" : "difere" };
+    });
+  }
+  function gravarSemanas(lista) {
+    const A = root.N7Analysis, S = root.N7Store; if (!A || !S) throw new Error("A tela Semana não carregou. Recarregue a página.");
+    const cur = (S.get("weeks", []) || []).slice();
+    lista.forEach(({ w, old }) => {
+      const base = Object.assign({ tipo: "semana", inicio: w.inicio, fim: w.fim, marca: ui.loja }, A.norm({}), old ? A.norm(old) : {});
+      const row = Object.assign(base, { vendas: w.vendasCentavos / 100, compras: w.cupons, c100n: w.c100n, c100rs: w.c100Centavos / 100, dias: w.dias7.map(v => (v == null ? null : v / 100)),
+        janela: old ? old.janela || "" : "", fonte: "PDF de vendas conferido ao centavo (PowerShell)", obs: old && old.obs ? old.obs : "Vendas = total do relatório (inclui taxa de entrega e arredondamentos); compras = cupons; cestas = cupons acima de R$ 100." });
+      if (old) row.v = old.v;
+      const i = cur.findIndex(r => r.tipo === "semana" && r.inicio === w.inicio && r.marca === ui.loja);
+      if (i >= 0) cur[i] = row; else cur.push(row);
+    });
+    S.set("weeks", cur);
+  }
+  function semanasBox(out) {
+    const box = document.createElement("div"); box.className = "paste-res"; const lista = semanasPendentes(); if (!lista.length) return;
+    const novas = lista.filter(x => x.estado === "nova"), difere = lista.filter(x => x.estado === "difere"), iguais = lista.filter(x => x.estado === "igual");
+    box.innerHTML = `<b>Semana a semana para a Análise semanal</b><p class="src">Só semanas completas (segunda a domingo) de relatórios que fecharam ao centavo. Vendas = total do relatório, compras = cupons, cestas = cupons acima de R$ 100. ${novas.length} nova(s) · ${iguais.length} já igual(is) · ${difere.length} diferente(s) do que está na tela Semana.</p>
+      ${difere.length ? `<div class="table-wrap"><table><thead><tr><th>Semana</th><th class="num">No site hoje</th><th class="num">No PDF</th></tr></thead><tbody>${difere.map(x => `<tr><td>${dm(x.w.inicio)} a ${dm(x.w.fim)}</td><td class="num">${brl(x.old.vendas || 0)}</td><td class="num">${R$(x.w.vendasCentavos)}</td></tr>`).join("")}</tbody></table></div>` : ""}
+      ${podeEditar ? `<div class="toolbar">${novas.length ? `<button type="button" class="btn primary" id="im-sem-novas">Gravar ${novas.length} semana(s) nova(s) na Análise semanal</button>` : ""}${difere.length ? ` <button type="button" class="btn" id="im-sem-dif">Substituir também as ${difere.length} que já existem e diferem</button>` : ""}</div>` : ""}`;
+    out.appendChild(box);
+    const go = (id, l) => { const b = box.querySelector(id); if (b) b.onclick = () => { try { gravarSemanas(l); H.toast(`${l.length} semana(s) gravada(s) na Análise semanal.`); b.disabled = true; } catch (e) { H.toast(e.message); } }; };
+    go("#im-sem-novas", novas); go("#im-sem-dif", difere);
+  }
+
   /* resultado do agente local para um PDF de vendas: mostra a conferência e só deixa gravar se TUDO fechou */
   function cardAgente(card, file, j, last) {
     const h = j.header || {}, cov = j.cobertura, cnpjDiff = last && h.cnpj && last !== h.cnpj;
@@ -273,13 +325,15 @@
     card.innerHTML = `<b>${esc(file.name)}</b> <span class="src">${j.ok ? "✔ conferido ao centavo" : "✘ recusado pela conferência"}</span><div class="src">${esc(h.empresa || "empresa não identificada")}${h.cnpj ? " · CNPJ " + esc(h.cnpj) : ""} · ${int(j.paginas)} página(s) · emitido ${h.emissao ? dm(h.emissao.data) + " " + esc(h.emissao.hora) : "—"} · lido em ${dec((j.ms || 0) / 1000, 1)} s</div>
       <p><b>${int(j.linhas)} vendas lidas</b>${j.ajustes ? ` (+ ${j.ajustes} ajuste(s) de arredondamento)` : ""}${h.periodo ? ` · período ${dm(h.periodo.inicio)} a ${dm(h.periodo.fim)}` : ""} · ${int(j.nProdutos)} produtos · ${brl((j.totalProdutosCentavos || 0) / 100)} em produtos</p>
       ${confLista(j.checks || [])}
+      ${janelaHtml(j.janela)}
       ${j.diaParcial ? `<p class="notice info">O relatório saiu no último dia durante o expediente: <b>${dm(j.diaParcial)} fica de fora</b> por estar cortado. Cobertura gravada: ${cov ? dm(cov.inicio) + " a " + dm(cov.fim) : "—"}.</p>` : ""}
       ${bloqueio}${cnpjDiff ? `<p class="notice"><b>O CNPJ deste PDF (${esc(h.cnpj)}) é diferente do último importado nesta loja (${esc(last)}).</b> Confira se é a loja certa antes de gravar.</p>` : ""}`;
+    if (j.ok && cov && !outraLoja && j.janela) pend.janelas.push({ nome: file.name, emissao: h.emissao ? h.emissao.data + h.emissao.hora : "", semanas: j.janela.semanas.filter(w => w.completa) });
     pend.vendas.push({ nome: file.name, produtos: j.produtos, inicio: cov && cov.inicio, fim: cov && cov.fim, dia: j.diaParcial || "", linhas: j.linhas, cand: j.linhas, cnpj: h.cnpj || "", ok: !!(j.ok && cov && !outraLoja), conf: { totalCentavos: j.totalRodapeCentavos, somaCentavos: j.somaCentavos } });
   }
 
   async function prepareSales(v, c, files) {
-    const out = $("#im-ven-out", v); pend.vendas = []; out.innerHTML = "";
+    const out = $("#im-ven-out", v); pend.vendas = []; pend.janelas = []; out.innerHTML = "";
     const last = c.data.importacoes.filter(x => x.tipo === "vendas" && /CNPJ (\d{14})/.test(x.arquivo)).map(x => (x.arquivo.match(/CNPJ (\d{14})/) || [])[1])[0];
     const usaAgente = await detectarAgente();
     const cards = files.map(file => { const card = document.createElement("div"); card.className = "paste-res"; card.innerHTML = `<b>${esc(file.name)}</b> <span class="src">${usaAgente ? "enviando para o computador da agência…" : "lendo…"}</span>`; out.appendChild(card); return card; });
@@ -306,6 +360,7 @@
         if (cov) pend.vendas.push({ nome: file.name, produtos: ag, inicio: cov.inicio, fim: cov.fim, dia: drop || "", linhas: r.stats.lidas, cand: r.stats.candidatas, cnpj: h.cnpj || "", ok: taxaOk });
       } catch (e) { card.innerHTML = `<b>${esc(file.name)}</b><p class="notice">${esc(e.message || "Não consegui ler este PDF.")}</p>`; }
     }
+    semanasBox(out);
     const bloq = pend.vendas.filter(x => !x.ok); pend.vendas = pend.vendas.filter(x => x.ok);                /* leitura abaixo de 99,9% nunca é gravada */
     if (bloq.length) { const n = document.createElement("p"); n.className = "notice"; n.innerHTML = `<b>${bloq.length} relatório(s) bloqueado(s):</b> a leitura não passou na conferência (veja os itens com ✘ acima) e não substitui vendas já gravadas (${esc(bloq.map(x => x.nome).join(", "))}). Emita o relatório de novo; se passou de 1 MB, dia a dia.`; out.appendChild(n); }
     if (pend.vendas.length && podeEditar) {
@@ -331,7 +386,7 @@
       c = await loadLoja(ui.loja);
       const outra = lojas.find(l => l.key !== ui.loja); if (outra && tab === "visao" && ui.compare && !cache[outra.key]) { try { await loadLoja(outra.key); } catch (e) { /* sem a outra loja */ } }
     } catch (e) { host.innerHTML = `<p class="notice">${esc(e.message)} <button type="button" class="btn sm" id="pm-retry">Tentar de novo</button></p>`; $("#pm-retry", view).onclick = () => draw(view, tab); return; }
-    host.innerHTML = tab === "visao" ? await overview(view, c) : tab === "candidatos" ? candidatesView(c) : tab === "campanha" ? campaignView(c) : tab === "campanhas" ? savedView(c) : tab === "resultado" ? resultView(c) : importView(c);
+    host.innerHTML = tab === "visao" ? await overview(view, c) : tab === "candidatos" ? candidatesView(c) : tab === "campanha" ? campaignView(c) : tab === "campanhas" ? savedView(c) : tab === "resultado" ? resultView(c) : tab === "analise" ? await analiseView() : importView(c);
     wire(view, tab, c);
   }
 

@@ -16,10 +16,11 @@ if (!isMainThread) {
   parentPort.on('message', async t => {
     const t0 = Date.now();
     try {
-      const A = require('./arquivos'), L = require('./leitura'); let v;
+      const A = require('./arquivos'), L = require('./leitura'), J = require('./janela'); require('../../public/assets/js/promo-ingest.js'); let v;
       if (t.tipo === 'vendas') {
         const e = await A.extrairPdf(t.arquivo), a = A.agrupar(e.paginas, 2), b = A.agrupar(e.paginas, 1);
         v = L.validarVendas({ lines: a.lines, linesB: b.lines, numPaginas: e.numPaginas, bytes: e.bytes, sha256: sha(t.arquivo) });
+        const I = globalThis.N7PromoIngest, drop = I.partialDay(v.header), cj = J.conferirJanela(v, J.analisarJanela({ rows: v.rows, ajustes: v.ajustes, cobertura: I.coverage(v.rows, drop), diaParcial: drop })); v.checks.push(cj); v.ok = v.ok && cj.ok;
       } else {
         const x = A.lerXlsx(t.arquivo);
         v = L.validarEstoque({ grid: x.grid, linhasNoArquivo: x.linhasNoArquivo, bytes: fs.statSync(t.arquivo).size, sha256: sha(t.arquivo) });
@@ -148,6 +149,14 @@ const md = { ok: '✔', aviso: '⚠', falha: '✘' };
       porDiaDaSemana: dow.map((v, i) => ({ dia: dd[i], valorCentavos: v })), porHora: hora.map((v, h) => ({ hora: h, valorCentavos: v })).filter(x => x.valorCentavos), topProdutosPorValor: topValor.map(p => ({ barras: p.barras, desc: p.desc, qtd: p.qtd, valorCentavos: p.valor })),
       vendaSemCadastroNoEstoque: noEstoque ? { linhas: semCad.length, valorCentavos: soma(semCad), parteDoValor: soma(prod) ? soma(semCad) / soma(prod) : null } : null };
     if (noEstoque && info.exato.vendaSemCadastroNoEstoque.parteDoValor > 0.05) info.avisos.push(`${num(info.exato.vendaSemCadastroNoEstoque.parteDoValor * 100, 1)}% do valor vendido é de códigos de barras que NÃO estão no arquivo de estoque. Confira se estoque e vendas são da mesma loja e do mesmo período.`);
+    const aj = ven.flatMap((v, i) => v.v.ajustes.filter(x => dono[x.data] === i)), covTotal = ven.length ? { inicio: cobs.filter(Boolean).map(x => x.inicio).sort()[0], fim: cobs.filter(Boolean).map(x => x.fim).sort().pop() } : null;
+    info.janela = covTotal ? require('./janela').analisarJanela({ rows: todas, ajustes: aj, cobertura: covTotal, diasCobertos: new Set(Object.keys(dono)) }) : null;
+    if (info.janela) {
+      const j = info.janela, cvs = (rows, cols) => fs.writeFileSync(path.join(saida, `${loja}-${rows}.csv`), csv(j[rows === 'dias' ? 'porDia' : rows === 'semanas' ? 'semanas' : 'meses'], cols));
+      cvs('dias', [['Data', r => r.d], ['Vendas (R$)', r => r.v / 100], ['Vendas de produto (R$)', r => r.vp / 100], ['Taxa de entrega (R$)', r => r.taxa / 100], ['Cupons', r => r.cupons], ['Itens', r => r.itens]]);
+      cvs('semanas', [['Segunda', r => r.inicio], ['Domingo', r => r.fim], ['Completa', r => (r.completa ? 'sim' : 'não')], ['Vendas (R$)', r => r.vendasCentavos / 100], ['Compras (cupons)', r => r.cupons], ['Ticket (R$)', r => (r.ticketCentavos == null ? null : r.ticketCentavos / 100)], ['Cestas acima de R$ 100 (nº)', r => r.c100n], ['Cestas acima de R$ 100 (R$)', r => r.c100Centavos / 100], ...['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'].map((n, i) => [n + ' (R$)', r => (r.dias7[i] == null ? null : r.dias7[i] / 100)])]);
+      cvs('meses', [['Mês', r => r.mes], ['Completo', r => (r.completo ? 'sim' : 'não')], ['Vendas (R$)', r => r.vendasCentavos / 100], ['Cupons', r => r.cupons], ['Ticket (R$)', r => (r.ticketCentavos == null ? null : r.ticketCentavos / 100)]]);
+    }
     info.analise = { resumo: a.resumo, avisos: a.avisos, brain: resumo };
     if (cand) {
       info.listas = Object.fromEntries(Object.entries(cand).map(([k, l]) => [k, l.length]));

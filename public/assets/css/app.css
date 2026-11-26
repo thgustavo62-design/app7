@@ -1208,3 +1208,20 @@ h2, h3, h4 { letter-spacing: -.005em; word-spacing: .05em; }
 .conf li.w { border-left: 3px solid #d99a1f; }
 .conf li.x { border-left: 3px solid #d64545; background: rgba(214,69,69,.1); font-weight: 600; }
 .conf code { font-size: .78rem; word-break: break-all; }
+
+/* Central de Promoções > Análise completa */
+.av { display: grid; gap: 14px; }
+.av h4 { margin: 14px 0 6px; font-size: .9rem; }
+.av-bar { display: inline-block; width: 110px; height: 8px; border-radius: 6px; background: rgba(127,127,127,.18); overflow: hidden; vertical-align: middle; }
+.av-bar i { display: block; height: 100%; background: var(--violet, #7c4dff); border-radius: 6px; }
+.av-spark { color: var(--violet, #7c4dff); vertical-align: middle; }
+.av-up { color: #1f9d63; } .av-down { color: #d64545; }
+.av-hm th, .av-hm td { padding: 4px 6px; font-size: .78rem; }
+.av-focos { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.av-foco { padding: 10px 12px; border-radius: 14px; background: rgba(127,127,127,.08); border-left: 4px solid #94a3b8; }
+.av-foco h4 { margin: 0 0 6px; } .av-foco p { margin: 0 0 6px; } .av-foco small { display: block; opacity: .75; }
+.av-foco.def { border-left-color: #d99a1f; } .av-foco.ace { border-left-color: #1f9d63; } .av-foco.rea { border-left-color: #d64545; } .av-foco.ati { border-left-color: #7c4dff; }
+.av-ops { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.av-op { padding: 10px 12px; border-radius: 14px; background: rgba(127,127,127,.08); }
+.av-op small { text-transform: uppercase; letter-spacing: .04em; opacity: .65; display: block; } .av-op p { margin: 6px 0 0; font-size: .86rem; } .av-op .av-acao { font-weight: 600; }
+.av-lista { margin: 0; padding-left: 18px; display: grid; gap: 6px; }

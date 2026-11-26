@@ -38,7 +38,7 @@ function classificar(lines) {
     if (/^-{5,}$/.test(l) || /^={20,}$/.test(l)) { r.rodape++; return; }
     if (/^Legenda:$/.test(l)) { naLegenda = true; r.rodape++; return; }
     if (STARTS.test(l)) {
-      if ((m = l.match(AJUSTE))) { r.ajustes.push({ linha: l, idx, valor: I.brNum(m[11]), qtd: Number(m[10]), data: `${m[3]}-${m[2]}-${m[1]}` }); return; }
+      if ((m = l.match(AJUSTE))) { r.ajustes.push({ linha: l, idx, valor: I.brNum(m[11]), qtd: Number(m[10]), lanc: m[6], data: `${m[3]}-${m[2]}-${m[1]}` }); return; }
       r.vendas.push({ linha: l, idx }); return;
     }
     if (naLegenda) { r.rodape++; return; }                                        /* depois de "Legenda:", o que sobra é a explicação das colunas */

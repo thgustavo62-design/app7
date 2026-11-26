@@ -30,7 +30,9 @@ param(
   [string]$Saida = '',                     # pasta de saída (padrão: scripts\analise-local\saida\<data-hora>)
   [string]$Url = 'https://app7-eight.vercel.app',
   [switch]$NaoAbrir,
-  [switch]$ManterDados                     # não apaga o snapshot.json (tem dados dos clientes)
+  [switch]$ManterDados,                    # não apaga o snapshot.json (tem dados dos clientes)
+  [switch]$Armazem,                        # inclui a análise completa das lojas do armazém de vendas (relatórios que o Agente.ps1 foi guardando) e os relatórios HTML
+  [string]$Marca = 'Nova7'                 # nome que aparece na capa do relatório HTML (a marca de quem entrega a análise)
 )
 $ErrorActionPreference = 'Stop'
 $aqui = $PSScriptRoot
@@ -69,6 +71,7 @@ if (-not $SoPromocoes) {
   $args2 = @($snap, $Saida)
   if ($Nucleos -gt 0) { $args2 += @('--nucleos', $Nucleos) }
   if ($Hoje) { $args2 += @('--hoje', $Hoje) }
+  if ($Armazem) { $args2 += @('--armazem', '--marca', $Marca) }
   node (Join-Path $aqui 'analisar.js') @args2
   if ($LASTEXITCODE -ne 0) { throw 'A análise falhou (veja a mensagem acima).' }
   # o snapshot guarda dados dos clientes: apaga depois da análise (use -ManterDados se quiser conferir)

@@ -16,14 +16,21 @@ import { hidden, remember } from "./memory.mjs";
 import { connect } from "./synapses.mjs";
 import { health, clienteAgent, healthLevel } from "./health.mjs";
 
-export function run(ctx) {
-  ctx = Object.assign({ posts: [], weeks: [], gens: [], clients: [], decisions: [], ideas: [], slots: {}, checks: null, needsClient: () => false, planSource: null }, ctx);
+/* completa o contexto e faz a análise semanal que os agentes de resultado usam */
+export function prepare(ctx) {
+  ctx = Object.assign({ posts: [], weeks: [], gens: [], clients: [], decisions: [], ideas: [], slots: {}, vendas: {}, checks: null, needsClient: () => false, planSource: null }, ctx);
   const lastClosed = A.lastClosed("semana", A.parse(ctx.today));
   const withData = A.periodsWith(ctx.weeks.filter(r => r.inicio <= lastClosed && A.hasData(A.norm(r))), "semana");
   const inicio = withData.length ? withData[withData.length - 1] : null;
   ctx.analysis = inicio ? A.analyze({ weeks: ctx.weeks, gens: ctx.gens, tipo: "semana", inicio, clients: ctx.clients.map(c => ({ key: c.key, name: c.name, services: c.services })) }) : null;
+  return ctx;
+}
 
-  const all = RUNNERS.flatMap(fn => fn(ctx));
+/* opts.findings: achados dos agentes já calculados (por exemplo, cada agente em um núcleo); o resto do processo (memória, sinapses, saúde, maestro) é o mesmo */
+export function run(ctx, opts = {}) {
+  ctx = prepare(ctx);
+
+  const all = opts.findings || RUNNERS.flatMap(fn => fn(ctx));
   const allKeys = all.map(f => f.chave);
   all.forEach(f => remember(f, ctx));                                                              /* 2. memória */
   const open = all.filter(f => !hidden(f, ctx.decisions, ctx.today));
@@ -51,5 +58,5 @@ export function run(ctx) {
   };
 }
 
-export { AREAS, AREA_ORDER, AGENTS, AGENT_ORDER, SYNAPSES, SERVICE_AGENTS, servicesOf, urgencia, hidden, plus, healthLevel };
-export default { run, AREAS, AREA_ORDER, AGENTS, AGENT_ORDER, SYNAPSES, SERVICE_AGENTS, servicesOf, urgencia, hidden, plus, healthLevel };
+export { RUNNERS, AREAS, AREA_ORDER, AGENTS, AGENT_ORDER, SYNAPSES, SERVICE_AGENTS, servicesOf, urgencia, hidden, plus, healthLevel };
+export default { run, prepare, RUNNERS, AREAS, AREA_ORDER, AGENTS, AGENT_ORDER, SYNAPSES, SERVICE_AGENTS, servicesOf, urgencia, hidden, plus, healthLevel };

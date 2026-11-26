@@ -20,6 +20,18 @@ function montar(o) {
       const top = e.porHora.slice().sort((a, b) => b.valorCentavos - a.valorCentavos).slice(0, 3); L.push('Horas de maior venda: ' + top.map(h => `${h.hora}h (${brl(h.valorCentavos)})`).join(', '), '');
       L.push('### 20 produtos que mais faturaram', '', '| # | Produto | Qtde | Valor |', '| --- | --- | --- | --- |'); e.topProdutosPorValor.forEach((p, i) => L.push(`| ${i + 1} | ${p.desc} | ${n(p.qtd, 0)} | ${brl(p.valorCentavos)} |`)); L.push('');
     }
+    const jn = l.janela;
+    if (jn) {
+      const R = c => (c == null ? '—' : brl(c));
+      L.push('### Janela analisada, dia a dia e semana a semana', '', `De ${dm(jn.inicio)} a ${dm(jn.fim)}: ${jn.nDias} dias, ${R(jn.vendasCentavos)} no total. Semanas de segunda a domingo; "completa" = os 7 dias estão cobertos pelos relatórios.`, '',
+        '| Semana | Situação | Vendas | Cupons | Ticket | Cestas > R$ 100 |', '| --- | --- | --- | --- | --- | --- |');
+      jn.semanas.forEach(w => L.push(`| ${dm(w.inicio)} a ${dm(w.fim)} | ${w.completa ? 'completa' : 'parcial (' + w.diasCobertos + ' dias)'} | ${R(w.vendasCentavos)} | ${n(w.cupons, 0)} | ${R(w.ticketCentavos)} | ${w.c100n} (${w.cupons ? n(w.c100n / w.cupons * 100, 1) : '—'}%) |`));
+      L.push('', 'Mês a mês: ' + jn.meses.map(m => `${m.mes.split('-').reverse().join('/')} ${R(m.vendasCentavos)}${m.completo ? '' : ' (parcial)'}`).join(' · '), '');
+      L.push('Média por dia da semana: ' + jn.porDiaDaSemana.map(d => `${d.dia} ${R(d.mediaCentavos)}`).join(' · '), '');
+      if (jn.diasSemVenda.length) L.push(`> ⚠ Dias dentro da janela SEM nenhuma venda: ${jn.diasSemVenda.map(dm).join(', ')}. Pode ser loja fechada ou relatório incompleto.`, '');
+      if (jn.diasAtipicos.length) { L.push('Dias fora do padrão (comparados à mediana do mesmo dia da semana):', ''); jn.diasAtipicos.slice(0, 12).forEach(a => L.push(`- ${dm(a.d)} (${a.dia}): ${R(a.vendasCentavos)} contra mediana ${R(a.medianaDoDiaCentavos)}, ${a.motivo}`)); L.push(''); }
+      L.push('Arquivos para o Excel: `' + k + '-dias.csv`, `' + k + '-semanas.csv` (no formato da tela Semana), `' + k + '-meses.csv`.', '');
+    }
     const r = l.analise && l.analise.resumo;
     if (r) {
       L.push('### Estoque e giro (mesmas regras da Central de Promoções)', '', `| Indicador | Valor |`, `| --- | --- |`, `| Dinheiro em estoque (custo) | ${brl(Math.round(r.capitalCusto * 100))} |`, `| Parado em 90 dias | ${brl(Math.round(r.capitalParado * 100))} (${n(r.parados, 0)} itens) |`, `| Encalhados (6 meses ou mais de estoque) | ${n(r.queima, 0)} itens, ${brl(Math.round(r.capitalQueima * 100))} |`,

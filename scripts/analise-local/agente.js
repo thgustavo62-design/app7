@@ -13,22 +13,26 @@ if (!isMainThread) {
   parentPort.on('message', async t => {
     const t0 = Date.now();
     try {
-      const A = require('./arquivos'), L = require('./leitura'); require('../../public/assets/js/promo-ingest.js'); const I = globalThis.N7PromoIngest;
-      const buf = Buffer.from(t.bytes), sha256 = crypto.createHash('sha256').update(buf).digest('hex');
+      const A = require('./arquivos'), L = require('./leitura'), J = require('./janela'); require('../../public/assets/js/promo-ingest.js'); const I = globalThis.N7PromoIngest;
+      const buf = Buffer.from(t.bytes || []), sha256 = crypto.createHash('sha256').update(buf).digest('hex');
+      if (t.tipo === 'calcular') {
+        const C = require('./calcular'), r = C.calcularLoja(t.nome, t.nome); parentPort.postMessage({ id: t.id, ok: true, dados: C.compactar(r) }); return;
+      }
       if (t.tipo === 'vendas') {
         const e = await A.extrairPdf(buf), a = A.agrupar(e.paginas, 2), b = A.agrupar(e.paginas, 1);
         const v = L.validarVendas({ lines: a.lines, linesB: b.lines, numPaginas: e.numPaginas, bytes: e.bytes, sha256 });
         const drop = I.partialDay(v.header), cov = I.coverage(v.rows, drop), produtos = I.aggregate(v.rows, { dropDay: drop });
+        const janela = J.analisarJanela({ rows: v.rows, ajustes: v.ajustes, cobertura: cov, diaParcial: drop }), cj = J.conferirJanela(v, janela); v.checks.push(cj); v.ok = v.ok && cj.ok;
         const totalProdutos = v.rows.filter(r => !I.isNaoProduto(r) && r.data !== drop).reduce((s, r) => s + Math.round(r.valor * 100), 0);
-        parentPort.postMessage({ id: t.id, ok: true, dados: {
+        parentPort.postMessage({ id: t.id, ok: true, extra: v.ok ? { rows: v.rows.filter(r => r.data !== drop), ajustes: v.ajustes.filter(a => a.data !== drop), header: v.header, cobertura: cov } : null, dados: {
           ok: v.ok, tipo: 'vendas', nome: t.nome, sha256, checks: v.checks, header: v.header, paginas: v.paginas, linhas: v.rows.length, ajustes: v.ajustes.length,
-          totalRodapeCentavos: v.totalRodape, somaCentavos: v.somaCentavos, diaParcial: drop || '', cobertura: cov, produtos: v.ok ? produtos : {}, nProdutos: Object.keys(produtos).length, totalProdutosCentavos: totalProdutos, ms: Date.now() - t0 } });
+          totalRodapeCentavos: v.totalRodape, somaCentavos: v.somaCentavos, diaParcial: drop || '', cobertura: cov, janela, produtos: v.ok ? produtos : {}, nProdutos: Object.keys(produtos).length, totalProdutosCentavos: totalProdutos, ms: Date.now() - t0 } });
       } else {
         const x = A.lerXlsx(buf), v = L.validarEstoque({ grid: x.grid, linhasNoArquivo: x.linhasNoArquivo, bytes: buf.length, sha256 });
         /* a importação do site aceita até 20.000 produtos e ~4 MB. Acima de 19.000, mandam-se só os itens com estoque (promoção só usa esses) e o resto é contado */
         let items = v.items, omitidos = 0;
         if (items.length > 19000) { const com = items.filter(i => i.estoque > 0); omitidos = items.length - com.length; items = com; }
-        parentPort.postMessage({ id: t.id, ok: true, dados: { ok: v.ok, tipo: 'estoque', nome: t.nome, sha256, checks: v.checks, stats: v.stats, produtosNoArquivo: v.items.length, omitidosSemEstoque: omitidos, items: v.ok ? items : [], ms: Date.now() - t0 } });
+        parentPort.postMessage({ id: t.id, ok: true, extra: v.ok ? { items: v.items } : null, dados: { ok: v.ok, tipo: 'estoque', nome: t.nome, sha256, checks: v.checks, stats: v.stats, produtosNoArquivo: v.items.length, omitidosSemEstoque: omitidos, items: v.ok ? items : [], ms: Date.now() - t0 } });
       }
     } catch (e) { parentPort.postMessage({ id: t.id, ok: false, erro: String(e && e.message || e) }); }
   });
@@ -50,7 +54,7 @@ const log = (...a) => console.log(new Date().toLocaleTimeString('pt-BR'), ...a);
 const livres = [], fila = [], pend = new Map(); let seq = 0;
 function criar() {
   const w = new Worker(__filename);
-  w.on('message', m => { const p = pend.get(m.id); pend.delete(m.id); livres.push(w); rodar(); if (p) (m.ok ? p.ok(m.dados) : p.falha(new Error(m.erro))); });
+  w.on('message', m => { const p = pend.get(m.id); pend.delete(m.id); livres.push(w); rodar(); if (p) (m.ok ? p.ok({ dados: m.dados, extra: m.extra }) : p.falha(new Error(m.erro))); });
   w.on('error', e => { for (const [id, p] of pend) { pend.delete(id); p.falha(e); } const i = livres.indexOf(w); if (i >= 0) livres.splice(i, 1); livres.push(criar()); });
   return w;
 }
@@ -67,7 +71,18 @@ async function chamar(acao, params = {}, { metodo = 'GET', corpo, bin = false } 
   return bin ? Buffer.from(await r.arrayBuffer()) : r.json();
 }
 
-let ativos = 0, ultimaAtividade = 0, parar = false;
+let ativos = 0, ultimaAtividade = 0, parar = false; const esperaCalc = new Map();
+function recalcular(loja) {
+  clearTimeout(esperaCalc.get(loja));
+  esperaCalc.set(loja, setTimeout(async () => {
+    try {
+      const t0 = Date.now(), dados = (await ler('calcular', loja, Buffer.alloc(0))).dados;
+      if (!dados) { log(`Loja ${loja}: ainda sem vendas no armazém para analisar.`); return; }
+      await chamar('publicar', { loja }, { metodo: 'POST', corpo: Buffer.from(JSON.stringify(dados)) });
+      log(`Análise completa da loja ${loja} recalculada em ${((Date.now() - t0) / 1000).toFixed(1)} s e publicada no site (${dados.cobertura.dias} dias, ${dados.geral.cupons} cupons).`);
+    } catch (e) { log(`Não consegui publicar a análise da loja ${loja}: ${e.message}`); }
+  }, 4000));
+}
 async function processar(job) {
   const t0 = Date.now(), bat = setInterval(() => chamar('batida', { id: job.id }, { metodo: 'POST' }).catch(() => {}), 60000);
   try {
@@ -75,11 +90,19 @@ async function processar(job) {
     const partes = []; for (let n = 0; n < job.partes; n++) partes.push(await chamar('baixar', { id: job.id, n }, { bin: true }));
     const bytes = Buffer.concat(partes); if (bytes.length !== job.bytes) throw new Error(`O arquivo chegou com ${bytes.length} bytes, o esperado era ${job.bytes}.`);
     log(`Lendo "${job.nome}" com o processador deste computador…`);
-    const dados = await ler(job.tipo, job.nome, bytes), json = Buffer.from(JSON.stringify(dados));
+    const lido = await ler(job.tipo, job.nome, bytes), dados = lido.dados;
+    /* guarda no armazém só o que fechou: relatório novo entra, dia que já estava igual é reconhecido, dia diferente é substituído pelo mais novo */
+    if (dados.ok && lido.extra) {
+      const Z = require('./armazem');
+      if (job.tipo === 'vendas') { dados.armazem = Z.guardar(job.loja, { rows: lido.extra.rows, ajustes: lido.extra.ajustes, cobertura: lido.extra.cobertura, emissao: lido.extra.header.emissao, arquivo: job.nome, sha256: dados.sha256 }); log(`Armazém da loja ${job.loja}: ${dados.armazem.novos} dia(s) novo(s), ${dados.armazem.iguais} já igual(is), ${dados.armazem.substituidos} substituído(s)${dados.armazem.ignoradosMaisAntigos ? ', ' + dados.armazem.ignoradosMaisAntigos + ' ignorado(s) por já haver relatório mais novo' : ''}.`); }
+      else { Z.guardarEstoque(job.loja, lido.extra.items, job.nome, dados.sha256); dados.armazem = { estoqueGuardado: lido.extra.items.length }; }
+    }
+    const json = Buffer.from(JSON.stringify(dados));
     const n = Math.max(1, Math.ceil(json.length / PARTE));
     for (let i = 0; i < n; i++) await chamar('enviar', { id: job.id, n: i }, { metodo: 'POST', corpo: json.subarray(i * PARTE, (i + 1) * PARTE) });
     await chamar('concluir', { id: job.id }, { metodo: 'POST', corpo: { partes: n } });
     log(`Pronto: "${job.nome}" em ${((Date.now() - t0) / 1000).toFixed(1)} s — ${dados.ok ? 'conferido, fechou ao centavo' : 'RECUSADO pela conferência'}.`);
+    if (dados.ok && dados.armazem) recalcular(job.loja);
   } catch (e) {
     log(`FALHOU "${job.nome}": ${e.message}`);
     await chamar('falhar', { id: job.id }, { metodo: 'POST', corpo: { erro: e.message } }).catch(() => {});

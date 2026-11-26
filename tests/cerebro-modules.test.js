@@ -45,14 +45,14 @@ const input = { today: '2026-11-18', clients, posts: [post('R-M01', 'M', '2026-1
 const r = B.run(input);
 const svcs = globalThis.N7Services.ORDER.map(id => ({ id, name: globalThis.N7Services.SERVICES[id].name, short: globalThis.N7Services.SERVICES[id].short }));
 
-test('grafo (agentes): 1 maestro, 21 agentes, serviços ao redor, sem nós sobrepostos e ligações válidas', () => {
+test('grafo (agentes): 1 maestro, 26 agentes, serviços ao redor, sem nós sobrepostos e ligações válidas', () => {
   const g = G.buildGraph({ r, clients, services: svcs, mode: 'agentes' });
-  assert.equal(g.nodes.filter(n => n.type === 'hub').length, 1); assert.equal(g.nodes.filter(n => n.type === 'agent').length, 21); assert.equal(g.nodes.filter(n => n.type === 'service').length, svcs.length);
+  assert.equal(g.nodes.filter(n => n.type === 'hub').length, 1); assert.equal(g.nodes.filter(n => n.type === 'agent').length, 26); assert.equal(g.nodes.filter(n => n.type === 'service').length, svcs.length);
   assert.equal(g.nodes.filter(n => n.type === 'client').length, 0);
   g.nodes.forEach(n => { assert.equal(n.pos.length, 3); n.pos.forEach(v => assert.ok(Number.isFinite(v))); assert.ok(Number.isFinite(n.color)); });
   for (let i = 0; i < g.nodes.length; i++) for (let j = i + 1; j < g.nodes.length; j++) { const a = g.nodes[i].pos, b = g.nodes[j].pos; assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > 1.1, `${g.nodes[i].id} e ${g.nodes[j].id} muito perto`); }
   g.edges.forEach(e => { assert.ok(g.by[e.a] && g.by[e.b], `${e.a} -> ${e.b}`); assert.notEqual(e.a, e.b); });
-  assert.equal(g.edges.filter(e => e.kind === 'spoke').length, 21);
+  assert.equal(g.edges.filter(e => e.kind === 'spoke').length, 26);
   const fired = r.sinapses.reduce((n, s) => n + s.de.reduce((m, d) => m + s.para.filter(p => p !== d && B.AGENTS[d] && B.AGENTS[p]).length, 0), 0);
   assert.equal(g.edges.filter(e => e.kind === 'synapse').length, fired, 'uma ligação por par de agentes de cada conexão que disparou');
   assert.equal(g.edges.filter(e => e.kind === 'service-agent').length, svcs.reduce((n, s) => n + B.SERVICE_AGENTS[s.id].length, 0));
