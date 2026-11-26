@@ -20,6 +20,7 @@ const F = require('../lib/fila');
 const { isClient } = require('../lib/scope');
 const { send, readJson, query, sameSiteRequest, handle } = require('../lib/http');
 const { authUser } = require('../lib/guard');
+const { cfg } = require('../lib/config');
 
 const DO_COMPUTADOR = new Set(['ola', 'proximo', 'baixar', 'batida', 'enviar', 'concluir', 'falhar']);
 
@@ -38,7 +39,8 @@ module.exports = handle(async (req, res) => {
 
   /* ---------- o computador da agência ---------- */
   if (DO_COMPUTADOR.has(acao)) {
-    if (!F.tokenOk(req)) return send(res, 401, { error: 'Token do computador inválido ou ausente' });
+    if (!cfg().leituraToken) return send(res, 503, { error: 'A variável LEITURA_TOKEN não existe neste deploy: confira o nome exato, o ambiente Production e faça Redeploy.' });
+    if (!F.tokenOk(req)) return send(res, 401, { error: 'A chave enviada é diferente da variável LEITURA_TOKEN da Vercel (confira se colou a chave inteira, sem espaço, e refaça o Redeploy).' });
     if (acao === 'ola') return send(res, 200, { ok: true });                              /* só confere a chave; não pega arquivo nem conta como "ligado" */
     if (acao === 'proximo') {
       await b.visto({ nome: String(q.nome || '').slice(0, 60), nucleos: Number(q.nucleos) || 0 });

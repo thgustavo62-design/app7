@@ -94,7 +94,7 @@ if ($Status) {
     try {
       Invoke-RestMethod -Uri ($c.url.TrimEnd('/') + '/api/leitura?acao=ola') -Headers @{ Authorization = "Bearer $($c.token)" } -TimeoutSec 20 | Out-Null
       Write-Host 'Site aceitou a chave: sim.' -ForegroundColor Green
-    } catch { Write-Host ('Site aceitou a chave: NÃO (' + $_.Exception.Message + ')') -ForegroundColor Yellow }
+    } catch { $m = if ($_.ErrorDetails -and $_.ErrorDetails.Message) { try { ($_.ErrorDetails.Message | ConvertFrom-Json).error } catch { $_.ErrorDetails.Message } } else { $_.Exception.Message }; Write-Host ('Site aceitou a chave: NÃO. ' + $m) -ForegroundColor Yellow }
   }
   return
 }
