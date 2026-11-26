@@ -48,7 +48,14 @@ const NOME = String(arg('--nome') || os.hostname()).slice(0, 60);
 const nuc = Math.max(1, Math.min(Number(arg('--nucleos')) || os.availableParallelism(), 16));
 const PARTE = 3500000;
 if (!TOKEN || TOKEN.length < 24) { console.error('Falta o token do computador. Rode  .\\Agente.ps1 -Configurar  (ou crie %USERPROFILE%\\.nova7\\agente.json).'); process.exit(2); }
-const log = (...a) => console.log(new Date().toLocaleTimeString('pt-BR'), ...a);
+const LOG = path.join(os.homedir(), '.nova7', 'agente.log');
+const log = (...a) => {
+  const linha = new Date().toLocaleString('pt-BR') + ' ' + a.join(' ');
+  console.log(new Date().toLocaleTimeString('pt-BR'), ...a);
+  try { fs.mkdirSync(path.dirname(LOG), { recursive: true }); if (fs.existsSync(LOG) && fs.statSync(LOG).size > 2e6) fs.renameSync(LOG, LOG + '.1'); fs.appendFileSync(LOG, linha + '\n'); } catch (e) { /* sem log em arquivo */ }
+};
+/* uma gravação por vez em cada loja: dois arquivos da mesma loja ao mesmo tempo não podem se atropelar no manifesto */
+const trava = new Map(); const comTrava = (k, fn) => { const ant = trava.get(k) || Promise.resolve(), p = ant.then(fn, fn); trava.set(k, p.catch(() => {})); return p; };
 
 /* ---------- pool de trabalhadores (um por núcleo) ---------- */
 const livres = [], fila = [], pend = new Map(); let seq = 0;
@@ -103,10 +110,14 @@ async function processar(job) {
     log(`Lendo "${job.nome}" com o processador deste computador…`);
     const lido = await ler(job.tipo, job.nome, bytes), dados = lido.dados;
     /* guarda no armazém só o que fechou: relatório novo entra, dia que já estava igual é reconhecido, dia diferente é substituído pelo mais novo */
+    if (dados.ok && job.tipo === 'vendas' && dados.header && dados.header.cnpj) {
+      const c = await chamar('loja', { loja: job.loja, cnpj: dados.header.cnpj });
+      if (!c.ok) { dados.ok = false; dados.checks.push({ id: 'loja', ok: false, aviso: false, msg: c.motivo, detalhe: { loja: job.loja, cnpj: dados.header.cnpj, dono: c.dono || null } }); dados.produtos = {}; dados.janela = null; log(`RECUSADO "${job.nome}": ${c.motivo}`); }
+    }
     if (dados.ok && lido.extra) {
       const Z = require('./armazem');
-      if (job.tipo === 'vendas') { dados.armazem = Z.guardar(job.loja, { rows: lido.extra.rows, ajustes: lido.extra.ajustes, cobertura: lido.extra.cobertura, emissao: lido.extra.header.emissao, arquivo: job.nome, sha256: dados.sha256 }); log(`Armazém da loja ${job.loja}: ${dados.armazem.novos} dia(s) novo(s), ${dados.armazem.iguais} já igual(is), ${dados.armazem.substituidos} substituído(s)${dados.armazem.ignoradosMaisAntigos ? ', ' + dados.armazem.ignoradosMaisAntigos + ' ignorado(s) por já haver relatório mais novo' : ''}.`); }
-      else { Z.guardarEstoque(job.loja, lido.extra.items, job.nome, dados.sha256); dados.armazem = { estoqueGuardado: lido.extra.items.length }; }
+      if (job.tipo === 'vendas') { dados.armazem = await comTrava(job.loja, async () => Z.guardar(job.loja, { rows: lido.extra.rows, ajustes: lido.extra.ajustes, cobertura: lido.extra.cobertura, emissao: lido.extra.header.emissao, arquivo: job.nome, sha256: dados.sha256 })); log(`Armazém da loja ${job.loja}: ${dados.armazem.novos} dia(s) novo(s), ${dados.armazem.iguais} já igual(is), ${dados.armazem.substituidos} substituído(s)${dados.armazem.ignoradosMaisAntigos ? ', ' + dados.armazem.ignoradosMaisAntigos + ' ignorado(s) por já haver relatório mais novo' : ''}.`); }
+      else { await comTrava(job.loja, async () => Z.guardarEstoque(job.loja, lido.extra.items, job.nome, dados.sha256)); dados.armazem = { estoqueGuardado: lido.extra.items.length }; }
     }
     const json = Buffer.from(JSON.stringify(dados));
     const n = Math.max(1, Math.ceil(json.length / PARTE));
@@ -124,9 +135,30 @@ const dorme = ms => new Promise(r => setTimeout(r, ms));
 /* rotina automática: ao ligar e de tempos em tempos, refaz a análise e o relatório de cada loja do armazém, sem ninguém pedir */
 async function rotina() {
   const Z = require('./armazem');
-  for (const loja of Z.lojas()) { try { await calcularEPublicar(loja, 'atualizada pela rotina automática'); } catch (e) { log(`Rotina automática, loja ${loja}: ${e.message}`); } }
+  const minhas = Z.lojas();
+  for (const loja of minhas) { try { await calcularEPublicar(loja, 'atualizada pela rotina automática'); } catch (e) { log(`Rotina automática, loja ${loja}: ${e.message}`); } }
+  try { const pub = (await chamar('publicadas')).lojas || []; for (const l of pub) if (l !== '_cerebro' && !minhas.includes(l)) { await chamar('despublicar', { loja: l }, { metodo: 'POST', corpo: { x: 1 } }); log(`Análise da loja ${l} retirada do site: ela não está mais no armazém deste computador.`); } } catch (e) { log('Rotina: ' + e.message); }
 }
 /* o cérebro inteiro (26 agentes, um por núcleo, com Promoções e Mercado do armazém) roda aqui e o resultado vai para a Central de Inteligência do site */
+/* aviso no Windows (balão do sistema), sem instalar nada: só quando a decisão do dia muda para algo urgente */
+const aspas = t => String(t).replace(/'/g, "''").replace(/[\r\n]+/g, ' ').slice(0, 180);
+function avisar(titulo, texto) {
+  const ps = `[void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]; $t = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02); $n = $t.GetElementsByTagName('text'); [void]$n.Item(0).AppendChild($t.CreateTextNode('${aspas(titulo)}')); [void]$n.Item(1).AppendChild($t.CreateTextNode('${aspas(texto)}')); [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Nova7').Show([Windows.UI.Notifications.ToastNotification]::new($t))`;
+  try { spawn('powershell.exe', ['-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-Command', ps], { stdio: 'ignore', windowsHide: true }).on('error', () => {}); } catch (e) { /* sem aviso */ }
+}
+const ESTADO = path.join(os.homedir(), '.nova7', 'estado.json');
+const lerEstado = () => { try { return JSON.parse(fs.readFileSync(ESTADO, 'utf8').replace(/^\uFEFF/, '')); } catch (e) { return {}; } };
+const gravarEstado = o => { try { fs.mkdirSync(path.dirname(ESTADO), { recursive: true }); fs.writeFileSync(ESTADO, JSON.stringify(o)); } catch (e) { /* sem estado */ } };
+const semana = () => { const d = new Date(); d.setUTCHours(12, 0, 0, 0); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); const y = d.getUTCFullYear(), n = Math.ceil(((d - Date.UTC(y, 0, 1)) / 864e5 + 1) / 7); return y + '-W' + String(n).padStart(2, '0'); };
+const slug = t => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+/* ideias de conteúdo a partir das análises de Mercado: no máximo 3 por rodada, uma por categoria e semana */
+async function criarIdeias(cerebro) {
+  const lista = [...(cerebro.radar || []), ...(cerebro.ganhos || [])].filter(f => ['categorias', 'cesta', 'foco'].includes(f.agente) && f.marca).slice(0, 3);
+  const ideias = lista.map(f => ({ id: `auto-${f.marca}-${f.agente}-${slug(f.titulo)}-${semana()}`.slice(0, 80), b: f.marca, format: f.agente === 'cesta' ? 'Reels' : 'Carrossel', title: f.titulo, note: [f.evidencia, f.acao].filter(Boolean).join(' — '), src: f.agente }));
+  if (!ideias.length) return;
+  const r = await chamar('ideias', {}, { metodo: 'POST', corpo: { ideias } });
+  if (r.criadas && r.criadas.length) log(`Criei ${r.criadas.length} ideia(s) de conteúdo no banco de ideias do site a partir das análises.`);
+}
 let cerebroRodando = false;
 async function rodarCerebro() {
   if (cerebroRodando) return; cerebroRodando = true; const t0 = Date.now(), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-cerebro-'));
@@ -136,6 +168,8 @@ async function rodarCerebro() {
     if (!fs.existsSync(path.join(dir, 'resultado.json'))) throw new Error('a análise não gerou resultado (código ' + cod + ')');
     const r = JSON.parse(fs.readFileSync(path.join(dir, 'resultado.json'), 'utf8'));
     await chamar('publicar', { loja: '_cerebro' }, { metodo: 'POST', corpo: Buffer.from(JSON.stringify({ geradoEm: r.geradoEm, hoje: r.hoje, computador: NOME, execucao: r.execucao, agentes: r.agentes, cerebro: r.cerebro, lojas: r.lojas })) });
+    try { await criarIdeias(r.cerebro); } catch (e) { log('Ideias automáticas: ' + e.message); }
+    try { const est = lerEstado(), d = r.cerebro.decisao; if (d && d.nota >= 80 && est.ultimaDecisao !== d.titulo) { avisar('Nova7: decisão do dia', d.titulo); log('Aviso no Windows: ' + d.titulo); } gravarEstado(Object.assign(est, { ultimaDecisao: d ? d.titulo : '', em: new Date().toISOString() })); } catch (e) { /* sem aviso */ }
     log(`Cérebro rodado no computador da agência: ${r.agentes.length} agentes em até ${r.execucao.nucleosUsados} núcleo(s), ${(r.execucao.tempoTotalMs / 1000).toFixed(1)} s, ${r.cerebro.total} achado(s)${r.cerebro.decisao ? '; decisão: ' + r.cerebro.decisao.titulo : ''}. Publicado no site (${((Date.now() - t0) / 1000).toFixed(1)} s no total).`);
   } catch (e) { log('Cérebro: ' + e.message); } finally { cerebroRodando = false; fs.rmSync(dir, { recursive: true, force: true }); }
 }

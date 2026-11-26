@@ -38,7 +38,7 @@ function compactar(r) {
     faixasValor: p.faixasValor, faixasItens: p.faixasItens, diaDoMes: p.diaDoMes, pagamento: p.pagamento, clientes: cl, convenio: p.convenio, entregas: p.entregas, operadores: p.operadores.slice(0, 20), caixas: p.caixas,
     produtos: { distintos: p.produtos.distintos, vendidosUmaVez: p.produtos.vendidosUmaVez, topValor: p.produtos.topValor.slice(0, 20), topQtd: p.produtos.topQtd.slice(0, 20), variacaoPreco: p.produtos.variacaoPreco.slice(0, 10), porHora: p.produtos.porHora },
     pares: p.pares.maiorLift.slice(0, 15), paresFrequentes: p.pares.maisFrequentes.slice(0, 15), puxadoresDeTicket: p.puxadoresDeTicket, margem: p.margem && { cobertura: p.margem.cobertura, margem: p.margem.margem, lucroEstimadoCentavos: p.margem.lucroEstimadoCentavos, nAbaixoDoCusto: p.margem.nAbaixoDoCusto, vendidosAbaixoDoCusto: p.margem.vendidosAbaixoDoCusto, maioresLucros: p.margem.maioresLucros, margemPorCategoria: p.margem.margemPorCategoria, porHora: p.margem.porHora, aviso: p.margem.aviso },
-    oportunidades: p.oportunidades, semanas: r.janela ? r.janela.semanas.slice(-30).map(w => ({ inicio: w.inicio, fim: w.fim, completa: w.completa, vendasCentavos: w.vendasCentavos, cupons: w.cupons, ticketCentavos: w.ticketCentavos, c100n: w.c100n })) : [], meses: r.janela ? r.janela.meses : [],
+    oportunidades: p.oportunidades, semanasDetalhe: (p.semanasDetalhe || []).slice(-30), semanas: r.janela ? r.janela.semanas.slice(-30).map(w => ({ inicio: w.inicio, fim: w.fim, completa: w.completa, vendasCentavos: w.vendasCentavos, cupons: w.cupons, ticketCentavos: w.ticketCentavos, c100n: w.c100n })) : [], meses: r.janela ? r.janela.meses : [],
     promoResumo: r.promoResumo || null, promoBrain: r.promoBrain || null };
 }
 

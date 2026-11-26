@@ -27,6 +27,7 @@ module.exports = handle(async (req, res) => {
   switch (body.action) {
     case 'estoque': return send(res, 200, { ok: true, ...(await P.importEstoque(repo, user, body.loja, body)) });
     case 'vendas': return send(res, 200, { ok: true, ...(await P.importVendas(repo, user, body.loja, body)) });
+    case 'cnpj_associar': return send(res, 200, await P.associarCnpj(repo, user, body.loja, String(body.cnpj || '')));
     case 'campanha': return send(res, 200, { ok: true, ...(await P.saveCampaign(repo, user, body.loja, body)) });
     case 'campanha_apagar': return send(res, 200, { ok: true, ...(await P.deleteCampaign(repo, user, body.loja, body.id)) });
     default: return send(res, 400, { error: 'Ação desconhecida' });

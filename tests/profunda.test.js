@@ -51,3 +51,12 @@ test('relatório executivo em HTML: capa com a marca, resumo e as seções, tudo
   assert.ok(!/<script/i.test(html) && !/https?:\/\//.test(html), 'um arquivo só, sem script e sem endereço de fora');
   assert.equal(typeof C.compactar, 'function');
 });
+
+test('análise por semana: cada semana tem o seu dia a dia, horário, categorias e produtos, comparada com a anterior', () => {
+  const a = P.analisarProfundo({ rows: serie(), ajustes: [] }), l = a.semanasDetalhe;
+  assert.equal(l.length, 8); assert.ok(l.every(w => w.completa && w.porDia.length === 7 && w.categorias.length >= 2 && w.topProdutos.length >= 2));
+  assert.equal(l[0].vsAnterior, undefined, 'a primeira semana não tem anterior'); assert.ok(l[1].vsAnterior && Math.abs(l[1].vsAnterior.vendas) < 0.001, 'semanas iguais: variação zero');
+  const w4 = l[4]; assert.ok(w4.vsAnterior.vendas < -0.1, 'na 5ª semana a fralda cai pela metade e a loja cai'); assert.ok(w4.categoriasQueMexeram.some(c => c.categoria === 'Bebê: fraldas' && c.deltaPontos < 0), 'fralda perdeu participação');
+  assert.equal(l.reduce((s, w) => s + w.vendasCentavos, 0), a.geral.vendasCentavos, 'a soma das semanas é o total: nada se perde nem repete');
+  assert.ok(l.every(w => w.inicio === J.segunda(w.inicio)), 'semana sempre começa na segunda');
+});

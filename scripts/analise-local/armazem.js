@@ -10,7 +10,11 @@ const cents = n => Math.round(n * 100);
 const grava = (arq, obj) => { const tmp = arq + '.tmp'; fs.writeFileSync(tmp, zlib.gzipSync(Buffer.from(JSON.stringify(obj)))); fs.renameSync(tmp, arq); };
 const le = arq => JSON.parse(zlib.gunzipSync(fs.readFileSync(arq)).toString('utf8'));
 
-function manifesto(loja) { const a = path.join(pasta(loja), 'manifesto.json'); try { return JSON.parse(fs.readFileSync(a, 'utf8')); } catch (e) { return { loja, dias: {} }; } }
+function manifesto(loja) {
+  const a = path.join(pasta(loja), 'manifesto.json');
+  try { return JSON.parse(fs.readFileSync(a, 'utf8').replace(/^\uFEFF/, '')); }                  /* um editor ou o PowerShell pode ter posto BOM no começo */
+  catch (e) { if (e.code !== 'ENOENT') { try { fs.copyFileSync(a, a + '.quebrado'); } catch (x) { /* sem cópia */ } console.error('Manifesto ilegível em ' + a + ' (' + e.message + '): copiado para .quebrado'); } return { loja, dias: {} }; }
+}
 
 /* r: { rows, ajustes, cobertura:{inicio,fim}, emissao:{data,hora}, arquivo, sha256 } (já conferido) */
 function guardar(loja, r) {
@@ -26,7 +30,7 @@ function guardar(loja, r) {
     grava(path.join(dir, d + '.json.gz'), { d, rows, ajustes: aj });
     m.dias[d] = { emissao: emi, arquivo: r.arquivo, sha256: r.sha256 || '', linhas: rows.length, totalCentavos: total };
   }
-  m.atualizadoEm = new Date().toISOString(); fs.writeFileSync(path.join(dir, 'manifesto.json'), JSON.stringify(m)); return out;
+  m.atualizadoEm = new Date().toISOString(); const alvo = path.join(dir, 'manifesto.json'), tmp = alvo + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(m)); fs.renameSync(tmp, alvo); return out;
 }
 
 function carregar(loja) {

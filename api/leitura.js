@@ -26,7 +26,30 @@ const { send, readJson, query, sameSiteRequest, handle } = require('../lib/http'
 const { authUser } = require('../lib/guard');
 const { cfg } = require('../lib/config');
 
-const DO_COMPUTADOR = new Set(['ola', 'snapshot', 'publicar', 'proximo', 'baixar', 'batida', 'enviar', 'concluir', 'falhar']);
+/* Gravação automática: com o relatório CONFERIDO (soma = Total do rodapé) e a loja CONFIRMADA pelo CNPJ, o servidor grava sozinho as vendas, o estoque e as semanas
+   da Análise semanal, com as mesmas travas da tela. Divergência com número digitado à mão não é sobrescrita: vira aviso. */
+const SISTEMA = { email: 'agente@computador', nome: 'Computador da agência', papel: 'admin', tipo: 'equipe', empresas: [] };
+async function lerResultado(b, id, n) { const bufs = []; for (let i = 0; i < n; i++) bufs.push(await b.getParte(id, 'out', i)); return JSON.parse(Buffer.concat(bufs).toString('utf8')); }
+async function autoGravar(b, j, r) {
+  const repo = getRepo(), M = require('../lib/model'), out = {};
+  if (!r.ok) return { pulou: 'a conferência não fechou: nada foi gravado' };
+  await P.needLoja(repo, SISTEMA, j.loja);
+  if (j.tipo === 'estoque') { const x = await P.importEstoque(repo, SISTEMA, j.loja, { items: r.items, arquivo: j.nome }); return { estoque: x }; }
+  const cnpj = r.header && r.header.cnpj, cob = r.cobertura; if (!cob) return { pulou: 'relatório sem datas cobertas' };
+  out.vendas = await P.importVendas(repo, SISTEMA, j.loja, { produtos: r.produtos, inicio: cob.inicio, fim: cob.fim, diaDescartado: r.diaParcial || '', linhas: r.linhas, candidatas: r.linhas, conferencia: { totalCentavos: r.totalRodapeCentavos, somaCentavos: r.somaCentavos }, cnpj, arquivo: (j.nome + (cnpj ? ' · CNPJ ' + cnpj : '') + ' · conferido').slice(0, 120) });
+  const semanas = ((r.janela && r.janela.semanas) || []).filter(w => w.completa), antigas = (await M.loadState(repo)).weeks, ops = [], gravadas = [], divergentes = [];
+  semanas.forEach(w => {
+    const old = antigas.find(x => x.tipo === 'semana' && x.inicio === w.inicio && x.marca === j.loja), meu = old && /PDF de vendas conferido/.test(old.fonte || '');
+    if (old && old.vendas != null && !meu && Math.round(old.vendas * 100) !== w.vendasCentavos) { divergentes.push({ inicio: w.inicio, fim: w.fim, noSiteCentavos: Math.round(old.vendas * 100), noPdfCentavos: w.vendasCentavos }); return; }
+    ops.push({ t: 'week', op: 'upsert', tipo: 'semana', inicio: w.inicio, marca: j.loja, vendas: w.vendasCentavos / 100, compras: w.cupons, dias: w.dias7.map(v => (v == null ? null : v / 100)), c100n: w.c100n, c100rs: w.c100Centavos / 100,
+      ig: old ? old.ig : {}, fb: old ? old.fb : {}, ads: old ? old.ads : {}, janela: old ? old.janela || '' : '', fonte: 'PDF de vendas conferido ao centavo (PowerShell)', obs: old && old.obs ? old.obs : 'Vendas = total do relatório (inclui taxa de entrega e arredondamentos); compras = cupons; cestas = cupons acima de R$ 100.', v: old ? old.v : undefined });
+    gravadas.push(w.inicio);
+  });
+  if (ops.length) await M.applyOps(repo, ops, SISTEMA);
+  out.semanas = { gravadas, divergentes }; return out;
+}
+
+const DO_COMPUTADOR = new Set(['ola', 'ideias', 'snapshot', 'loja', 'publicadas', 'despublicar', 'publicar', 'proximo', 'baixar', 'batida', 'enviar', 'concluir', 'falhar']);
 
 async function bruto(req, limite) {
   if (Buffer.isBuffer(req.body)) { if (req.body.length > limite) throw F.bad('Pedaço grande demais', 413); return req.body; }
@@ -52,6 +75,17 @@ module.exports = handle(async (req, res) => {
       const j = await b.pegar(String(q.nome || 'pc').slice(0, 60));
       return send(res, 200, { job: j ? F.publico(j) : null });
     }
+    if (acao === 'ideias') {                                                              /* ideias de conteúdo que saem das análises; ideia que já existe NÃO é recriada nem alterada */
+      if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido' });
+      const M = require('../lib/model'), repo = getRepo(), corpo = await readJson(req, 200000), lista = Array.isArray(corpo.ideias) ? corpo.ideias.slice(0, 12) : [];
+      const existentes = new Set((await M.loadState(repo)).ideas.map(i => i.id)), novas = lista.filter(i => /^auto-[A-Za-z0-9_-]{4,80}$/.test(String(i.id)) && !existentes.has(i.id));
+      const ops = novas.map(i => ({ t: 'idea', op: 'upsert', id: i.id, b: String(i.b), format: i.format === 'Reels' ? 'Reels' : 'Carrossel', title: String(i.title || '').slice(0, 140), note: String(i.note || '').slice(0, 600), stage: 'nova', src: 'Agente (PowerShell): ' + String(i.src || 'análise de vendas').slice(0, 80), at: new Date().toISOString().slice(0, 10) }));
+      if (ops.length) await M.applyOps(repo, ops, SISTEMA);
+      return send(res, 200, { criadas: ops.map(o => o.id), jaExistiam: lista.length - ops.length });
+    }
+    if (acao === 'loja') { const c = await P.checarLoja(getRepo(), String(q.loja || ''), String(q.cnpj || '')); return send(res, 200, c); }
+    if (acao === 'publicadas') return send(res, 200, { lojas: (await b.analises()).map(x => x.loja) });
+    if (acao === 'despublicar') { if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido' }); await b.despublicarAnalise(String(q.loja || '').replace(/[^A-Za-z0-9_-]/g, '')); return send(res, 200, { ok: true }); }
     if (acao === 'snapshot') {                                                            /* tudo o que os agentes do cérebro leem, para rodarem no computador da agência */
       const M = require('../lib/model'), DS = require('../lib/dataset'), repo = getRepo(), adm = { email: 'agente@computador', nome: 'Computador da agência', papel: 'admin', tipo: 'equipe', empresas: [] };
       const state = await M.loadState(repo), registry = await M.loadRegistry(repo, adm), v = await DS.view(await M.activeClients(repo));
@@ -75,7 +109,15 @@ module.exports = handle(async (req, res) => {
     if (acao === 'concluir') {
       const n = Number(corpo.partes);
       if (!Number.isInteger(n) || n < 1 || n > 400 || (await b.nPartes(j.id, 'out')) !== n) return send(res, 400, { error: 'O resultado chegou incompleto' });
-      await b.apagarPartes(j.id, 'in'); await b.atualizar(j.id, { estado: 'pronto', resultado_partes: n, erro: '' });
+      await b.apagarPartes(j.id, 'in');
+      let n2 = n;
+      try {
+        const r = await lerResultado(b, j.id, n); let auto;
+        try { auto = await autoGravar(b, j, r); } catch (e) { auto = { erro: String(e && e.message || e) }; }
+        r.auto = auto; const bytes = Buffer.from(JSON.stringify(r)); await b.apagarPartes(j.id, 'out'); n2 = Math.max(1, Math.ceil(bytes.length / F.LIMITE_PARTE));
+        for (let i = 0; i < n2; i++) await b.putParte(j.id, 'out', i, bytes.subarray(i * F.LIMITE_PARTE, (i + 1) * F.LIMITE_PARTE));
+      } catch (e) { console.error('[n7] gravação automática:', e && e.message); }
+      await b.atualizar(j.id, { estado: 'pronto', resultado_partes: n2, erro: '' });
       return send(res, 200, { ok: true });
     }
     if (acao === 'falhar') { await b.apagarPartes(j.id, 'in'); await b.atualizar(j.id, { estado: 'erro', erro: String(corpo.erro || 'Falha ao ler o arquivo').slice(0, 500) }); return send(res, 200, { ok: true }); }

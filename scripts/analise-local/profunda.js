@@ -75,7 +75,7 @@ function focoMarketing(mom, margemCat) {
 }
 
 
-function analisarProfundo({ rows, ajustes = [], custos = null, categoria = null, diasCobertos = null, minPar = 15, minProd = 30 }) {
+function analisarProfundo({ rows, ajustes = [], custos = null, categoria = null, diasCobertos = null, minPar = 15, minProd = 30, leve = false }) {
   if (!rows.length) return null;
   categoria = categoria || categoriaPadrao();
   /* ---- 1. cupons ---- */
@@ -159,12 +159,43 @@ function analisarProfundo({ rows, ajustes = [], custos = null, categoria = null,
       vendidosAbaixoDoCusto: abaixo.sort((a, b) => a.l - b.l).slice(0, 15).map(x => ({ barras: x.barras, desc: x.desc, perdaCentavos: -x.l, qtd: x.qtd })), nAbaixoDoCusto: abaixo.length, aviso: 'Margem estimada com o custo ATUAL do estoque; o custo na data da venda pode ter sido outro.' };
   }
 
-  const momento = categoria ? momentoCategorias(rows, categoria, diasCobertos) : null, foco = momento ? focoMarketing(momento, margem && margem.margemPorCategoria) : null;
+  const momento = categoria && !leve ? momentoCategorias(rows, categoria, diasCobertos) : null, foco = momento ? focoMarketing(momento, margem && margem.margemPorCategoria) : null;
   const out = { momentoCategorias: momento, focoMarketing: foco, geral, horas, melhorJanela3h: jan(3).melhor, piorJanela3h: jan(3).pior, periodoDoDia: { manhaCentavos: periodo.manha, tardeCentavos: periodo.tarde, noiteCentavos: periodo.noite }, diaSemana, mapaCalor, faixasValor: faixasV, faixasItens: faixasI, diaDoMes: doMes, pagamento, clientes, convenio, entregas, operadores, caixas,
     produtos: { distintos: prods.length, vendidosUmaVez: unicos, topValor, topQtd, variacaoPreco, porHora: horasTop }, categorias, pares: { analisados: par.size, cuponsComVariosProdutos: multi.length, maiorLift: pares.slice(0, 25), maisFrequentes: maisJuntos }, puxadoresDeTicket: puxadores, margem };
+  if (leve) return out;
   out.oportunidades = oportunidades(out);
+  out.semanasDetalhe = detalheSemanas(rows, ajustes, categoria, diasCobertos, custos);
   return out;
 }
+
+/* A análise de CADA semana: o mesmo olhar do período inteiro, mas só com os cupons daquela semana (segunda a domingo), comparado com a semana anterior */
+function detalheSemanas(rows, ajustes, categoria, diasCobertos, custos) {
+  const cob = diasCobertos ? new Set(diasCobertos) : new Set(rows.map(r => r.data)), por = new Map(), ajp = new Map();
+  rows.forEach(r => { const m = segunda(r.data); (por.get(m) || por.set(m, []).get(m)).push(r); });
+  (ajustes || []).forEach(a => { const m = segunda(a.data); (ajp.get(m) || ajp.set(m, []).get(m)).push(a); });
+  const ms = [...por.keys()].sort(), out = []; let ant = null;
+  ms.forEach(m => {
+    const a = analisarProfundo({ rows: por.get(m), ajustes: ajp.get(m) || [], custos, categoria, minPar: 5, minProd: 5, leve: true }); if (!a) return;
+    const dias7 = cat7(m), g = a.geral, c100 = a.faixasValor.filter(f => /100 a 200|acima de R\$ 200/.test(f.faixa));
+    const cats = {}; (a.categorias || []).forEach(c => { cats[c.categoria] = c.vendasCentavos; }); const totC = Object.values(cats).reduce((x, y) => x + y, 0) || 1;
+    const w = { inicio: m, fim: mais(m, 6), completa: dias7.every(d => cob.has(d)), diasCobertos: dias7.filter(d => cob.has(d)).length, vendasCentavos: g.vendasCentavos, cupons: g.cupons, ticketCentavos: g.ticketMedioCentavos, itensPorCupom: g.itensPorCupom,
+      c100n: c100.reduce((x, f) => x + f.cupons, 0), c100Centavos: c100.reduce((x, f) => x + f.vendasCentavos, 0), melhorJanela3h: a.melhorJanela3h, piorJanela3h: a.piorJanela3h,
+      topHoras: a.horas.slice().sort((x, y) => y.vendasCentavos - x.vendasCentavos).slice(0, 3).map(h => ({ hora: h.hora, vendasCentavos: h.vendasCentavos, parte: h.parte })),
+      porDia: a.diaSemana.map(d => ({ dia: d.dia, vendasCentavos: d.vendasCentavos, cupons: d.cupons })),
+      categorias: (a.categorias || []).slice(0, 8).map(c => ({ categoria: c.categoria, vendasCentavos: c.vendasCentavos, parte: c.vendasCentavos / totC })), topProdutos: a.produtos.topValor.slice(0, 6).map(p => ({ desc: p.desc, qtd: p.qtd, vendasCentavos: p.vendasCentavos })),
+      pagamento: a.pagamento.map(p => ({ forma: p.forma, parteVendas: p.parteVendas })), clientesParte: a.clientes.parteCupons, entregaParte: a.entregas.parteCupons, margem: a.margem ? a.margem.margem : null,
+      unitarios: (a.faixasItens[0] || {}).parteCupons };
+    if (ant && ant.completa && w.completa && J_mais(ant.inicio, 7) === w.inicio) {
+      const v = (x, y) => (y > 0 ? x / y - 1 : null);
+      w.vsAnterior = { vendas: v(w.vendasCentavos, ant.vendasCentavos), cupons: v(w.cupons, ant.cupons), ticket: v(w.ticketCentavos, ant.ticketCentavos), itens: v(w.itensPorCupom, ant.itensPorCupom) };
+      const ct = Object.keys({ ...ant._cats, ...cats }).map(k => ({ categoria: k, deltaPontos: (cats[k] || 0) / totC - (ant._cats[k] || 0) / ant._tot, vendasCentavos: cats[k] || 0, anteriorCentavos: ant._cats[k] || 0 })).filter(x => Math.abs(x.deltaPontos) >= 0.004);
+      w.categoriasQueMexeram = ct.sort((x, y) => Math.abs(y.deltaPontos) - Math.abs(x.deltaPontos)).slice(0, 6);
+    }
+    out.push(Object.assign({}, w)); ant = Object.assign({}, w, { _cats: cats, _tot: totC });
+  });
+  return out;
+}
+const J_mais = (d, n) => mais(d, n);
 
 /* regras simples que transformam os números em "o que dá para fazer", sempre com a evidência (são hipóteses a testar, não promessas) */
 function oportunidades(a) {

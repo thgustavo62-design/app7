@@ -29,13 +29,15 @@ table{border-collapse:collapse;width:100%;font-size:.84rem}th,td{padding:6px 8px
 .av-foco.def{border-left-color:#d99a1f}.av-foco.ace{border-left-color:#1f9d63}.av-foco.rea{border-left-color:#d64545}.av-foco.ati{border-left-color:var(--v)}
 .av-ops{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}.av-op{padding:10px 12px;border-radius:14px;background:#f4f5fa}.av-op small{text-transform:uppercase;letter-spacing:.04em;color:var(--mut);display:block}.av-op p{margin:6px 0 0;font-size:.86rem}.av-op .av-acao{font-weight:600}
 .av-lista{margin:0;padding-left:18px;display:grid;gap:6px}.src{color:var(--mut);font-size:.8rem}
+details.rsem{border-top:1px solid var(--line);padding:8px 0}details.rsem summary{cursor:pointer}.av-sel{display:none}
 .rod{color:var(--mut);font-size:.8rem;text-align:center;margin-top:24px}
 @media print{body{background:#fff}.wrap{padding:0}.capa{border-radius:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.panel{break-inside:avoid-page}}
 @media(max-width:700px){.grid.g2{grid-template-columns:1fr}}`;
 
 function gerar(a, { marca = 'Nova7', titulo = 'Análise de vendas e marketing', geradoEm = new Date() } = {}) {
   const H = { banner: (ic, tit, sub) => `<div class="rb"><h3>${tit}</h3>${sub ? `<small>${sub}</small>` : ''}</div>`, kpi: (label, val, sub) => `<div class="rk"><small>${label}</small><b>${val}</b><em>${sub || ''}</em></div>` };
-  const corpo = globalThis.N7AnaliseVendas.html(Object.assign({}, a, { publicadoEm: a.atualizadoEm }), H).replace(/<p class="notice info">[\s\S]*?<\/p>/, '');
+  const dets = (a.semanasDetalhe || []).filter(w => w.completa).slice(-8).reverse().map(w => `<details class="rsem"><summary><b>${dm(w.inicio)} a ${dm(w.fim)}</b> · ${R(w.vendasCentavos)} · ${w.cupons.toLocaleString('pt-BR')} cupons · ticket ${R(w.ticketCentavos)}</summary>${globalThis.N7AnaliseVendas.semanaDetalhe(w)}</details>`).join('');
+  const corpo = globalThis.N7AnaliseVendas.html(Object.assign({}, a, { publicadoEm: a.atualizadoEm }), H, { semDetalhe: true }).replace(/<p class="notice info">[\s\S]*?<\/p>/, '');
   const top = (a.oportunidades || []).filter(o => /Foco|Equipe|Promoção|Combos|Fideliza|Venda adicional|Entrega/.test(o.area)).slice(0, 6);
   const c = a.cobertura, g = a.geral;
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(titulo)} · ${esc(a.nome)}</title><style>${CSS}</style></head><body><div class="wrap">
@@ -44,6 +46,7 @@ function gerar(a, { marca = 'Nova7', titulo = 'Análise de vendas e marketing', 
     <ol>${top.map(o => `<li><b>${esc(o.titulo)}</b><span>${esc(o.acao)}</span></li>`).join('') || '<li><span>Continue alimentando relatórios para o plano de ação ficar mais firme.</span></li>'}</ol></div>
   <div class="conf"><b>Como os números foram feitos.</b> Cada relatório de vendas foi lido por programa, linha a linha, e só entrou depois de a soma de tudo fechar, ao centavo, com o total impresso no próprio relatório. Os cupons foram analisados individualmente (horário, itens, pagamento, categoria, o que se compra junto). Categorias são comparadas sempre com o movimento da loja inteira. Margem usa o custo atual do estoque. Tudo aqui é hipótese para testar, não promessa de resultado.</div>
   ${corpo}
+  ${dets ? `<div class="panel"><div class="rb"><h3>Análise de cada semana</h3><small>as 8 últimas semanas completas, uma a uma</small></div><div class="panel-body">${dets}</div></div>` : ''}
   <p class="rod">${esc(marca)} · gerado em ${geradoEm.toLocaleString('pt-BR')} · ${esc(a.nome)}</p></div></body></html>`;
 }
 module.exports = { gerar };

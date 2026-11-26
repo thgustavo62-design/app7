@@ -243,6 +243,7 @@
     let a = null;
     try { const j = await api("/api/leitura?acao=analise"); a = (j.lojas || {})[ui.loja] || null; } catch (e) { return `<p class="notice">${esc(e.message)}</p>`; }
     if (!a) return `<div class="panel">${H.banner("target", "Análise completa de ${esc(clientOf(ui.loja).name)}", "ainda não há análise publicada")}<div class="panel-body"><p class="notice info">Esta análise é feita pelo <b>computador da agência</b> (PowerShell) com os relatórios de vendas já conferidos, e vai crescendo conforme você solta relatórios <b>novos</b> em <a href="#promocoes/importar">Importar</a> (fracionados por dia, semana ou mês; o que já foi lido não conta duas vezes). Deixe o <code>Agente.ps1</code> ligado e solte o primeiro PDF.</p></div></div>`;
+    setTimeout(() => { const h = document.querySelector("#pm-body"); if (h) root.N7AnaliseVendas.wire(h, a); }, 0);
     return root.N7AnaliseVendas.html(a, H);
   }
 
@@ -263,11 +264,12 @@
       const prov = P.lojaProvavel(r.items, bases), mine = prov[ui.loja], other = Object.keys(prov).find(k => k !== ui.loja);
       const trocada = other && prov[other].pct != null && prov[other].pct >= 0.7 && !(mine && mine.pct != null && mine.pct >= 0.5);
       const st = r.stats; pend.estoque = { items: r.items, arquivo: file.name };
-      out.innerHTML = `<div class="paste-res">${conf ? confLista(conf.checks) + (conf.omitidosSemEstoque ? `<p class="notice info">Para caber no limite do site, só os ${int(r.items.length)} produtos <b>com estoque</b> serão gravados (${int(conf.omitidosSemEstoque)} com estoque zero ficam de fora; a promoção não usa produto sem estoque).</p>` : "") : ""}<b>${int(st.linhas)} produtos lidos</b> · ${int(st.semCusto)} sem custo (${pct(st.semCusto / st.linhas)})${st.duplicados ? ` · ${st.duplicados} duplicados ignorados` : ""}${st.semBarras ? ` · ${st.semBarras} sem código de barras ignorados` : ""}
+      const estAuto = !!(conf && conf.auto && !conf.auto.erro && !conf.auto.pulou); if (estAuto) aposAuto(conf);
+      out.innerHTML = `<div class="paste-res">${conf ? confLista(conf.checks) + autoHtml(conf.auto) + (conf.omitidosSemEstoque ? `<p class="notice info">Para caber no limite do site, só os ${int(r.items.length)} produtos <b>com estoque</b> serão gravados (${int(conf.omitidosSemEstoque)} com estoque zero ficam de fora; a promoção não usa produto sem estoque).</p>` : "") : ""}<b>${int(st.linhas)} produtos lidos</b> · ${int(st.semCusto)} sem custo (${pct(st.semCusto / st.linhas)})${st.duplicados ? ` · ${st.duplicados} duplicados ignorados` : ""}${st.semBarras ? ` · ${st.semBarras} sem código de barras ignorados` : ""}
         ${!st.temCusto ? `<p class="notice">A planilha não tem a coluna de custo (Últ. Prc. Entrada): sem custo não existe piso.</p>` : ""}
         ${st.semCusto / st.linhas > 0.3 ? `<p class="notice"><b>Muitos itens sem custo.</b> Neles dá para sugerir preço, mas não dá para afirmar que o piso é respeitado.</p>` : ""}
         ${trocada ? `<p class="notice"><b>Esta planilha parece ser de ${esc(clientOf(other).name)}, não de ${esc(clientOf(ui.loja).name)}:</b> o custo dos produtos em comum bate com a outra loja (${pct(prov[other].pct)}). Confira antes de gravar.</p>` : (mine && mine.pct != null ? `<p class="src">Conferência: o custo de ${pct(mine.pct)} dos produtos em comum bate com a base atual desta loja.</p>` : "")}
-        ${podeEditar ? `<button type="button" class="btn primary" id="im-est-go">Gravar estoque de ${esc(clientOf(ui.loja).name)}</button>` : ""}</div>`;
+        ${podeEditar && !estAuto ? `<button type="button" class="btn primary" id="im-est-go">Gravar estoque de ${esc(clientOf(ui.loja).name)}</button>` : ""}</div>`;
       const go = $("#im-est-go", v); if (go) go.onclick = () => commit(v, go, async () => { const rr = await api("/api/promo", { action: "estoque", loja: ui.loja, items: pend.estoque.items, arquivo: pend.estoque.arquivo }); return `Estoque gravado: ${rr.produtos} produtos${rr.foraDaLista ? ` (${rr.foraDaLista} saíram da lista e ficaram com estoque 0)` : ""}.`; });
     } catch (e) { out.innerHTML = `<p class="notice">${esc(e.message)}</p>`; }
   }
@@ -317,6 +319,23 @@
   }
 
   /* resultado do agente local para um PDF de vendas: mostra a conferência e só deixa gravar se TUDO fechou */
+  /* o servidor já gravou sozinho (vendas, estoque, semanas): resume, atualiza a tela e o estado em memória (Painel, Semana, Insights, Relatórios) */
+  async function aposAuto(j) {
+    bust(ui.loja);
+    try { const st = await api("/api/state"); if (root.N7Store && st.state && st.state.weeks) root.N7Store.hydrate({ weeks: st.state.weeks }); } catch (e) { /* a próxima carga atualiza */ }
+    if (root.N7VendasBrain) root.N7VendasBrain.invalidate();
+  }
+  const autoHtml = au => {
+    if (!au) return "";
+    if (au.erro) return `<p class="notice"><b>O servidor não gravou sozinho:</b> ${esc(au.erro)}</p>`;
+    if (au.pulou) return `<p class="notice">${esc(au.pulou)}</p>`;
+    const t = [];
+    if (au.vendas) t.push(`vendas de ${dm(au.vendas.inicio)} a ${dm(au.vendas.fim)} (${int(au.vendas.produtos)} produtos)`);
+    if (au.estoque) t.push(`estoque (${int(au.estoque.produtos)} produtos)`);
+    if (au.semanas) { if (au.semanas.gravadas.length) t.push(`${au.semanas.gravadas.length} semana(s) na Análise semanal`); }
+    return `<p class="notice info"><b>✔ Gravado automaticamente no site:</b> ${t.join(" · ") || "nada novo"}. Painel, Semana, Insights, Relatórios e a Central de Inteligência já usam esses números.</p>${au.semanas && au.semanas.divergentes.length ? `<p class="notice"><b>${au.semanas.divergentes.length} semana(s) NÃO foram sobrescritas</b> porque já há um número digitado à mão diferente: ${au.semanas.divergentes.map(d => dm(d.inicio) + " (site " + R$(d.noSiteCentavos) + " × PDF " + R$(d.noPdfCentavos) + ")").join("; ")}. Veja em Análise semanal e decida qual vale.</p>` : ""}`;
+  };
+
   function cardAgente(card, file, j, last) {
     const h = j.header || {}, cov = j.cobertura, cnpjDiff = last && h.cnpj && last !== h.cnpj;
     const naOutra = h.cnpj && lojas.find(l => l.key !== ui.loja && cache[l.key] && cache[l.key].data.importacoes.some(x => String(x.arquivo || "").includes("CNPJ " + h.cnpj)));
@@ -325,11 +344,13 @@
     card.innerHTML = `<b>${esc(file.name)}</b> <span class="src">${j.ok ? "✔ conferido ao centavo" : "✘ recusado pela conferência"}</span><div class="src">${esc(h.empresa || "empresa não identificada")}${h.cnpj ? " · CNPJ " + esc(h.cnpj) : ""} · ${int(j.paginas)} página(s) · emitido ${h.emissao ? dm(h.emissao.data) + " " + esc(h.emissao.hora) : "—"} · lido em ${dec((j.ms || 0) / 1000, 1)} s</div>
       <p><b>${int(j.linhas)} vendas lidas</b>${j.ajustes ? ` (+ ${j.ajustes} ajuste(s) de arredondamento)` : ""}${h.periodo ? ` · período ${dm(h.periodo.inicio)} a ${dm(h.periodo.fim)}` : ""} · ${int(j.nProdutos)} produtos · ${brl((j.totalProdutosCentavos || 0) / 100)} em produtos</p>
       ${confLista(j.checks || [])}
+      ${autoHtml(j.auto)}
       ${janelaHtml(j.janela)}
       ${j.diaParcial ? `<p class="notice info">O relatório saiu no último dia durante o expediente: <b>${dm(j.diaParcial)} fica de fora</b> por estar cortado. Cobertura gravada: ${cov ? dm(cov.inicio) + " a " + dm(cov.fim) : "—"}.</p>` : ""}
       ${bloqueio}${cnpjDiff ? `<p class="notice"><b>O CNPJ deste PDF (${esc(h.cnpj)}) é diferente do último importado nesta loja (${esc(last)}).</b> Confira se é a loja certa antes de gravar.</p>` : ""}`;
-    if (j.ok && cov && !outraLoja && j.janela) pend.janelas.push({ nome: file.name, emissao: h.emissao ? h.emissao.data + h.emissao.hora : "", semanas: j.janela.semanas.filter(w => w.completa) });
-    pend.vendas.push({ nome: file.name, produtos: j.produtos, inicio: cov && cov.inicio, fim: cov && cov.fim, dia: j.diaParcial || "", linhas: j.linhas, cand: j.linhas, cnpj: h.cnpj || "", ok: !!(j.ok && cov && !outraLoja), conf: { totalCentavos: j.totalRodapeCentavos, somaCentavos: j.somaCentavos } });
+    const gravouSozinho = !!(j.auto && !j.auto.erro && !j.auto.pulou); if (gravouSozinho) aposAuto(j);
+    if (j.ok && cov && !outraLoja && j.janela && !gravouSozinho) pend.janelas.push({ nome: file.name, emissao: h.emissao ? h.emissao.data + h.emissao.hora : "", semanas: j.janela.semanas.filter(w => w.completa) });
+    if (!gravouSozinho) pend.vendas.push({ nome: file.name, produtos: j.produtos, inicio: cov && cov.inicio, fim: cov && cov.fim, dia: j.diaParcial || "", linhas: j.linhas, cand: j.linhas, cnpj: h.cnpj || "", ok: !!(j.ok && cov && !outraLoja), conf: { totalCentavos: j.totalRodapeCentavos, somaCentavos: j.somaCentavos } });
   }
 
   async function prepareSales(v, c, files) {
@@ -367,7 +388,7 @@
       const b = document.createElement("button"); b.type = "button"; b.className = "btn primary"; b.id = "im-ven-go"; b.textContent = `Gravar ${pend.vendas.length} relatório(s) de vendas de ${clientOf(ui.loja).name}`; out.appendChild(b);
       b.onclick = () => commit(v, b, async () => {
         let n = 0;
-        for (const x of pend.vendas) { b.textContent = `Gravando ${++n} de ${pend.vendas.length}…`; await api("/api/promo", { action: "vendas", loja: ui.loja, produtos: x.produtos, inicio: x.inicio, fim: x.fim, diaDescartado: x.dia, linhas: x.linhas, candidatas: x.cand, conferencia: x.conf || undefined, arquivo: (x.nome + (x.cnpj ? " · CNPJ " + x.cnpj : "") + (x.conf ? " · conferido" : "")).slice(0, 120) }); }
+        for (const x of pend.vendas) { b.textContent = `Gravando ${++n} de ${pend.vendas.length}…`; await api("/api/promo", { action: "vendas", loja: ui.loja, produtos: x.produtos, inicio: x.inicio, fim: x.fim, diaDescartado: x.dia, linhas: x.linhas, candidatas: x.cand, conferencia: x.conf || undefined, cnpj: x.cnpj || undefined, arquivo: (x.nome + (x.cnpj ? " · CNPJ " + x.cnpj : "") + (x.conf ? " · conferido" : "")).slice(0, 120) }); }
         return `${pend.vendas.length} relatório(s) de vendas gravados.`;
       });
     }

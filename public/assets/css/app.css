@@ -1225,3 +1225,6 @@ h2, h3, h4 { letter-spacing: -.005em; word-spacing: .05em; }
 .av-op { padding: 10px 12px; border-radius: 14px; background: rgba(127,127,127,.08); }
 .av-op small { text-transform: uppercase; letter-spacing: .04em; opacity: .65; display: block; } .av-op p { margin: 6px 0 0; font-size: .86rem; } .av-op .av-acao { font-weight: 600; }
 .av-lista { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+
+.av-sel { padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(127,127,127,.35); background: transparent; color: inherit; margin: 6px 0 10px; max-width: 100%; }
+.av-sem { padding: 6px 2px; }

@@ -106,3 +106,56 @@ test('cérebro no PowerShell: o agente pega os dados do site com a chave, roda T
     assert.equal(Object.keys(pub.cerebro.porAgente).length, B.AGENT_ORDER.length, 'os 26 agentes aparecem no resultado');
   } finally { if (agente) agente.kill(); srv.close(); delete process.env.LEITURA_TOKEN; delete process.env.N7_ARMAZEM; db._resetMemory(); require('../lib/fila').reset(); fs.rmSync(armazem, { recursive: true, force: true }); }
 });
+
+test('gravação automática e trava por loja: grava vendas e semanas sozinho, recusa PDF de outra loja e não sobrescreve número digitado à mão', async () => {
+  const TOKEN = 'teste-token-auto-gravar-da-agencia-0123456789a', armazem = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-arm-auto-'));
+  process.env.LEITURA_TOKEN = TOKEN; process.env.N7_ARMAZEM = armazem; db._resetMemory(); require('../lib/fila').reset();
+  const session = require('../lib/session'), { cfg } = require('../lib/config'), { createServer } = require('../dev-server');
+  const srv = createServer(); await new Promise(r => srv.listen(0, r)); const base = 'http://localhost:' + srv.address().port;
+  const adm = 'n7_session=' + encodeURIComponent(session.create({ email: 'dev@local', nome: 'Dev', papel: 'admin', tipo: 'equipe', empresas: [] }, cfg().sessionSecret, 600));
+  const J = async (url, o = {}) => { const r = await fetch(base + url, Object.assign({ headers: { cookie: adm, 'x-n7': '1', 'content-type': 'application/json' } }, o)); const t = Buffer.from(await r.arrayBuffer()); let j = null; try { j = JSON.parse(t.toString('utf8')); } catch (e) { /* binário */ } return { s: r.status, j, t }; };
+  const call = (acao, { body, raw, params = '' } = {}) => J(`/api/leitura?acao=${acao}${params}`, { method: body || raw ? 'POST' : 'GET', headers: Object.assign({ cookie: adm, 'x-n7': '1' }, raw ? { 'content-type': 'application/octet-stream' } : { 'content-type': 'application/json' }), body: raw || (body ? JSON.stringify(body) : undefined) });
+  const enviar = async (loja, nome, buf) => { const n = await call('nova', { body: { loja, tipo: 'vendas', nome, bytes: buf.length, partes: 1 } }); assert.equal(n.s, 200, JSON.stringify(n.j)); await call('parte', { raw: buf, params: `&id=${n.j.id}&n=0` }); await call('pronto', { body: {}, params: `&id=${n.j.id}` }); return n.j.id; };
+  let agente = null;
+  try {
+    agente = spawn(process.execPath, [path.join(__dirname, '..', 'scripts', 'analise-local', 'agente.js'), '--url', base, '--token', TOKEN, '--nucleos', '2'], { stdio: 'pipe', env: Object.assign({}, process.env, { N7_CEREBRO_INICIO_MS: '999999', N7_ROTINA_INICIO_MS: '999999' }) });
+    let saida = ''; agente.stdout.on('data', d => { saida += d; });
+    const resultado = async id => { for (let i = 0; i < 90; i++) { const st = await call('status', { params: `&id=${id}` }); if (st.j.estado === 'erro') throw new Error(st.j.erro + saida); if (st.j.estado === 'pronto') { const bufs = []; for (let n = 0; n < st.j.resultadoPartes; n++) bufs.push((await call('resultado', { params: `&id=${id}&n=${n}` })).t); return JSON.parse(Buffer.concat(bufs).toString('utf8')); } await new Promise(r => setTimeout(r, 400)); } throw new Error('não terminou ' + saida); };
+
+    /* 1. semana completa (03 a 09/08) na loja M: o servidor grava sozinho vendas e a semana */
+    const a = await resultado(await enviar('M', 'semana-3-a-9.pdf', pdfSimples(relatorio(3, 9, '12/08/2026 09:00'))));
+    assert.equal(a.ok, true, JSON.stringify(a.checks.filter(c => !c.ok))); assert.ok(a.auto && a.auto.vendas && a.auto.vendas.produtos === 2, JSON.stringify(a.auto));
+    assert.deepEqual(a.auto.semanas.gravadas, ['2026-08-03']); assert.equal(a.auto.semanas.divergentes.length, 0);
+    const st = (await J('/api/state')).j.state, w = st.weeks.find(x => x.marca === 'M' && x.inicio === '2026-08-03');
+    assert.ok(w && w.vendas === 175 && w.compras === 7 && w.dias.length === 7 && /PowerShell/.test(w.fonte), 'semana gravada sozinha: ' + JSON.stringify(w));
+    const promo = (await J('/api/promo?loja=M')).j; assert.ok(promo.items.length === 2 && promo.importacoes.some(i => /CNPJ 31689601000349/.test(i.arquivo)), 'vendas gravadas na base de Promoções da loja');
+
+    /* 2. o MESMO PDF (mesmo CNPJ) enviado para OUTRA loja é recusado e nada é gravado nela */
+    const b = await resultado(await enviar('F', 'mesmo-pdf-loja-errada.pdf', pdfSimples(relatorio(3, 9, '12/08/2026 09:00'))));
+    assert.equal(b.ok, false); assert.ok(b.checks.find(c => c.id === 'loja' && !c.ok && /loja M/.test(c.msg)), JSON.stringify(b.checks.filter(c => !c.ok))); assert.ok(!b.auto || b.auto.pulou, 'nada gravado na loja errada');
+    assert.equal((await J('/api/promo?loja=F')).j.items.length, 0, 'a base da loja F continua vazia');
+    assert.equal(require('../scripts/analise-local/armazem').carregar('F').dias.size, 0, 'o armazém da loja F continua vazio');
+
+    /* 3. número digitado à mão e diferente não é sobrescrito: vira aviso */
+    const manual = { t: 'week', op: 'upsert', tipo: 'semana', inicio: '2026-08-10', marca: 'M', vendas: 999, compras: 10, dias: [1, 1, 1, 1, 1, 1, 1], c100n: 0, c100rs: 0, ig: {}, fb: {}, ads: {}, janela: '', fonte: 'digitado', obs: '' };
+    assert.equal((await J('/api/mutate', { method: 'POST', body: JSON.stringify({ ops: [manual] }) })).s, 200);
+    const c = await resultado(await enviar('M', 'semana-10-a-16.pdf', pdfSimples(relatorio(10, 16, '20/08/2026 09:00'))));
+    assert.equal(c.auto.semanas.gravadas.length, 0); assert.equal(c.auto.semanas.divergentes.length, 1); assert.equal(c.auto.semanas.divergentes[0].noSiteCentavos, 99900);
+    assert.equal((await J('/api/state')).j.state.weeks.find(x => x.marca === 'M' && x.inicio === '2026-08-10').vendas, 999, 'o número digitado continua');
+  } finally { if (agente) agente.kill(); srv.close(); delete process.env.LEITURA_TOKEN; delete process.env.N7_ARMAZEM; db._resetMemory(); require('../lib/fila').reset(); fs.rmSync(armazem, { recursive: true, force: true }); }
+});
+
+test('ações do agente fora da análise: cria ideias no banco de ideias sem recriar nem alterar as que já existem, e exige a chave do computador', async () => {
+  const TOKEN = 'teste-token-ideias-da-agencia-0123456789abcd';
+  process.env.LEITURA_TOKEN = TOKEN; db._resetMemory(); require('../lib/fila').reset();
+  const { createServer } = require('../dev-server'), srv = createServer(); await new Promise(r => srv.listen(0, r)); const base = 'http://localhost:' + srv.address().port;
+  const post = (token, ideias) => fetch(`${base}/api/leitura?acao=ideias`, { method: 'POST', headers: { authorization: 'Bearer ' + token, 'content-type': 'application/octet-stream' }, body: JSON.stringify({ ideias }) });
+  try {
+    const ideia = { id: 'auto-M-categorias-fraldas-2026-W48', b: 'M', format: 'Carrossel', title: 'Minas Farma: Bebê: fraldas perde força', note: 'evidência — ação', src: 'categorias' };
+    assert.equal((await post('errado-errado-errado-errado-errado', [ideia])).status, 401);
+    const a = await (await post(TOKEN, [ideia, { id: 'sem-prefixo', b: 'M', title: 'x' }])).json(); assert.deepEqual(a.criadas, [ideia.id]);
+    const b = await (await post(TOKEN, [ideia])).json(); assert.deepEqual(b.criadas, []); assert.equal(b.jaExistiam, 1, 'a mesma ideia não é recriada');
+    const repo = db.getRepo(), M = require('../lib/model'), i = (await M.loadState(repo)).ideas.find(x => x.id === ideia.id);
+    assert.ok(i && i.stage === 'nova' && /Agente \(PowerShell\)/.test(i.src) && i.b === 'M');
+  } finally { srv.close(); delete process.env.LEITURA_TOKEN; db._resetMemory(); require('../lib/fila').reset(); }
+});
