@@ -84,3 +84,25 @@ test('rotina automática: com o armazém já cheio, o agente recalcula, publica 
     assert.ok(fs.existsSync(html), 'relatório HTML gravado'); assert.match(fs.readFileSync(html, 'utf8'), /Resumo executivo/); assert.ok(fs.readdirSync(path.join(relat, 'M')).some(n => /relatorio-M-\d{4}-\d{2}-\d{2}\.html/.test(n)), 'cópia com a data');
   } finally { if (agente) agente.kill(); srv.close(); delete process.env.LEITURA_TOKEN; delete process.env.N7_ARMAZEM; db._resetMemory(); require('../lib/fila').reset(); fs.rmSync(armazem, { recursive: true, force: true }); fs.rmSync(relat, { recursive: true, force: true }); }
 });
+
+test('cérebro no PowerShell: o agente pega os dados do site com a chave, roda TODOS os agentes (um por núcleo) e publica o resultado para a Central de Inteligência', async () => {
+  const TOKEN = 'teste-token-cerebro-da-agencia-0123456789abcd', armazem = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-arm-cer-'));
+  process.env.LEITURA_TOKEN = TOKEN; process.env.N7_ARMAZEM = armazem; db._resetMemory(); require('../lib/fila').reset();
+  require('../public/assets/js/analysis.js');
+  const session = require('../lib/session'), { cfg } = require('../lib/config'), { createServer } = require('../dev-server'), B = require('../public/assets/js/brain/index.mjs').default;
+  const srv = createServer(); await new Promise(r => srv.listen(0, r)); const base = 'http://localhost:' + srv.address().port;
+  const adm = 'n7_session=' + encodeURIComponent(session.create({ email: 'dev@local', nome: 'Dev', papel: 'admin', tipo: 'equipe', empresas: [] }, cfg().sessionSecret, 600));
+  let agente = null;
+  try {
+    assert.equal((await fetch(`${base}/api/leitura?acao=snapshot`)).status, 401, 'o snapshot só sai com a chave do computador');
+    assert.equal((await fetch(`${base}/api/leitura?acao=cerebro`, { headers: { cookie: adm, 'x-n7': '1' } })).status, 200);
+    agente = spawn(process.execPath, [path.join(__dirname, '..', 'scripts', 'analise-local', 'agente.js'), '--url', base, '--token', TOKEN, '--nucleos', '3', '--nome', 'PC-cerebro'], { stdio: 'pipe', env: Object.assign({}, process.env, { N7_CEREBRO_INICIO_MS: '300' }) });
+    let saida = ''; agente.stdout.on('data', d => { saida += d; });
+    let pub = null; for (let i = 0; i < 100 && !pub; i++) { const j = await (await fetch(`${base}/api/leitura?acao=cerebro`, { headers: { cookie: adm, 'x-n7': '1' } })).json(); if (j.cerebro) pub = j.cerebro; else await new Promise(r => setTimeout(r, 500)); }
+    assert.ok(pub, 'o cérebro foi publicado: ' + saida);
+    assert.equal(pub.agentes.length, B.RUNNERS.length, 'todas as funções de agente rodaram'); assert.equal(pub.execucao.fases, 2); assert.ok(pub.execucao.nucleosUsados >= 2 && pub.execucao.nucleosUsados <= 3);
+    assert.equal(new Set(pub.agentes.map(a => a.nucleo)).size > 1, true, 'agentes distribuídos em mais de um núcleo');
+    assert.ok(pub.cerebro && pub.cerebro.clientes.length >= 4 && pub.cerebro.total > 0 && pub.cerebro.decisao, 'decisão e achados calculados lá'); assert.equal(pub.computador, 'PC-cerebro');
+    assert.equal(Object.keys(pub.cerebro.porAgente).length, B.AGENT_ORDER.length, 'os 26 agentes aparecem no resultado');
+  } finally { if (agente) agente.kill(); srv.close(); delete process.env.LEITURA_TOKEN; delete process.env.N7_ARMAZEM; db._resetMemory(); require('../lib/fila').reset(); fs.rmSync(armazem, { recursive: true, force: true }); }
+});

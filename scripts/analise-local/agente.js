@@ -5,7 +5,7 @@
    Configuração: %USERPROFILE%\.nova7\agente.json  {"url":"https://...","token":"..."}  (ou --url e --token, ou N7_URL e LEITURA_TOKEN).
    Uso: node agente.js [--url ...] [--token ...] [--nucleos N] [--nome MeuPC]   (o Agente.ps1 cuida de tudo isso) */
 const { Worker, isMainThread, parentPort } = require('node:worker_threads');
-const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
+const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto'), { spawn } = require('node:child_process');
 const VERSAO = 2;
 
 /* ---------- trabalhador: lê e confere UM arquivo que chegou como bytes ---------- */
@@ -85,6 +85,7 @@ async function calcularEPublicar(loja, motivo) {
     const RH = require('./relatorio-html'), dir = path.join(REL_DIR, String(loja).replace(/[^A-Za-z0-9_-]/g, '_')), html = RH.gerar(dados, { marca: MARCA }), hoje = new Date().toISOString().slice(0, 10);
     fs.mkdirSync(dir, { recursive: true }); arq = path.join(dir, `relatorio-${loja}.html`); fs.writeFileSync(arq, html); fs.writeFileSync(path.join(dir, `relatorio-${loja}-${hoje}.html`), html);
   } catch (e) { log(`Relatório HTML da loja ${loja} não gravado: ${e.message}`); }
+  agendarCerebro();
   log(`Análise completa da loja ${loja} ${motivo || 'recalculada'} em ${((Date.now() - t0) / 1000).toFixed(1)} s e publicada no site (${dados.cobertura.dias} dias, ${dados.geral.cupons} cupons).${arq ? ' Relatório: ' + arq : ''}`);
 }
 function recalcular(loja) {
@@ -125,6 +126,22 @@ async function rotina() {
   const Z = require('./armazem');
   for (const loja of Z.lojas()) { try { await calcularEPublicar(loja, 'atualizada pela rotina automática'); } catch (e) { log(`Rotina automática, loja ${loja}: ${e.message}`); } }
 }
+/* o cérebro inteiro (26 agentes, um por núcleo, com Promoções e Mercado do armazém) roda aqui e o resultado vai para a Central de Inteligência do site */
+let cerebroRodando = false;
+async function rodarCerebro() {
+  if (cerebroRodando) return; cerebroRodando = true; const t0 = Date.now(), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-cerebro-'));
+  try {
+    const snap = await chamar('snapshot'); snap.fonte = 'computador da agência (dados do site)'; const arq = path.join(dir, 'snapshot.json'); fs.writeFileSync(arq, JSON.stringify(snap));
+    const cod = await new Promise(res => { const p = spawn(process.execPath, [path.join(__dirname, 'analisar.js'), arq, dir, '--armazem', '--marca', MARCA, '--nucleos', String(nuc)], { stdio: 'ignore', env: process.env }); p.on('exit', res); p.on('error', () => res(-1)); });
+    if (!fs.existsSync(path.join(dir, 'resultado.json'))) throw new Error('a análise não gerou resultado (código ' + cod + ')');
+    const r = JSON.parse(fs.readFileSync(path.join(dir, 'resultado.json'), 'utf8'));
+    await chamar('publicar', { loja: '_cerebro' }, { metodo: 'POST', corpo: Buffer.from(JSON.stringify({ geradoEm: r.geradoEm, hoje: r.hoje, computador: NOME, execucao: r.execucao, agentes: r.agentes, cerebro: r.cerebro, lojas: r.lojas })) });
+    log(`Cérebro rodado no computador da agência: ${r.agentes.length} agentes em até ${r.execucao.nucleosUsados} núcleo(s), ${(r.execucao.tempoTotalMs / 1000).toFixed(1)} s, ${r.cerebro.total} achado(s)${r.cerebro.decisao ? '; decisão: ' + r.cerebro.decisao.titulo : ''}. Publicado no site (${((Date.now() - t0) / 1000).toFixed(1)} s no total).`);
+  } catch (e) { log('Cérebro: ' + e.message); } finally { cerebroRodando = false; fs.rmSync(dir, { recursive: true, force: true }); }
+}
+const CEREBRO_MS = Number(process.env.N7_CEREBRO_MS) || 30 * 60e3;
+setTimeout(rodarCerebro, Number(process.env.N7_CEREBRO_INICIO_MS) || 40000); setInterval(rodarCerebro, CEREBRO_MS);
+let esperaCerebro = null; const agendarCerebro = () => { clearTimeout(esperaCerebro); esperaCerebro = setTimeout(rodarCerebro, 8000); };
 const ROTINA_MS = Number(process.env.N7_ROTINA_MS) || 6 * 3600e3;
 setTimeout(rotina, Number(process.env.N7_ROTINA_INICIO_MS) || 20000); setInterval(rotina, ROTINA_MS);
 (async () => {

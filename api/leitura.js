@@ -10,6 +10,8 @@
    O computador da agência (cabeçalho Authorization: Bearer LEITURA_TOKEN, sem cookie):
      GET  ?acao=ola                         confere a chave (não mexe na fila)
      POST ?acao=publicar&loja=             análise profunda da loja (JSON, até 4 MB)
+     GET  ?acao=snapshot                   dados do site para os agentes rodarem no computador da agência
+     GET  ?acao=cerebro                    (site) última execução dos agentes no computador da agência
      GET  ?acao=analise                    (site) análises publicadas das lojas que a pessoa pode abrir
      GET  ?acao=proximo&nome=&nucleos=      pega o próximo arquivo da fila (e avisa que está ligado)
      GET  ?acao=baixar&id=&n=               pedaço n do arquivo
@@ -24,7 +26,7 @@ const { send, readJson, query, sameSiteRequest, handle } = require('../lib/http'
 const { authUser } = require('../lib/guard');
 const { cfg } = require('../lib/config');
 
-const DO_COMPUTADOR = new Set(['ola', 'publicar', 'proximo', 'baixar', 'batida', 'enviar', 'concluir', 'falhar']);
+const DO_COMPUTADOR = new Set(['ola', 'snapshot', 'publicar', 'proximo', 'baixar', 'batida', 'enviar', 'concluir', 'falhar']);
 
 async function bruto(req, limite) {
   if (Buffer.isBuffer(req.body)) { if (req.body.length > limite) throw F.bad('Pedaço grande demais', 413); return req.body; }
@@ -50,11 +52,16 @@ module.exports = handle(async (req, res) => {
       const j = await b.pegar(String(q.nome || 'pc').slice(0, 60));
       return send(res, 200, { job: j ? F.publico(j) : null });
     }
+    if (acao === 'snapshot') {                                                            /* tudo o que os agentes do cérebro leem, para rodarem no computador da agência */
+      const M = require('../lib/model'), DS = require('../lib/dataset'), repo = getRepo(), adm = { email: 'agente@computador', nome: 'Computador da agência', papel: 'admin', tipo: 'equipe', empresas: [] };
+      const state = await M.loadState(repo), registry = await M.loadRegistry(repo, adm), v = await DS.view(await M.activeClients(repo));
+      return send(res, 200, { N7: DS.filtered(null, { internal: true }, v), state, registry, now: new Date().toISOString() });
+    }
     if (acao === 'publicar') {                                                            /* análise profunda de uma loja, feita no computador da agência */
       if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido' });
       const loja = String(q.loja || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 20), buf = await bruto(req, 4000000);
       if (!loja) return send(res, 400, { error: 'Falta a loja' });
-      try { const j = JSON.parse(buf.toString('utf8')); if (!j || !j.geral) throw new Error('sem geral'); } catch (e) { return send(res, 400, { error: 'A análise publicada não é válida' }); }
+      try { const j = JSON.parse(buf.toString('utf8')); if (!j || !(loja === '_cerebro' ? j.execucao : j.geral)) throw new Error('formato'); } catch (e) { return send(res, 400, { error: 'A análise publicada não é válida' }); }
       await b.publicarAnalise(loja, buf); return send(res, 200, { ok: true, bytes: buf.length });
     }
     const j = await b.job(String(q.id || ''));
@@ -85,6 +92,10 @@ module.exports = handle(async (req, res) => {
     if (acao === 'estado') {
       const v = await b.ultimoVisto(), seg = v ? (Date.now() - v.visto) / 1000 : null;
       return send(res, 200, { online: seg != null && seg <= F.ONLINE_S, haSegundos: seg == null ? null : Math.round(seg), nucleos: v && v.info && v.info.nucleos || 0, computador: v && v.info && v.info.nome || '' });
+    }
+    if (acao === 'cerebro') {                                                              /* o que os agentes rodaram no computador da agência na última vez */
+      const x = (await b.analises()).find(y => y.loja === '_cerebro'); if (!x) return send(res, 200, { cerebro: null });
+      try { return send(res, 200, { cerebro: JSON.parse(x.dados.toString('utf8')), publicadoEm: new Date(x.em).toISOString() }); } catch (e) { return send(res, 200, { cerebro: null }); }
     }
     if (acao === 'analise') {                                                              /* análises publicadas, só das lojas que a pessoa pode abrir */
       const ok = new Set((await P.lojasDo(getRepo(), user)).map(c => c.key)), out = {};
