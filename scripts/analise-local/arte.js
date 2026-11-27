@@ -96,13 +96,17 @@ function modeloFechamento(kit, s, ctx) {
 }
 
 /* ---------- Edge ---------- */
-function renderizar(htmlFile, pngFile, W, H, { edge = acharEdge(), timeout = 60000 } = {}) {
+async function renderizar(htmlFile, pngFile, W, H, opcoes = {}) {
+  /* o Edge às vezes falha uma vez (outro navegador abrindo, disco ocupado): uma segunda tentativa resolve */
+  try { return await renderizarUmaVez(htmlFile, pngFile, W, H, opcoes); } catch (e) { if (/Não achei o Microsoft Edge/.test(e.message)) throw e; await new Promise(r => setTimeout(r, 2500)); return renderizarUmaVez(htmlFile, pngFile, W, H, Object.assign({}, opcoes, { timeout: 120000 })); }
+}
+function renderizarUmaVez(htmlFile, pngFile, W, H, { edge = acharEdge(), timeout = 60000 } = {}) {
   return new Promise((ok, falha) => {
     if (!edge) return falha(new Error('Não achei o Microsoft Edge nem o Chrome neste computador para montar a arte (defina N7_EDGE).'));
     const perfil = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-arte-'));
-    execFile(edge, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--hide-scrollbars', '--force-device-scale-factor=1', `--user-data-dir=${perfil}`, `--window-size=${W},${H}`, '--virtual-time-budget=1500', `--screenshot=${pngFile}`, url(htmlFile)], { timeout, windowsHide: true }, err => {
+    execFile(edge, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--hide-scrollbars', '--force-device-scale-factor=1', `--user-data-dir=${perfil}`, `--window-size=${W},${H}`, '--virtual-time-budget=1500', `--screenshot=${pngFile}`, url(htmlFile)], { timeout, windowsHide: true }, (err, so, se) => {
       try { fs.rmSync(perfil, { recursive: true, force: true }); } catch (e) { /* perfil temporário */ }
-      if (err && !fs.existsSync(pngFile)) return falha(new Error('O navegador não montou a arte: ' + String(err.message).slice(0, 120)));
+      if (err && !fs.existsSync(pngFile)) return falha(new Error('O navegador não montou a arte (' + (err.killed ? 'tempo esgotado' : 'código ' + err.code) + '): ' + String(se || so || '').replace(/\s+/g, ' ').slice(-220)));
       fs.existsSync(pngFile) ? ok(pngFile) : falha(new Error('O navegador não gerou a imagem.'));
     });
   });

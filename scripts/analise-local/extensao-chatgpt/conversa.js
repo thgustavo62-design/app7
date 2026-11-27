@@ -31,9 +31,10 @@
   }
   const textoDoCampo = el => String(el.tagName === 'TEXTAREA' ? el.value : el.innerText || '').trim();
 
+  const limpo = t => String(t || '').replace(/^\s*(ChatGPT disse:|ChatGPT said:)\s*/i, '').trim();
   function lerResposta(el) {
     const blocos = [...el.querySelectorAll('pre code')].map(c => c.innerText.trim()).filter(Boolean);
-    return { texto: String(el.innerText || '').replace(/^s*(ChatGPT disse:|ChatGPT said:)s*/i, '').trim(), blocos };
+    return { texto: limpo(el.innerText), blocos };
   }
 
   /* conversa: devolve { texto, blocos } ou lança Error com mensagem para a agência (login, limite, tempo...) */
@@ -60,11 +61,14 @@
       await dormir(500);
     }
     /* espera terminar: sem botão de parar e texto parado por um instante */
-    let anterior = '', desde = Date.now(); const inicio = Date.now();
+    /* só dá por terminada quando (1) já vimos o ChatGPT escrevendo ou passaram 25 s, (2) não está mais escrevendo e (3) há texto de verdade,
+       sem contar o título "ChatGPT disse:" (o modelo pode "pensar" vários segundos antes da primeira palavra) */
+    let anterior = '', desde = Date.now(), viuEscrever = false; const inicio = Date.now();
     for (;;) {
-      pulso(); const rs = ACHA.respostas(); ultimo = rs[rs.length - 1] || ultimo; const t = String(ultimo.innerText || '');
+      pulso(); const rs = ACHA.respostas(); ultimo = rs[rs.length - 1] || ultimo; const t = limpo(ultimo.innerText);
       if (t !== anterior) { anterior = t; desde = Date.now(); }
-      if (!ACHA.parar() && !ACHA.escrevendo() && t.trim() && Date.now() - desde >= estavelMs) break;
+      const agora = !!(ACHA.parar() || ACHA.escrevendo()); if (agora) { viuEscrever = true; desde = Date.now(); }
+      if (!agora && t && (viuEscrever || Date.now() - inicio > 25000) && Date.now() - desde >= estavelMs) break;
       if (Date.now() - inicio > tempoRespostaMs) throw new Error('O ChatGPT demorou demais para terminar a resposta.');
       await dormir(500);
     }

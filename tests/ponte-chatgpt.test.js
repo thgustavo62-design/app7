@@ -86,12 +86,13 @@ const campo = document.querySelector('.ProseMirror'), b = document.getElementByI
 campo.addEventListener('paste', e => { e.preventDefault(); campo.innerText = e.clipboardData.getData('text/plain'); b.disabled = false; });
 b.addEventListener('click', () => { if (b.getAttribute('aria-label') === 'Parar') return; const pedido = campo.innerText; campo.innerText = ''; window.__pedidos = (window.__pedidos || []).concat(pedido);
   chat.insertAdjacentHTML('beforeend', '<div data-chatgpt-search-unit-key="u"><h4 data-conversation-role="user"><span>Você disse:</span></h4><div>' + pedido + '</div></div>');
-  b.setAttribute('aria-label', 'Parar'); b.disabled = false; chat.insertAdjacentHTML('beforeend', '<div data-talvt-turn-state="in_progress"><div data-chatgpt-search-unit-key="a"><h4 data-conversation-role="assistant"><span>ChatGPT disse:</span></h4><div id="r"></div></div></div>');
-  setTimeout(() => { document.getElementById('r').textContent = '{"legenda":"Texto novo"}'; }, 400);
-  setTimeout(() => { b.setAttribute('aria-label', 'Enviar'); b.disabled = true; document.querySelector('[data-talvt-turn-state]').setAttribute('data-talvt-turn-state', 'complete'); }, 900); });
+  chat.insertAdjacentHTML('beforeend', '<div data-talvt-turn-state="idle"><div data-chatgpt-search-unit-key="a"><h4 data-conversation-role="assistant"><span>ChatGPT disse:</span></h4><div id="r"></div></div></div>');
+  setTimeout(() => { b.setAttribute('aria-label', 'Parar'); b.disabled = false; document.querySelector('[data-talvt-turn-state]').setAttribute('data-talvt-turn-state', 'in_progress'); }, 1500);
+  setTimeout(() => { document.getElementById('r').textContent = '{"legenda":"Texto novo"}'; }, 2200);
+  setTimeout(() => { b.setAttribute('aria-label', 'Enviar'); b.disabled = true; document.querySelector('[data-talvt-turn-state]').setAttribute('data-talvt-turn-state', 'complete'); }, 2700); });
 </script></body>`;
 
-test('conversa no visual atual do ChatGPT (títulos "ChatGPT disse:", botão que vira Parar)', { skip: ARTE.acharEdge() ? false : 'sem Edge/Chrome neste computador', timeout: 60000 }, async () => {
+test('conversa no visual atual do ChatGPT (o ChatGPT "pensa" 1,5 s antes de escrever: não pode dar a resposta por vazia)', { skip: ARTE.acharEdge() ? false : 'sem Edge/Chrome neste computador', timeout: 60000 }, async () => {
   const { chromium } = require('playwright-core'); const b = await chromium.launch({ channel: 'msedge', headless: true }); const pg = await b.newPage();
   try {
     await pg.setContent(PAGINA_NOVA); await pg.addScriptTag({ path: path.join(__dirname, '..', 'scripts', 'analise-local', 'extensao-chatgpt', 'conversa.js') });
