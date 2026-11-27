@@ -180,13 +180,31 @@ if (CRIC.ligado && CRIC.modo === 'extensao') {
   PONTE.ligar().then(p => { CRIC.ponte = PONTE; log(`Ponte com o Chrome ligada em 127.0.0.1:${p}. Extensão (instale uma vez em chrome://extensions > Carregar sem compactação): ${PONTE.pastaExtensao}`); }).catch(e => log('Ponte com o Chrome: ' + e.message));
 }
 /* manda a legenda (Google Doc) e as artes do rascunho para a pasta do post no Drive. Se falta a permissão de Editor, espera 20 minutos e avisa uma vez */
+/* Conta de serviço do Google não tem espaço para IMAGENS no "Meu Drive" de uma pessoa. Solução: com o app Google Drive para computador instalado, o agente
+   copia as artes para uma pasta do Drive no PC (ARTES\<empresa>\<código>) e o próprio Google envia. Pasta: agente.json "driveLocal", env N7_DRIVE_LOCAL ou achada sozinha. */
+function pastaDriveLocal() {
+  const cfgDir = process.env.N7_DRIVE_LOCAL || cfgArq.driveLocal; if (cfgDir) return fs.existsSync(cfgDir) || fs.existsSync(path.dirname(cfgDir)) ? cfgDir : '';
+  const cands = []; for (const L of 'GHIJKLMNOPQRSTUVWXYZDEF') for (const n of ['Meu Drive', 'My Drive']) cands.push(L + ':\\' + n);
+  for (const n of ['Google Drive', 'Meu Drive', 'My Drive']) cands.push(path.join(os.homedir(), n));
+  const raiz = cands.find(c => { try { return fs.statSync(c).isDirectory(); } catch (e) { return false; } }); return raiz ? path.join(raiz, 'ARTES') : '';
+}
+let driveLocalAvisado = false;
+function copiarParaDriveLocal(marca, codigo, imagens) {
+  const base = pastaDriveLocal(); if (!base) return 0;
+  const origem = path.join(PASTA_CRIATIVOS, CRI.slug(marca), codigo), destino = path.join(base, CRI.slug(marca), codigo); let n = 0;
+  fs.mkdirSync(destino, { recursive: true });
+  for (const nome of imagens || []) { const f = path.join(origem, nome); if (fs.existsSync(f)) { fs.copyFileSync(f, path.join(destino, nome)); n++; } }
+  if (n && !driveLocalAvisado) { driveLocalAvisado = true; log('Artes copiadas para o Drive do computador (' + base + '): o app do Google envia sozinho.'); }
+  return n;
+}
 async function exportarParaDrive(marca, codigo, imagens) {
-  if (Date.now() < exportarAte) return false;
+  let noDriveLocal = 0; try { noDriveLocal = copiarParaDriveLocal(marca, codigo, imagens); } catch (e) { log('Drive local, ' + codigo + ': ' + e.message); }
+  if (Date.now() < exportarAte) return noDriveLocal > 0;
   try {
     await chamar('exportar', {}, { metodo: 'POST', corpo: { marca, codigo } });
     const pasta = path.join(PASTA_CRIATIVOS, CRI.slug(marca), codigo); let n = 0;
-    for (const nome of imagens || []) { const f = path.join(pasta, nome); if (!fs.existsSync(f)) continue; await chamar('exportar', {}, { metodo: 'POST', corpo: { marca, codigo, arte: { nome, b64: fs.readFileSync(f).toString('base64') } } }); n++; }
-    ultimoErroExport = ''; log(`Drive: ${codigo} enviado para a pasta do post (legenda${n ? ' + ' + n + ' arte(s)' : ''}).`); return true;
+    for (const nome of noDriveLocal ? [] : imagens || []) { const f = path.join(pasta, nome); if (!fs.existsSync(f)) continue; await chamar('exportar', {}, { metodo: 'POST', corpo: { marca, codigo, arte: { nome, b64: fs.readFileSync(f).toString('base64') } } }); n++; }
+    ultimoErroExport = ''; log(`Drive: ${codigo} enviado para a pasta do post (legenda${n ? ' + ' + n + ' arte(s)' : noDriveLocal ? '; ' + noDriveLocal + ' arte(s) pelo Drive do computador' : ''}).`); return true;
   } catch (e) { exportarAte = Date.now() + 20 * 60e3; if (e.message !== ultimoErroExport) { ultimoErroExport = e.message; log(`Drive, ${codigo}: ${e.message}`); } return false; }
 }
 async function rodarCriativo(soAjustes) {

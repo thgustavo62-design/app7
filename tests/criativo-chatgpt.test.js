@@ -22,7 +22,7 @@ class DriveFalso {
 }
 
 test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, a arte da marca sai e o Drive recebe; erro de login pausa e volta; ajuste refaz', { skip: ARTE.acharEdge() ? false : 'sem Edge/Chrome neste computador', timeout: 240000 }, async () => {
-  const TOKEN = 'teste-token-chrome-da-agencia-0123456789abc', casa = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-casa-')), arm = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-arm-chr-')), cri = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-cri-')), marcas = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-marcas-')), extDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-ext-'));
+  const TOKEN = 'teste-token-chrome-da-agencia-0123456789abc', casa = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-casa-')), arm = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-arm-chr-')), cri = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-cri-')), marcas = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-marcas-')), extDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-ext-')), driveLocal = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'n7-dl-')), 'ARTES');
   fs.mkdirSync(path.join(casa, '.nova7')); fs.writeFileSync(path.join(casa, '.nova7', 'agente.json'), JSON.stringify({ chatgpt: { modo: 'extensao', abrirChrome: false } }));
   process.env.LEITURA_TOKEN = TOKEN; process.env.N7_FILA_DIAS = '400'; db._resetMemory(); require('../lib/fila').reset();
   const session = require('../lib/session'), { cfg } = require('../lib/config'), { createServer } = require('../dev-server'), D = require('../lib/drive-org'), F = require('../lib/feed');
@@ -34,7 +34,7 @@ test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, 
   let agente = null, extensaoViva = true; const pedidos = [];
   try {
     for (const m of ['M', 'F', 'C', 'N']) { assert.equal((await J('/api/drive', { method: 'POST', body: JSON.stringify({ acao: 'referencias', marca: m, v4: [{ handle: '@v4company', notas: 'capas com título grande' }], estilo: 'direto e acolhedor', evitar: 'prometer resultado' }) })).s, 200); await F.salvar(db.getRepo(), usuario, m, { pastas: [{ id: 'RAIZ_CRIACAO', status: 'producao' }] }); }
-    agente = spawn(process.execPath, [path.join(__dirname, '..', 'scripts', 'analise-local', 'agente.js'), '--url', base, '--token', TOKEN, '--nucleos', '2'], { stdio: 'pipe', env: Object.assign({}, process.env, { USERPROFILE: casa, HOME: casa, N7_PONTE_PORTA: '0', N7_EXTENSAO_DIR: extDir, N7_ARMAZEM: arm, N7_CRIATIVOS: cri, N7_MARCAS: marcas, N7_AJUSTES_MS: '1500', N7_CRIATIVO_INICIO_MS: '300', N7_CRIATIVO_PAUSA_MS: '1500', N7_CRIATIVO_MS: '3000', N7_CEREBRO_INICIO_MS: '999999', N7_ROTINA_INICIO_MS: '999999' }) });
+    agente = spawn(process.execPath, [path.join(__dirname, '..', 'scripts', 'analise-local', 'agente.js'), '--url', base, '--token', TOKEN, '--nucleos', '2'], { stdio: 'pipe', env: Object.assign({}, process.env, { USERPROFILE: casa, HOME: casa, N7_PONTE_PORTA: '0', N7_EXTENSAO_DIR: extDir, N7_DRIVE_LOCAL: driveLocal, N7_ARMAZEM: arm, N7_CRIATIVOS: cri, N7_MARCAS: marcas, N7_AJUSTES_MS: '1500', N7_CRIATIVO_INICIO_MS: '300', N7_CRIATIVO_PAUSA_MS: '1500', N7_CRIATIVO_MS: '3000', N7_CEREBRO_INICIO_MS: '999999', N7_ROTINA_INICIO_MS: '999999' }) });
     let saida = ''; agente.stdout.on('data', d => { saida += d; }); agente.stderr.on('data', d => { saida += '[err] ' + d; }); agente.on('exit', c => { saida += '[exit ' + c + ']'; });
     const rascunhos = async () => { const rs = []; for (const m of ['M', 'F', 'C', 'N']) rs.push(...((await J('/api/drive?marca=' + m + '&acao=rascunhos')).j.rascunhos || [])); return rs; };
     const esperarAte = async (fn, n = 240, ms = 500) => { for (let i = 0; i < n; i++) { const v = await fn(); if (v) return v; await new Promise(r => setTimeout(r, ms)); } return null; };
@@ -62,13 +62,17 @@ test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, 
     assert.ok(r.alertas.some(a => /garantia/.test(a)), 'a conformidade pega a promessa de garantia: ' + JSON.stringify(r.alertas));
     assert.ok(pedidos.length >= 2 && /Nunca prometa/.test(pedidos[1]) && /v4company/.test(pedidos[1]) && /SOMENTE com o JSON/.test(pedidos[1]), 'o pedido levou as regras, as referências da V4 e a exigência de JSON');
     const M = require('../lib/model'), over = (await M.loadState(db.getRepo())).overrides; assert.equal(over[r.codigo].status, 'prod'); assert.ok(!Object.values(over).some(o => o.status === 'pub' || o.status === 'agd'), 'nada vira publicado sozinho');
-    const pasta1 = await esperarAte(() => { const p = drive.pastas().find(x => x.name.includes('__' + r.codigo + '__')); return p && p.filhos.length >= 5 ? p : null; }, 120);
-    assert.ok(pasta1, 'a pasta do post nasceu no Drive com a legenda e as 4 artes: ' + saida);
+    const pasta1 = await esperarAte(() => { const p = drive.pastas().find(x => x.name.includes('__' + r.codigo + '__')); return p && p.filhos.length >= 1 ? p : null; }, 120);
+    assert.ok(pasta1, 'a pasta do post nasceu no Drive com a legenda: ' + saida);
+    /* imagens: vão para a pasta do Drive no computador (o app do Google envia), não pela API (a conta de serviço não tem espaço) */
+    const dest = path.join(driveLocal, r.marca.toLowerCase(), r.codigo); const copiadas = await esperarAte(() => { try { const l = fs.readdirSync(dest).sort(); return l.length >= 4 ? l : null; } catch (e) { return null; } }, 60);
+    assert.deepEqual(copiadas, r.imagens.slice().sort(), 'as 4 artes foram copiadas para a pasta do Drive do computador: ' + saida);
+    assert.ok(!pasta1.filhos.some(i => /^image\//.test(drive.itens.get(i).mimeType)), 'nenhuma imagem foi enviada pela API');
     /* 3) ajuste pelo site: o agente manda o rascunho anterior + o pedido ao ChatGPT e atualiza o mesmo Doc */
     assert.equal((await J('/api/drive', { method: 'POST', body: JSON.stringify({ acao: 'ajustar', codigo: r.codigo, instrucao: 'deixe mais curto' }) })).s, 200);
     const r2 = await esperarAte(async () => { const x = (await rascunhos()).find(y => y.codigo === r.codigo); return x && x.versao === 2 && x.status === 'novo' ? x : null; });
     assert.ok(r2, 'o agente refez o rascunho pelo ChatGPT: ' + saida); assert.equal(r2.legenda, 'Versão ajustada e mais curta.'); assert.match(pedidos[pedidos.length - 1], /deixe mais curto/); assert.match(pedidos[pedidos.length - 1], /Resultado garantido/);
     /* 4) extensão some (Chrome fechado): o agente não trava, avisa e não perde nada */
     extensaoViva = false; parar = true; await laco.catch(() => {});
-  } finally { if (agente) agente.kill(); srv.close(); D._trocarDrive(null); for (const k of ['LEITURA_TOKEN', 'N7_FILA_DIAS']) delete process.env[k]; db._resetMemory(); require('../lib/fila').reset(); [casa, arm, cri, marcas, extDir].forEach(d => fs.rmSync(d, { recursive: true, force: true })); }
+  } finally { if (agente) agente.kill(); srv.close(); D._trocarDrive(null); for (const k of ['LEITURA_TOKEN', 'N7_FILA_DIAS']) delete process.env[k]; db._resetMemory(); require('../lib/fila').reset(); [casa, arm, cri, marcas, extDir, path.dirname(driveLocal)].forEach(d => fs.rmSync(d, { recursive: true, force: true })); }
 });
