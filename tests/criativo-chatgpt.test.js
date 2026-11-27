@@ -65,7 +65,7 @@ test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, 
     const pasta1 = await esperarAte(() => { const p = drive.pastas().find(x => x.name.includes('__' + r.codigo + '__')); return p && p.filhos.length >= 1 ? p : null; }, 120);
     assert.ok(pasta1, 'a pasta do post nasceu no Drive com a legenda: ' + saida);
     /* imagens: vão para a pasta do Drive no computador (o app do Google envia), não pela API (a conta de serviço não tem espaço) */
-    const dest = path.join(driveLocal, r.marca.toLowerCase(), r.codigo); const copiadas = await esperarAte(() => { try { const l = fs.readdirSync(dest).sort(); return l.length >= 4 ? l : null; } catch (e) { return null; } }, 60);
+    const dest = path.join(driveLocal, { M: 'Minas Farma', F: 'Farma e Farma', C: 'Campo Forte', N: 'Nova7' }[r.marca], r.codigo); const copiadas = await esperarAte(() => { try { const l = fs.readdirSync(dest).sort(); return l.length >= 4 ? l : null; } catch (e) { return null; } }, 60);
     assert.deepEqual(copiadas, r.imagens.slice().sort(), 'as 4 artes foram copiadas para a pasta do Drive do computador: ' + saida);
     assert.ok(!pasta1.filhos.some(i => /^image\//.test(drive.itens.get(i).mimeType)), 'nenhuma imagem foi enviada pela API');
     /* 3) ajuste pelo site: o agente manda o rascunho anterior + o pedido ao ChatGPT e atualiza o mesmo Doc */

@@ -188,10 +188,11 @@ function pastaDriveLocal() {
   for (const n of ['Google Drive', 'Meu Drive', 'My Drive']) cands.push(path.join(os.homedir(), n));
   const raiz = cands.find(c => { try { return fs.statSync(c).isDirectory(); } catch (e) { return false; } }); return raiz ? path.join(raiz, 'ARTES') : '';
 }
+const NOMES_PASTA = { M: 'Minas Farma', F: 'Farma e Farma', C: 'Campo Forte', N: 'Nova7' };
 let driveLocalAvisado = false;
 function copiarParaDriveLocal(marca, codigo, imagens) {
   const base = pastaDriveLocal(); if (!base) return 0;
-  const origem = path.join(PASTA_CRIATIVOS, CRI.slug(marca), codigo), destino = path.join(base, CRI.slug(marca), codigo); let n = 0;
+  const origem = path.join(PASTA_CRIATIVOS, CRI.slug(marca), codigo), destino = path.join(base, NOMES_PASTA[marca] || CRI.slug(marca), codigo); let n = 0;
   fs.mkdirSync(destino, { recursive: true });
   for (const nome of imagens || []) { const f = path.join(origem, nome); if (fs.existsSync(f)) { fs.copyFileSync(f, path.join(destino, nome)); n++; } }
   if (n && !driveLocalAvisado) { driveLocalAvisado = true; log('Artes copiadas para o Drive do computador (' + base + '): o app do Google envia sozinho.'); }
