@@ -67,14 +67,13 @@ test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, 
     assert.ok(jb.mensagens[0].anexos.length >= 1 && jb.mensagens[0].anexos[0].b64.length > 100, 'o logotipo foi anexado'); assert.match(jb.mensagens[0].texto, /3D premium/); assert.match(jb.mensagens[0].texto, /Como cuidar bem/); assert.match(jb.mensagens[1].texto, /Passo um/); assert.match(jb.mensagens[1].texto, /MESMO carrossel/); assert.ok(!jb.mensagens[1].anexos, 'só a primeira mensagem leva anexos');
     assert.ok(r.alertas.some(a => /gerada pelo ChatGPT/.test(a)), 'avisa para conferir a ortografia: ' + JSON.stringify(r.alertas));
     const M = require('../lib/model'), over = (await M.loadState(db.getRepo())).overrides; assert.equal(over[r.codigo].status, 'prod'); assert.ok(!Object.values(over).some(o => o.status === 'pub' || o.status === 'agd'), 'nada vira publicado sozinho');
-    const pasta1 = await esperarAte(() => { const p = drive.pastas().find(x => x.name.includes('__' + r.codigo + '__')); return p && p.filhos.length >= 1 ? p : null; }, 120);
-    assert.ok(pasta1, 'a pasta do post nasceu no Drive com a legenda: ' + saida);
     /* imagens: vão para a pasta do Drive no computador (o app do Google envia), não pela API (a conta de serviço não tem espaço) */
-    const dest = path.join(driveLocal, { M: 'Minas Farma', F: 'Farma e Farma', C: 'Campo Forte', N: 'Nova7' }[r.marca], r.codigo); const copiadas = await esperarAte(() => { try { const l = fs.readdirSync(dest).filter(n => n !== '_preview').sort(); return l.length >= 4 ? l : null; } catch (e) { return null; } }, 60);
+    const dest = path.join(driveLocal, { M: 'Minas Farma', F: 'Farma e Farma', C: 'Campo Forte', N: 'Nova7' }[r.marca], r.codigo); const copiadas = await esperarAte(() => { try { const l = fs.readdirSync(dest).filter(n => /.png$/.test(n)).sort(); return l.length >= 4 ? l : null; } catch (e) { return null; } }, 60);
     assert.deepEqual(copiadas, r.imagens.slice().sort(), 'as 4 artes foram copiadas para a pasta do Drive do computador: ' + saida);
     const minis = fs.readdirSync(path.join(dest, '_preview')).sort(); assert.deepEqual(minis, r.imagens.map(n => n.replace('.png', '.jpg')).sort(), 'as miniaturas do preview também foram para o Drive do computador');
     const rp = (await rascunhos()).find(x => x.codigo === r.codigo); assert.deepEqual(rp.previews.slice().sort(), minis, 'o site sabe quais miniaturas existem'); assert.equal(rp.pastaArtes, { M: 'Minas Farma', F: 'Farma e Farma', C: 'Campo Forte', N: 'Nova7' }[r.marca] + '/' + r.codigo);
-    assert.ok(!pasta1.filhos.some(i => /^image\//.test(drive.itens.get(i).mimeType)), 'nenhuma imagem foi enviada pela API');
+    assert.equal(drive.pastas().length, 0, 'nada foi criado pela API do Drive (a conta de serviço não tem espaço)');
+    const leg = await esperarAte(() => { try { return fs.readFileSync(path.join(dest, 'LEGENDA.txt'), 'utf8'); } catch (e) { return null; } }, 60); assert.match(leg, /LEGENDA PARA COPIAR\nResultado garantido/); assert.match(leg, /ALERTAS PARA REVISAR/);
     /* 3) ajuste pelo site: o agente manda o rascunho anterior + o pedido ao ChatGPT e atualiza o mesmo Doc */
     assert.equal((await J('/api/drive', { method: 'POST', body: JSON.stringify({ acao: 'ajustar', codigo: r.codigo, instrucao: 'deixe mais curto' }) })).s, 200);
     const r2 = await esperarAte(async () => { const x = (await rascunhos()).find(y => y.codigo === r.codigo); return x && x.versao === 2 && x.status === 'novo' ? x : null; }, 500);

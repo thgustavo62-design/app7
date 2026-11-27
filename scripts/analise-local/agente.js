@@ -192,19 +192,24 @@ function pastaDriveLocal() {
 }
 const NOMES_PASTA = { M: 'Minas Farma', F: 'Farma e Farma', C: 'Campo Forte', N: 'Nova7' };
 let driveLocalAvisado = false;
-function copiarParaDriveLocal(marca, codigo, imagens) {
+/* texto da legenda para a pasta do post (a API do Google não deixa a conta de serviço criar arquivo nenhum no Meu Drive de uma pessoa, nem Doc) */
+const textoLegenda = r => ['LEGENDA PARA COPIAR\n' + (r.legenda || ''), r.hashtags && r.hashtags.length ? 'HASHTAGS\n' + r.hashtags.join(' ') : '', r.roteiro && r.roteiro.length ? 'ROTEIRO\n' + r.roteiro.map((x, i) => (i + 1) + '. ' + x).join('\n') : '', r.alertas && r.alertas.length ? 'ALERTAS PARA REVISAR ANTES DE PUBLICAR\n- ' + r.alertas.join('\n- ') : '', 'RASCUNHO GERADO POR IA: revise e aprove no site antes de publicar. Nada é publicado sozinho.'].filter(Boolean).join('\n\n') + '\n';
+function copiarParaDriveLocal(marca, codigo, imagens, rascunho) {
   const base = pastaDriveLocal(); if (!base) return 0;
   const origem = path.join(PASTA_CRIATIVOS, CRI.slug(marca), codigo), destino = path.join(base, NOMES_PASTA[marca] || CRI.slug(marca), codigo); let n = 0;
   fs.mkdirSync(destino, { recursive: true });
+  if (rascunho && rascunho.legenda) fs.writeFileSync(path.join(destino, 'LEGENDA.txt'), '\uFEFF' + textoLegenda(rascunho), 'utf8');
   for (const nome of imagens || []) { const f = path.join(origem, nome); if (fs.existsSync(f)) { fs.copyFileSync(f, path.join(destino, nome)); n++; } }
   /* miniaturas do preview do site: o site as lê do Drive (ARTES/<empresa>/<código>/_preview) */
   const prev = path.join(origem, '_preview'); if (fs.existsSync(prev)) { fs.mkdirSync(path.join(destino, '_preview'), { recursive: true }); for (const n2 of fs.readdirSync(prev)) fs.copyFileSync(path.join(prev, n2), path.join(destino, '_preview', n2)); }
   if (n && !driveLocalAvisado) { driveLocalAvisado = true; log('Artes copiadas para o Drive do computador (' + base + '): o app do Google envia sozinho.'); }
   return n;
 }
-async function exportarParaDrive(marca, codigo, imagens) {
-  let noDriveLocal = 0; try { noDriveLocal = copiarParaDriveLocal(marca, codigo, imagens); } catch (e) { log('Drive local, ' + codigo + ': ' + e.message); }
-  if (Date.now() < exportarAte) return noDriveLocal > 0;
+async function exportarParaDrive(marca, codigo, imagens, rascunho) {
+  let noDriveLocal = 0; try { noDriveLocal = copiarParaDriveLocal(marca, codigo, imagens, rascunho); } catch (e) { log('Drive local, ' + codigo + ': ' + e.message); }
+  /* com o Drive do computador, está tudo na pasta (legenda, artes e miniaturas): não há o que mandar pela API (que só dá erro de espaço) */
+  if (noDriveLocal > 0) { log(`Drive: ${codigo}: legenda, artes e miniaturas na pasta do Drive do computador (ARTES/${NOMES_PASTA[marca] || CRI.slug(marca)}/${codigo}).`); return true; }
+  if (Date.now() < exportarAte) return false;
   try {
     await chamar('exportar', {}, { metodo: 'POST', corpo: { marca, codigo } });
     const pasta = path.join(PASTA_CRIATIVOS, CRI.slug(marca), codigo); let n = 0;
@@ -220,7 +225,7 @@ async function refazerPreviews(lista) {
     try {
       const pasta = path.join(PASTA_CRIATIVOS, CRI.slug(p.marca), p.codigo); if (!(p.imagens || []).some(n => fs.existsSync(path.join(pasta, n)))) continue;
       const nomes = await ARTE.miniaturas(pasta, p.imagens); if (!nomes.length) continue;
-      try { copiarParaDriveLocal(p.marca, p.codigo, p.imagens); } catch (e) { /* sem Drive local */ }
+      try { copiarParaDriveLocal(p.marca, p.codigo, p.imagens, p); } catch (e) { /* sem Drive local */ }
       await chamar('previews', {}, { metodo: 'POST', corpo: { codigo: p.codigo, previews: nomes, pastaArtes: nomePastaArtes(p.marca, p.codigo) } }); log(`Preview: ${nomes.length} miniatura(s) de ${p.codigo} no site.`);
     } catch (e) { log(`Preview, ${p.codigo}: ${e.message}`); }
   }
@@ -244,7 +249,7 @@ async function rodarCriativo(soAjustes) {
         const r = await CRI.rascunhoDe(item, CRIC, { pastaBase: PASTA_CRIATIVOS, estado, log }), { artes, pasta, kit, ...limpo } = r; limpo.pastaArtes = nomePastaArtes(item.marca, item.codigo);
         await chamar('rascunho', {}, { metodo: 'POST', corpo: limpo }); n++; feitos.add(item.codigo);
         log(`${item.ajuste ? 'Rascunho ajustado' : 'Rascunho criado'} para ${item.codigo} (${item.cliente}): "${item.titulo}"${r.canvaUrl ? ' + design no Canva' : ''}${r.imagens.length ? ' + ' + r.imagens.length + ' arte(s) da marca' : ''}${r.alertas.length ? ' · ' + r.alertas.length + ' alerta(s) para revisar' : ''}. Aguarda a sua aprovação.`);
-        await exportarParaDrive(item.marca, item.codigo, r.imagens);
+        await exportarParaDrive(item.marca, item.codigo, r.imagens, r);
       } catch (e) {
         log(`Criativo, ${item.codigo}: ${e.message}`);
         if (e.codigo) { pausaCriativoAte = Date.now() + (Number(process.env.N7_CRIATIVO_PAUSA_MS) || 5 * 60e3); break; }   // ChatGPT sem login/limite/fora do ar: não insiste em cada pauta, tenta de novo em 5 min
