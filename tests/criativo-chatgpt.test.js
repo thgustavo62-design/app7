@@ -31,7 +31,7 @@ test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, 
   const usuario = { email: 'dev@local', nome: 'Dev', papel: 'admin', tipo: 'equipe', empresas: [] };
   const adm = 'n7_session=' + encodeURIComponent(session.create(usuario, cfg().sessionSecret, 600));
   const J = async (u, o = {}) => { const r = await fetch(base + u, Object.assign({ headers: { cookie: adm, 'x-n7': '1', 'content-type': 'application/json' } }, o)); return { s: r.status, j: await r.json().catch(() => null) }; };
-  let agente = null, extensaoViva = true; const pedidos = [];
+  let agente = null, extensaoViva = true; const pedidos = [], jobsImagem = []; const PNG1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
   try {
     for (const m of ['M', 'F', 'C', 'N']) { assert.equal((await J('/api/drive', { method: 'POST', body: JSON.stringify({ acao: 'referencias', marca: m, v4: [{ handle: '@v4company', notas: 'capas com título grande' }], estilo: 'direto e acolhedor', evitar: 'prometer resultado' }) })).s, 200); await F.salvar(db.getRepo(), usuario, m, { pastas: [{ id: 'RAIZ_CRIACAO', status: 'producao' }] }); }
     agente = spawn(process.execPath, [path.join(__dirname, '..', 'scripts', 'analise-local', 'agente.js'), '--url', base, '--token', TOKEN, '--nucleos', '2'], { stdio: 'pipe', env: Object.assign({}, process.env, { USERPROFILE: casa, HOME: casa, N7_PONTE_PORTA: '0', N7_EXTENSAO_DIR: extDir, N7_DRIVE_LOCAL: driveLocal, N7_ARMAZEM: arm, N7_CRIATIVOS: cri, N7_MARCAS: marcas, N7_AJUSTES_MS: '1500', N7_CRIATIVO_INICIO_MS: '300', N7_CRIATIVO_PAUSA_MS: '1500', N7_CRIATIVO_MS: '3000', N7_CEREBRO_INICIO_MS: '999999', N7_ROTINA_INICIO_MS: '999999' }) });
@@ -47,7 +47,9 @@ test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, 
       while (!parar) {
         if (!extensaoViva) { await new Promise(r => setTimeout(r, 200)); continue; }
         let r; try { r = await ponte('/job?espera=2'); } catch (e) { break; }
-        if (r.status !== 200) continue; const job = await r.json(); pedidos.push(job.prompt); let corpo;
+        if (r.status !== 200) continue; const job = await r.json();
+        if (job.mensagens) { jobsImagem.push(job); await ponte('/resultado', { method: 'POST', body: JSON.stringify({ id: job.id, resultados: job.mensagens.map(() => ({ texto: '', blocos: [], imagens: [{ mime: 'image/png', b64: PNG1, w: 1122, h: 1402 }] })) }) }); continue; }
+        pedidos.push(job.prompt); let corpo;
         if (primeira) { primeira = false; corpo = { id: job.id, erro: 'O ChatGPT não está logado neste Chrome: entre na conta da agência em chatgpt.com.' }; }
         else if (/Seu rascunho anterior/.test(job.prompt)) corpo = { id: job.id, texto: 'Pronto, ajustei.', blocos: [JSON.stringify({ legenda: 'Versão ajustada e mais curta.', arte: { tag: 'Dica', titulo: 'Título ajustado', slides: [{ titulo: 'Só um passo', texto: 'Simples assim.' }] }, hashtags: [], alertas: [] })] };
         else corpo = { id: job.id, texto: 'Claro! Aqui está o rascunho:', blocos: [JSON.stringify({ legenda: 'Resultado garantido para quem participar!', arte: { tag: 'Dica da farmácia', titulo: 'Como cuidar bem', subtitulo: 'Três passos simples', cta: 'Fale com a gente', slides: [{ titulo: 'Passo um', texto: 'Separe o que precisa.' }, { titulo: 'Passo dois', texto: 'Confira com calma.' }] }, briefArte: 'balcão de farmácia com luz natural', hashtags: ['#teste'], alertas: [] })] };
@@ -61,6 +63,9 @@ test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, 
     assert.deepEqual(r.imagens, ['01_capa.png', '02_slide.png', '03_slide.png', '04_fechamento.png']);
     assert.ok(r.alertas.some(a => /garantia/.test(a)), 'a conformidade pega a promessa de garantia: ' + JSON.stringify(r.alertas));
     assert.ok(pedidos.length >= 2 && /Nunca prometa/.test(pedidos[1]) && /v4company/.test(pedidos[1]) && /SOMENTE com o JSON/.test(pedidos[1]), 'o pedido levou as regras, as referências da V4 e a exigência de JSON');
+    const jb = jobsImagem[0]; assert.ok(jb, 'o agente pediu as imagens ao ChatGPT'); assert.equal(jb.temporario, false, 'imagem só sai em conversa normal'); assert.equal(jb.mensagens.length, 4, 'uma mensagem por imagem: capa, 2 slides e fechamento'); assert.ok(jb.mensagens.every(m => m.imagem));
+    assert.ok(jb.mensagens[0].anexos.length >= 1 && jb.mensagens[0].anexos[0].b64.length > 100, 'o logotipo foi anexado'); assert.match(jb.mensagens[0].texto, /3D premium/); assert.match(jb.mensagens[0].texto, /Como cuidar bem/); assert.match(jb.mensagens[1].texto, /Passo um/); assert.match(jb.mensagens[1].texto, /MESMO carrossel/); assert.ok(!jb.mensagens[1].anexos, 'só a primeira mensagem leva anexos');
+    assert.ok(r.alertas.some(a => /gerada pelo ChatGPT/.test(a)), 'avisa para conferir a ortografia: ' + JSON.stringify(r.alertas));
     const M = require('../lib/model'), over = (await M.loadState(db.getRepo())).overrides; assert.equal(over[r.codigo].status, 'prod'); assert.ok(!Object.values(over).some(o => o.status === 'pub' || o.status === 'agd'), 'nada vira publicado sozinho');
     const pasta1 = await esperarAte(() => { const p = drive.pastas().find(x => x.name.includes('__' + r.codigo + '__')); return p && p.filhos.length >= 1 ? p : null; }, 120);
     assert.ok(pasta1, 'a pasta do post nasceu no Drive com a legenda: ' + saida);

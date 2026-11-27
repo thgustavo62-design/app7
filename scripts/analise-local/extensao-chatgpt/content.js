@@ -1,4 +1,4 @@
-/* Dentro do chatgpt.com: recebe o pedido do background, conversa (conversa.js) e devolve a resposta. */
+/* Dentro do chatgpt.com: recebe o pedido do background, conversa (conversa.js) e devolve a resposta (texto e imagens). */
 (function () {
   if (window.__n7Content) return; window.__n7Content = true;
   let ocupado = false;
@@ -8,9 +8,11 @@
     ocupado = true; responder({ ok: true });
     const pulso = () => { try { chrome.runtime.sendMessage({ tipo: 'pulso', id: msg.id }); } catch (e) { /* extensão recarregada */ } };
     const batida = setInterval(pulso, 8000);
-    window.N7Conversa.conversar(msg.prompt, { pulso: () => {} }).then(
-      r => chrome.runtime.sendMessage({ tipo: 'resultado', id: msg.id, texto: r.texto, blocos: r.blocos }),
-      e => chrome.runtime.sendMessage({ tipo: 'resultado', id: msg.id, erro: String(e && e.message || e) })
+    /* pedido de texto ({prompt}) ou de conversa com várias mensagens ({mensagens}) */
+    const mensagens = Array.isArray(msg.mensagens) && msg.mensagens.length ? msg.mensagens : [{ texto: msg.prompt }];
+    window.N7Conversa.conversarVarias(mensagens, { pulso: () => {} }).then(
+      r => chrome.runtime.sendMessage({ tipo: 'resultado', id: msg.id, resultados: r.resultados, erro: r.erro || '' }),
+      e => chrome.runtime.sendMessage({ tipo: 'resultado', id: msg.id, resultados: [], erro: String(e && e.message || e) })
     ).catch(() => {}).finally(() => { clearInterval(batida); ocupado = false; });
     return false;
   });

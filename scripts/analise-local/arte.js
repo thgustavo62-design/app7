@@ -112,6 +112,15 @@ function renderizarUmaVez(htmlFile, pngFile, W, H, { edge = acharEdge(), timeout
   });
 }
 
+/* enquadra uma imagem (gerada pelo ChatGPT) no tamanho exato do post, preenchendo o quadro (corta só as sobras) */
+async function enquadrar(origem, destino, W, H, opcoes = {}) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-enq-'));
+  try {
+    const html = path.join(tmp, 'a.html'); fs.writeFileSync(html, `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;width:${W}px;height:${H}px;overflow:hidden;background:#000}img{width:${W}px;height:${H}px;object-fit:cover;display:block}</style><img src="${url(origem)}">`);
+    await renderizar(html, destino, W, H, opcoes); return destino;
+  } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { /* temporário */ } }
+}
+
 /* plano de slides a partir do rascunho: a capa, os conteúdos (se carrossel) e o fechamento */
 function planoDeSlides(r, item) {
   const a = r.arte || {}, formato = String(item.formato || ''), carrossel = /carrossel/i.test(formato) || (r.slides || []).length >= 2;
@@ -143,4 +152,4 @@ async function compor({ kit, item, r, pasta, handle = '', fotoIdx = 0, edge }) {
   return saida;
 }
 
-module.exports = { compor, planoDeSlides, escolherTema, tema, contraste, acharEdge, renderizar, logoHtml };
+module.exports = { compor, planoDeSlides, escolherTema, tema, contraste, acharEdge, renderizar, enquadrar, logoHtml };

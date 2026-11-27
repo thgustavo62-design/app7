@@ -101,6 +101,31 @@ test('conversa no visual atual do ChatGPT (o ChatGPT "pensa" 1,5 s antes de escr
   } finally { await b.close(); }
 });
 
+/* ChatGPT falso com anexo por colagem e geração de imagem (as imagens vêm de um canvas, como a imagem real: PNG em blob/dados com mais de 300 px) */
+const PAGINA_IMG = `<!doctype html><title>ChatGPT</title><body><main id="chat"></main><form><div class="ProseMirror" contenteditable="true"></div><div id="chips"></div><button type="button" aria-label="Enviar" id="b" disabled>Enviar</button></form><script>
+const campo = document.querySelector('.ProseMirror'), b = document.getElementById('b'), chat = document.getElementById('chat'), chips = document.getElementById('chips'); window.__anexos = [];
+campo.addEventListener('paste', e => { e.preventDefault(); const fs = e.clipboardData.files; if (fs && fs.length) { for (const f of fs) { window.__anexos.push({ nome: f.name, tam: f.size, tipo: f.type }); const x = document.createElement('button'); x.type = 'button'; x.setAttribute('aria-label', 'Remover ' + f.name); chips.appendChild(x); } return; } campo.innerText = e.clipboardData.getData('text/plain'); b.disabled = false; });
+b.addEventListener('click', () => { const pedido = campo.innerText; campo.innerText = ''; b.disabled = true; chips.innerHTML = ''; window.__pedidos = (window.__pedidos || []).concat(pedido);
+  chat.insertAdjacentHTML('beforeend', '<div data-chatgpt-search-unit-key="u"><h4 data-conversation-role="user"><span>Você disse:</span></h4><div>' + pedido.slice(0, 40) + '</div></div>');
+  b.setAttribute('aria-label', 'Parar'); chat.insertAdjacentHTML('beforeend', '<div data-talvt-turn-state="in_progress"><div data-chatgpt-search-unit-key="a"><h4 data-conversation-role="assistant"><span>ChatGPT disse:</span></h4><div class="r"></div></div></div>');
+  const turno = chat.lastElementChild, alvo = turno.querySelector('.r');
+  setTimeout(() => { const c = document.createElement('canvas'); c.width = 400; c.height = 500; const x = c.getContext('2d'); x.fillStyle = '#c00'; x.fillRect(0, 0, 400, 500); const im = new Image(); im.alt = 'Imagem gerada'; im.onload = () => { alvo.appendChild(im); }; im.src = c.toDataURL('image/png'); }, 700);
+  setTimeout(() => { b.setAttribute('aria-label', 'Enviar'); turno.setAttribute('data-talvt-turn-state', 'complete'); }, 1500); });
+</script></body>`;
+
+test('conversa com imagens: anexa logo e referências, gera a imagem e devolve em base64; várias mensagens na mesma conversa', { skip: ARTE.acharEdge() ? false : 'sem Edge/Chrome neste computador', timeout: 90000 }, async () => {
+  const { chromium } = require('playwright-core'); const b = await chromium.launch({ channel: 'msedge', headless: true }); const pg = await b.newPage();
+  try {
+    await pg.setContent(PAGINA_IMG); await pg.addScriptTag({ path: path.join(__dirname, '..', 'scripts', 'analise-local', 'extensao-chatgpt', 'conversa.js') });
+    const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const r = await pg.evaluate(async png => window.N7Conversa.conversarVarias([{ texto: 'Gere a imagem 1', imagem: true, anexos: [{ nome: 'logo.png', mime: 'image/png', b64: png }, { nome: 'referencia.png', mime: 'image/png', b64: png }] }, { texto: 'Agora a imagem 2', imagem: true }]), png);
+    assert.ok(!r.erro, r.erro); assert.equal(r.resultados.length, 2, 'uma imagem por mensagem');
+    for (const x of r.resultados) { assert.equal(x.imagens.length, 1); assert.equal(x.imagens[0].mime, 'image/png'); assert.equal(Buffer.from(x.imagens[0].b64, 'base64').toString('latin1', 1, 4), 'PNG'); assert.equal(x.imagens[0].w, 400); }
+    assert.deepEqual((await pg.evaluate(() => window.__anexos)).map(a => a.nome), ['logo.png', 'referencia.png'], 'logo e referência foram anexados, só na primeira mensagem');
+    assert.equal((await pg.evaluate(() => window.__pedidos)).length, 2);
+  } finally { await b.close(); }
+});
+
 test('conversa na página: escreve, envia, espera terminar e devolve a resposta (com o JSON do bloco de código)', { skip: ARTE.acharEdge() ? false : 'sem Edge/Chrome neste computador', timeout: 60000 }, async () => {
   const { chromium } = require('playwright-core'); const b = await chromium.launch({ channel: 'msedge', headless: true }); const pg = await b.newPage();
   try {

@@ -56,9 +56,13 @@ function kit(key, { marcas = pastaMarcas() } = {}) {
   /* fotos reais da empresa (a melhor forma de a arte não parecer feita por IA) */
   const fdir = path.join(dir, 'fotos'); let fotos = []; try { fotos = fs.readdirSync(fdir).filter(n => EXT_FOTO.test(n)).sort().map(n => path.join(fdir, n)); } catch (e) { /* sem fotos */ }
   if (!fotos.length) avisos.push(`Sem fotos reais de ${k.nome}: ponha fotos da loja/equipe/produtos em ${fdir} (a arte fica muito mais natural).`);
+  /* artes de referência (o ChatGPT copia o ESTILO, nunca o conteúdo) e fotos de produtos reais (para aparecerem fiéis na arte) */
+  const lista = sub => { try { return fs.readdirSync(path.join(dir, sub)).filter(n => EXT_FOTO.test(n)).sort().map(n => path.join(dir, sub, n)); } catch (e) { return []; } };
+  const referencias = lista('referencias'), produtos = lista('produtos');
+  if (!referencias.length) avisos.push(`Sem artes de referência de ${k.nome}: ponha de 3 a 6 artes que você gosta em ${path.join(dir, 'referencias')} (o ChatGPT copia o estilo, nunca o conteúdo).`);
   const fontesDir = path.join(dir, 'fontes'); let fontesArq = []; try { fontesArq = fs.readdirSync(fontesDir).filter(n => /\.(woff2?|ttf|otf)$/i.test(n)).map(n => path.join(fontesDir, n)); } catch (e) { /* só fontes do sistema */ }
   if (k.confirmar || (k.cores && k.cores.confirmar)) avisos.push(`As cores de ${k.nome} são provisórias: confirme em ${path.join(dir, 'kit.json')}.`);
-  return Object.assign(k, { key, existe: true, dir, logoArquivo: logo, logoRecorte: recorte, logoW: w, logoH: h, fotos, fontesArq, avisos });
+  return Object.assign(k, { key, existe: true, dir, logoArquivo: logo, logoRecorte: recorte, logoW: w, logoH: h, fotos, referencias, produtos, fontesArq, avisos });
 }
 const todas = opts => Object.keys(DEFAULTS).filter(k => !k.startsWith('_')).map(k => kit(k, opts));
 
@@ -83,10 +87,11 @@ if (require.main === module) {
     }
     console.log('Pasta de marcas: ' + raiz);
     for (const k of todas()) {
-      if (!k.existe) continue; fs.mkdirSync(path.join(k.dir, 'fotos'), { recursive: true }); fs.mkdirSync(path.join(k.dir, 'fontes'), { recursive: true });
+      if (!k.existe) continue; fs.mkdirSync(path.join(k.dir, 'fotos'), { recursive: true }); fs.mkdirSync(path.join(k.dir, 'fontes'), { recursive: true }); fs.mkdirSync(path.join(k.dir, 'referencias'), { recursive: true }); fs.mkdirSync(path.join(k.dir, 'produtos'), { recursive: true });
       const kj = path.join(k.dir, 'kit.json');
       if (!fs.existsSync(kj)) fs.writeFileSync(kj, JSON.stringify({ _leia: 'Deixe só o que quiser mudar. Cores em #RRGGBB. Troque logo.png/logo.svg, ponha fotos na subpasta fotos e fontes (.ttf/.otf/.woff2) na subpasta fontes.', cores: DEFAULTS[k.key].cores, fontes: DEFAULTS[k.key].fontes, tom: DEFAULTS[k.key].tom, evitar: DEFAULTS[k.key].evitar }, null, 2));
       console.log('\n' + k.nome + '  (' + k.dir + ')');
+      console.log('  referências: ' + k.referencias.length + '   produtos: ' + k.produtos.length);
       console.log('  logo: ' + (k.logoArquivo ? path.basename(k.logoArquivo) + (k.logoW ? ' ' + k.logoW + 'px' : '') : 'FALTA') + '   fotos: ' + k.fotos.length + '   fontes próprias: ' + k.fontesArq.length);
       k.avisos.forEach(a => console.log('  - ' + a));
     }
