@@ -71,5 +71,5 @@ chrome.alarms.create('n7-ciclo', { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener(a => { if (a.name === 'n7-ciclo') ciclo(); });
 chrome.runtime.onStartup.addListener(ciclo);
 chrome.runtime.onInstalled.addListener(() => { chrome.alarms.create('n7-ciclo', { periodInMinutes: 0.5 }); ciclo(); });
-chrome.action.onClicked.addListener(ciclo);
+chrome.action.onClicked.addListener(() => { try { chrome.runtime.openOptionsPage(); } catch (e) { ciclo(); } });
 ciclo();

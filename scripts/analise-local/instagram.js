@@ -21,6 +21,8 @@ async function dadosDoInstagram(ponte, handle, dir, { max = 12, validadeMs = VAL
 /* o que a IA de texto recebe: curto, sem imagens */
 const resumoParaIA = d => d ? { perfil: String(d.bio || d.resumo || '').replace(/\s+/g, ' ').slice(0, 400), ultimasLegendas: d.posts.map(p => p.legenda).filter(Boolean).slice(0, 6).map(t => t.replace(/\s+/g, ' ').slice(0, 280)), tiposRecentes: d.posts.slice(0, 12).map(p => p.tipo).join(',') } : null;
 /* as imagens mais recentes (padrão do feed), para anexar como referência de estilo */
-const imagensDe = (d, dir, n = 1) => d ? d.posts.filter(p => p.arquivo && fs.existsSync(path.join(dir, p.arquivo))).slice(0, n).map(p => path.join(dir, p.arquivo)) : [];
+/* linha: 'club' só posts que falam do clube; 'farmacia' só os que não falam (não misturar assuntos); vazio = todos */
+const falaDoClube = p => /club/i.test((p.legenda || '') + ' ' + (p.alt || ''));
+const imagensDe = (d, dir, n = 1, { linha = '' } = {}) => d ? d.posts.filter(p => p.arquivo && fs.existsSync(path.join(dir, p.arquivo)) && (!linha || linha === 'geral' || (linha === 'club' ? falaDoClube(p) : !falaDoClube(p)))).slice(0, n).map(p => path.join(dir, p.arquivo)) : [];
 
 module.exports = { dadosDoInstagram, resumoParaIA, imagensDe, VALIDADE_MS };

@@ -149,12 +149,15 @@ async function enquadrar(origem, destino, W, H, opcoes = {}) {
 }
 
 /* plano de slides a partir do rascunho: a capa, os conteúdos (se carrossel) e o fechamento */
+const partesDe = lista => (lista || []).map(x => { const m = String(x).match(/^(.{4,70}?)\s*[:—–-]\s+(.+)$/s); return m ? { titulo: m[1], texto: m[2] } : { titulo: String(x), texto: '' }; });
 function planoDeSlides(r, item) {
-  const a = r.arte || {}, formato = String(item.formato || ''), carrossel = /carrossel/i.test(formato) || (r.slides || []).length >= 2;
+  const a = r.arte || {}, formato = String(item.formato || ''), story = /stor(y|ies)/i.test(formato) && !/reels/i.test(formato), carrossel = /carrossel/i.test(formato) || (r.slides || []).length >= 2 || story;
   const capa = { tipo: 'capa', tag: a.tag || '', titulo: a.titulo || item.titulo || '', subtitulo: a.subtitulo || '' };
   const out = [capa];
   if (carrossel) {
-    const partes = (Array.isArray(a.slides) && a.slides.length ? a.slides : (r.slides || []).map(x => { const m = String(x).match(/^(.{4,70}?)\s*[:—–-]\s+(.+)$/s); return m ? { titulo: m[1], texto: m[2] } : { titulo: String(x), texto: '' }; })).slice(0, 8);
+    /* o ROTEIRO de todas as imagens (slides do rascunho) manda: se ele tem mais passos que a arte, a arte segue o roteiro; sequência de stories vem do roteiro de cenas */
+    const doRoteiro = partesDe(r.slides), daArte = (Array.isArray(a.slides) ? a.slides : []).filter(x => x && x.titulo), cenas = story && !doRoteiro.length && !daArte.length ? partesDe(r.roteiro) : [];
+    const partes = (doRoteiro.length > daArte.length ? doRoteiro : daArte.length ? daArte : doRoteiro.length ? doRoteiro : cenas).slice(0, 8);
     partes.forEach(p => out.push({ tipo: 'conteudo', titulo: p.titulo, texto: p.texto || '' }));
     if (a.cta) out.push({ tipo: 'fechamento', titulo: a.cta, texto: '' });
   }

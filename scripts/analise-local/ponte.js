@@ -23,16 +23,17 @@ const arqPonte = () => path.join(os.homedir(), '.nova7', 'ponte.json');
 const jaVistaAntes = () => { try { return JSON.parse(fs.readFileSync(arqPonte(), 'utf8')).visto === true; } catch (e) { return false; } };
 const marcarVista = () => { try { const j = JSON.parse(fs.readFileSync(arqPonte(), 'utf8')); j.visto = true; fs.writeFileSync(arqPonte(), JSON.stringify(j), { mode: 0o600 }); } catch (e) { /* sem disco */ } };
 
-function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PASTA_EXTENSAO, vivaMs = 70000, persistir = false } = {}) {
+/* rotas: async ({ metodo, caminho, q, corpo }) => { status?, json } | { arquivo:{buf,tipo} } | null  (a página "Base de regras" da extensão); origemExtra: regex de origem aceita além da extensão (testes) */
+function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PASTA_EXTENSAO, vivaMs = 70000, persistir = false, rotas = null, origemExtra = null } = {}) {
   token = token || lerOuCriarToken(); let vista = persistir ? jaVistaAntes() : false;
   const fila = [];                 // pedidos esperando a extensão buscar
   const emAndamento = new Map();   // pedidos já entregues à extensão
-  let vistoEm = 0, esperando = [], versaoExtensao = '', estado = { feitos: 0, falhas: 0, ultimoErro: '' };
+  const historico = []; let vistoEm = 0, esperando = [], versaoExtensao = '', estado = { feitos: 0, falhas: 0, ultimoErro: '' };
   const conectada = () => Date.now() - vistoEm < vivaMs;
   const visto = req => { vistoEm = Date.now(); versaoExtensao = String(req.headers['x-n7-versao'] || versaoExtensao); if (!vista) { vista = true; if (persistir) marcarVista(); } };
 
   function acordar() { const e = esperando; esperando = []; e.forEach(f => f()); }
-  function finalizar(id, fn) { const p = emAndamento.get(id) || fila.find(x => x.id === id); if (!p) return false; clearTimeout(p.timer); emAndamento.delete(id); const i = fila.indexOf(p); if (i >= 0) fila.splice(i, 1); fn(p); return true; }
+  function finalizar(id, fn, resultado) { const p = emAndamento.get(id) || fila.find(x => x.id === id); if (!p) return false; clearTimeout(p.timer); historico.push({ tipo: p.tipo, em: new Date().toISOString(), segundos: Math.round((Date.now() - p.criadoEm) / 1000), ok: !!(resultado && !resultado.erro), erro: String(resultado && resultado.erro || '').slice(0, 160) }); emAndamento.delete(id); const i = fila.indexOf(p); if (i >= 0) fila.splice(i, 1); fn(p); return true; }
 
   /* pede ao ChatGPT (pela extensão) e devolve { texto, blocos }. Rejeita com .codigo = 'SEM_EXTENSAO' | 'TEMPO' | 'CHATGPT' */
   /* enfileira um trabalho e devolve o corpo bruto que a extensão respondeu ({ resultados, erro } ou, no formato antigo, { texto, blocos, erro }) */
@@ -40,7 +41,8 @@ function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PA
     return new Promise(async (resolve, reject) => {
       if (!conectada() && aguardarConexaoMs) await aguardarConexao(aguardarConexaoMs);
       if (!conectada()) return reject(Object.assign(new Error('A extensão do Chrome não está conectada (abra o Chrome com a extensão "Nova7 ↔ ChatGPT" ligada e o ChatGPT logado).'), { codigo: 'SEM_EXTENSAO' }));
-      const id = crypto.randomBytes(6).toString('hex'), p = { id, carga: Object.assign({}, carga, { limiteMs: tempoMs }), resolve, reject, criadoEm: Date.now() };
+      const tipo = carga.instagram ? 'instagram @' + carga.instagram.handle : carga.mensagens ? 'conversa de ' + carga.mensagens.length + ' mensagem(ns)' + (carga.mensagens.some(m => m.imagem) ? ' com imagem' : '') : 'texto';
+      const id = crypto.randomBytes(6).toString('hex'), p = { id, tipo, carga: Object.assign({}, carga, { limiteMs: tempoMs }), resolve, reject, criadoEm: Date.now() };
       p.timer = setTimeout(() => { finalizar(id, () => { estado.falhas++; reject(Object.assign(new Error('O ChatGPT não respondeu a tempo.'), { codigo: 'TEMPO' })); }); }, tempoMs);
       fila.push(p); acordar();
     });
@@ -67,7 +69,7 @@ function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PA
   /* conversa com várias mensagens ([{ texto, anexos:[{nome,mime,b64}], imagem }]) na mesma conversa (normal, não temporária: só assim o ChatGPT gera imagem).
      Devolve { resultados:[{texto,blocos,imagens:[{mime,b64,w,h}]}], erro } — pode vir com parte pronta e um erro */
   async function pedirConversa(mensagens, { tempoMs, aguardarConexaoMs = 0, temporario = false } = {}) {
-    exigirVersao(1, 2, 1);
+    exigirVersao(1, 2, 2);
     const b = await enfileirar({ mensagens, temporario }, tempoMs || Math.max(1, mensagens.length) * 6 * 60e3, aguardarConexaoMs), rs = resultadosDe(b);
     if (b.erro && !rs.length) throw falhou(b, rs);
     return { resultados: rs, erro: b.erro ? String(b.erro).slice(0, 300) : '' };
@@ -82,7 +84,9 @@ function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PA
       /* defesa contra páginas da web e contra DNS rebinding: só a extensão, só por 127.0.0.1/localhost */
       const origem = req.headers.origin, host = String(req.headers.host || '').replace(/:\d+$/, '');
       if (!['127.0.0.1', 'localhost'].includes(host)) return json(res, 403, { erro: 'host' });
-      if (origem && !/^chrome-extension:\/\//.test(origem)) return json(res, 403, { erro: 'origem' });
+      /* só nos testes (origemExtra): a página de teste não é a extensão, então precisa de CORS; a extensão de verdade não usa */
+      if (origemExtra && origem && origemExtra.test(origem)) { res.setHeader('access-control-allow-origin', origem); res.setHeader('access-control-allow-headers', 'x-n7-token, x-n7-versao, content-type'); res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS'); if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); } }
+      if (origem && !/^chrome-extension:\/\//.test(origem) && !(origemExtra && origemExtra.test(origem))) return json(res, 403, { erro: 'origem' });
       if (req.headers['x-n7-token'] !== token) return json(res, 401, { erro: 'token' });
       const u = new URL(req.url, 'http://127.0.0.1');
       if (u.pathname === '/ping') { visto(req); return json(res, 200, { ok: true, na_fila: fila.length, em_andamento: emAndamento.size }); }
@@ -98,8 +102,13 @@ function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PA
         const ok = finalizar(String(b.id), p => {
           if (b.erro) { estado.falhas++; estado.ultimoErro = String(b.erro).slice(0, 200); } else estado.feitos++;
           p.resolve(b);
-        });
+        }, b);
         return json(res, ok ? 200 : 404, { ok });
+      }
+      if (u.pathname === '/estado') return json(res, 200, Object.assign({ historico: historico.slice(-20).reverse() }, api.estado()));
+      if (rotas) {
+        const corpo = req.method === 'POST' ? JSON.parse(await ler(req) || '{}') : {}, r = await rotas({ metodo: req.method, caminho: u.pathname, q: Object.fromEntries(u.searchParams), corpo });
+        if (r) { if (r.arquivo) { res.statusCode = 200; res.setHeader('content-type', r.arquivo.tipo); res.setHeader('cache-control', 'private, max-age=60'); return res.end(r.arquivo.buf); } return json(res, r.status || 200, r.json); }
       }
       return json(res, 404, { erro: 'rota' });
     } catch (e) { json(res, 500, { erro: String(e.message).slice(0, 120) }); }
@@ -116,7 +125,8 @@ function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PA
   });
   const parar = () => { fila.concat([...emAndamento.values()]).forEach(p => { clearTimeout(p.timer); p.reject(Object.assign(new Error('Agente encerrado.'), { codigo: 'TEMPO' })); }); fila.length = 0; emAndamento.clear(); acordar(); try { srv.close(); srv.closeAllConnections && srv.closeAllConnections(); } catch (e) { /* já fechado */ } };
 
-  return { ligar, parar, pedir, pedirConversa, pedirInstagram, conectada, jaViu: () => vista, aguardarConexao, token, pastaExtensao, estado: () => Object.assign({ conectada: conectada(), versaoExtensao, naFila: fila.length, emAndamento: emAndamento.size }, estado), get porta() { return srv.address() && srv.address().port; } };
+  const api = { ligar, parar, pedir, pedirConversa, pedirInstagram, conectada, jaViu: () => vista, aguardarConexao, token, pastaExtensao, estado: () => Object.assign({ conectada: conectada(), versaoExtensao, naFila: fila.length, emAndamento: emAndamento.size }, estado), get porta() { return srv.address() && srv.address().port; } };
+  return api;
 }
 
 /* acorda o Chrome quando a extensão não aparece (o Chrome precisa estar aberto para a extensão trabalhar) */

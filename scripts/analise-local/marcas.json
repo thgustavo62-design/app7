@@ -29,7 +29,9 @@
     },
     "tom": "farmácia de bairro, próxima, confiável e prática; linguagem simples; vermelho como cor principal e laranja só como detalhe",
     "evitar": "visual de banco de imagem, brilhos, neon, degradês roxos, pessoas perfeitas de sorriso artificial, promessa de saúde ou cura",
-    "estiloArte": "Minas Club e campanhas: fundo azul royal e branco-gelo com bokeh e raios de luz, presentes e etiquetas 3D azuis e vermelhas flutuando desfocadas, título em letras 3D brancas com contorno azul e faixa vermelha, pincelada amarela sob a palavra-chave, cartões brancos arredondados translúcidos com ícones 3D, botão vermelho de chamada, logotipo Rede MinasFarma no topo. Comunicados de atendimento: fundo branco limpo com verde, mockup de celular e selo vermelho com a cruz."
+    "estiloArte": "Artes normais da Minas Farma (institucional, educativo, avisos, promoções de farmácia): composição clara e legível na identidade da Rede MinasFarma, título grande, foto ou elemento de produto/saúde, logotipo oficial da farmácia. NÃO usar elementos do Minas Club (azul royal 3D, coroa, presentes e etiquetas 3D flutuantes).",
+    "clube": "Minas Club",
+    "estiloArteClub": "Minas Club e campanhas: fundo azul royal e branco-gelo com bokeh e raios de luz, presentes e etiquetas 3D azuis e vermelhas flutuando desfocadas, título em letras 3D brancas com contorno azul e faixa vermelha, pincelada amarela sob a palavra-chave, cartões brancos arredondados translúcidos com ícones 3D, botão vermelho de chamada, logotipo Rede MinasFarma no topo. Comunicados de atendimento: fundo branco limpo com verde, mockup de celular e selo vermelho com a cruz."
   },
   "farma-e-farma": {
     "nome": "Farma e Farma",
@@ -60,7 +62,9 @@
     },
     "tom": "farmácia moderna, limpa e acolhedora; vermelho e turquesa em equilíbrio, muito espaço em branco",
     "evitar": "visual de banco de imagem, brilhos, neon, degradês roxos, pessoas perfeitas, promessa de saúde ou cura",
-    "estiloArte": "Farma Club e promoções: fundo vermelho profundo com textura de tecido acetinado e brilho dourado; elementos 3D brilhantes em vermelho e dourado (coroa, etiquetas de porcentagem, presentes, moedas, cestinha, pódios dourados); título em letras 3D grossas brancas e amarelas com contorno vermelho; cartões arredondados cremes com cantos dourados; faixa de destaque vermelha com pincelada amarela. Versão editorial (educativa/avisos): papel rasgado creme e vermelho, tipografia condensada preta e vermelha, selos amarelos, foto realista de pessoa quando fizer sentido."
+    "estiloArte": "Artes normais da Farma e Farma (institucional, educativo, avisos, promoções de farmácia): composição editorial limpa e legível na identidade vermelha e turquesa da farmácia, título grande, foto ou elemento de produto/saúde, logotipo oficial da farmácia. NÃO usar elementos do Farma Club (coroa, moedas, etiqueta de porcentagem, fundo de tecido vermelho com dourado).",
+    "clube": "Farma Club",
+    "estiloArteClub": "Farma Club e promoções: fundo vermelho profundo com textura de tecido acetinado e brilho dourado; elementos 3D brilhantes em vermelho e dourado (coroa, etiquetas de porcentagem, presentes, moedas, cestinha, pódios dourados); título em letras 3D grossas brancas e amarelas com contorno vermelho; cartões arredondados cremes com cantos dourados; faixa de destaque vermelha com pincelada amarela. Versão editorial (educativa/avisos): papel rasgado creme e vermelho, tipografia condensada preta e vermelha, selos amarelos, foto realista de pessoa quando fizer sentido."
   },
   "campo-forte": {
     "nome": "Campo Forte",

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nova7 · Base de regras e estilos</title>
+  <link rel="stylesheet" href="painel.css">
+</head>
+<body>
+  <header class="topo">
+    <div>
+      <h1>Base de regras e estilos</h1>
+      <p class="sub">O que o agente criativo precisa seguir em toda arte, empresa por empresa. Ele aprende com o que você aprova e corrige, mas só uma regra aceita aqui passa a valer.</p>
+    </div>
+    <div id="estado" class="estado" role="status" aria-live="polite">Conectando ao agente…</div>
+  </header>
+
+  <main>
+    <nav id="empresas" class="abas" aria-label="Empresa"></nav>
+    <nav id="linhas" class="abas pequenas" aria-label="Linha"></nav>
+    <p id="aviso" class="aviso" hidden></p>
+
+    <section aria-labelledby="t-regras">
+      <h2 id="t-regras">Regras da agência</h2>
+      <p class="sub">Valem para todo texto e toda arte desta linha. Escreva do jeito que falaria com um designer: curto e específico.</p>
+      <div id="sugeridas"></div>
+      <ul id="regras" class="lista"></ul>
+      <form id="nova-regra" class="linha-form">
+        <label for="nr-texto" class="oculto">Nova regra</label>
+        <textarea id="nr-texto" rows="2" placeholder="Ex.: Nunca usar fundo vermelho nas artes educativas da Minas Farma."></textarea>
+        <label for="nr-linha" class="oculto">Vale para</label>
+        <select id="nr-linha"></select>
+        <button type="submit" class="primario">Adicionar regra</button>
+      </form>
+    </section>
+
+    <section aria-labelledby="t-estilo">
+      <h2 id="t-estilo">Estilo (padrão de criação)</h2>
+      <p class="sub">Extraído pelo ChatGPT das peças que você já aprovou. Corrija o que estiver errado: a sua edição vale mais.</p>
+      <div id="estilo"></div>
+    </section>
+
+    <section aria-labelledby="t-refs">
+      <h2 id="t-refs">Logo e referências em uso</h2>
+      <p class="sub">O que o agente anexa no ChatGPT para esta linha. Se o logo estiver errado, ponha o caminho certo em <code>kit.json</code> da empresa.</p>
+      <div id="refs" class="grade-refs"></div>
+    </section>
+
+    <section aria-labelledby="t-apr">
+      <h2 id="t-apr">O que o agente aprendeu</h2>
+      <div id="aprendizado"></div>
+    </section>
+
+    <section aria-labelledby="t-hist">
+      <h2 id="t-hist">Últimos trabalhos no ChatGPT / Instagram</h2>
+      <table class="tabela" id="historico"><thead><tr><th>Quando</th><th>Trabalho</th><th>Tempo</th><th>Resultado</th></tr></thead><tbody></tbody></table>
+    </section>
+  </main>
+  <script src="painel.js"></script>
+</body>
+</html>

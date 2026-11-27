@@ -108,10 +108,26 @@ campo.addEventListener('paste', e => { e.preventDefault(); const fs = e.clipboar
 b.addEventListener('click', () => { const pedido = campo.innerText; campo.innerText = ''; b.disabled = true; chips.innerHTML = ''; window.__pedidos = (window.__pedidos || []).concat(pedido);
   chat.insertAdjacentHTML('beforeend', '<div data-chatgpt-search-unit-key="u"><h4 data-conversation-role="user"><span>Você disse:</span></h4><div>' + pedido.slice(0, 40) + '</div></div>');
   b.setAttribute('aria-label', 'Parar'); chat.insertAdjacentHTML('beforeend', '<div data-talvt-turn-state="in_progress"><div data-chatgpt-search-unit-key="a"><h4 data-conversation-role="assistant"><span>ChatGPT disse:</span></h4><div class="r"></div></div></div>');
-  const turno = chat.lastElementChild, alvo = turno.querySelector('.r');
-  setTimeout(() => { const c = document.createElement('canvas'); c.width = 400; c.height = 500; const x = c.getContext('2d'); x.fillStyle = '#c00'; x.fillRect(0, 0, 400, 500); const im = new Image(); im.alt = 'Imagem gerada'; im.onload = () => { alvo.appendChild(im); }; im.src = c.toDataURL('image/png'); }, 700);
+  const turno = chat.lastElementChild, alvo = chat;
+  if (/Confira esta arte/.test(pedido)) { window.__conferencias = (window.__conferencias || 0) + 1; const aprovada = window.__conferencias > 1 || window.__sempreAprova; setTimeout(() => { turno.querySelector('.r').textContent = JSON.stringify(aprovada ? { aprovada: true, problemas: [], textoLido: 'Título' } : { aprovada: false, problemas: ['a palavra propaganda está escrita propagnda'], textoLido: 'x' }); }, 300); setTimeout(() => { b.setAttribute('aria-label', 'Enviar'); turno.setAttribute('data-talvt-turn-state', 'complete'); }, 900); return; }
+  setTimeout(() => { const c = document.createElement('canvas'); c.width = 400; c.height = 500; const x = c.getContext('2d'); x.fillStyle = 'rgb(' + Math.floor(Math.random() * 255) + ',40,' + Math.floor(Math.random() * 255) + ')'; x.fillRect(0, 0, 400, 500); x.fillStyle = '#fff'; x.fillText(String(Math.random()), 10, 20); const im = new Image(); im.alt = 'Imagem 1 gerada'; im.onload = () => { alvo.appendChild(im); }; im.src = c.toDataURL('image/png'); }, 700);
   setTimeout(() => { b.setAttribute('aria-label', 'Enviar'); turno.setAttribute('data-talvt-turn-state', 'complete'); }, 1500); });
 </script></body>`;
+
+test('portão de qualidade: o ChatGPT confere a imagem; reprovou → refaz corrigindo os problemas e confere de novo', { skip: ARTE.acharEdge() ? false : 'sem Edge/Chrome neste computador', timeout: 120000 }, async () => {
+  const { chromium } = require('playwright-core'); const b = await chromium.launch({ channel: 'msedge', headless: true }); const pg = await b.newPage();
+  try {
+    await pg.setContent(PAGINA_IMG); await pg.addScriptTag({ path: path.join(__dirname, '..', 'scripts', 'analise-local', 'extensao-chatgpt', 'conversa.js') });
+    const r = await pg.evaluate(() => window.N7Conversa.conversarVarias([{ texto: 'Gere a imagem 1', imagem: true, verificar: { texto: 'Confira esta arte (imagem 1 de 1)', corrigir: 'Imagem 1 não passou. Problemas: {{problemas}}. Gere de novo.', max: 2 } }]));
+    assert.ok(!r.erro, r.erro); const v = r.resultados[0].verificacao; assert.equal(v.aprovada, true); assert.equal(v.tentativas, 1, 'reprovou uma vez, corrigiu e passou'); assert.equal(r.resultados[0].imagens.length, 1, 'entrega a imagem corrigida');
+    const pedidos = await pg.evaluate(() => window.__pedidos); assert.equal(pedidos.length, 4, 'gerar, conferir, corrigir, conferir'); assert.match(pedidos[2], /propagnda/, 'a correção leva o problema que o revisor achou');
+    assert.deepEqual((await pg.evaluate(() => window.__anexos)).map(a => a.nome), ['arte-para-conferir.png', 'arte-para-conferir.png'], 'a arte vai anexada para conferir');
+    /* nunca aprova: para depois do limite e devolve os problemas */
+    const pg2 = await b.newPage(); await pg2.setContent(PAGINA_IMG.replace('window.__conferencias > 1 || window.__sempreAprova', 'false')); await pg2.addScriptTag({ path: path.join(__dirname, '..', 'scripts', 'analise-local', 'extensao-chatgpt', 'conversa.js') });
+    const r2 = await pg2.evaluate(() => window.N7Conversa.conversarVarias([{ texto: 'Gere a imagem 1', imagem: true, verificar: { texto: 'Confira esta arte', corrigir: 'Corrija: {{problemas}}', max: 1 } }]));
+    assert.equal(r2.resultados[0].verificacao.aprovada, false); assert.equal(r2.resultados[0].verificacao.tentativas, 1); assert.match(r2.resultados[0].verificacao.problemas[0], /propagnda/);
+  } finally { await b.close(); }
+});
 
 test('conversa com imagens: anexa logo e referências, gera a imagem e devolve em base64; várias mensagens na mesma conversa', { skip: ARTE.acharEdge() ? false : 'sem Edge/Chrome neste computador', timeout: 90000 }, async () => {
   const { chromium } = require('playwright-core'); const b = await chromium.launch({ channel: 'msedge', headless: true }); const pg = await b.newPage();

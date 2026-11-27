@@ -61,10 +61,11 @@ function kit(key, { marcas = pastaMarcas() } = {}) {
   const referencias = lista('referencias'), produtos = lista('produtos');
   if (!referencias.length) avisos.push(`Sem artes de referência de ${k.nome}: ponha de 3 a 6 artes que você gosta em ${path.join(dir, 'referencias')} (o ChatGPT copia o estilo, nunca o conteúdo).`);
   /* padrão de criação extraído das peças já aprovadas (padrao.json, que a agência pode editar): vale mais que o texto padrão de marcas.json */
-  const padrao = require('./padrao').lerPadrao(dir); if (padrao) { const t = require('./padrao').textoDoPadrao(padrao); if (t) k.estiloArte = t; }
+  const PAD = require('./padrao'), padrao = PAD.lerPadrao(dir, k.clube ? 'farmacia' : ''), padraoClub = k.clube ? PAD.lerPadrao(dir, 'club') : null;
+  if (padrao) { const t = PAD.textoDoPadrao(padrao); if (t) k.estiloArte = t; } if (padraoClub) { const t = PAD.textoDoPadrao(padraoClub); if (t) k.estiloArteClub = t; }
   const fontesDir = path.join(dir, 'fontes'); let fontesArq = []; try { fontesArq = fs.readdirSync(fontesDir).filter(n => /\.(woff2?|ttf|otf)$/i.test(n)).map(n => path.join(fontesDir, n)); } catch (e) { /* só fontes do sistema */ }
   if (k.confirmar || (k.cores && k.cores.confirmar)) avisos.push(`As cores de ${k.nome} são provisórias: confirme em ${path.join(dir, 'kit.json')}.`);
-  return Object.assign(k, { key, existe: true, dir, logoArquivo: logo, logoRecorte: recorte, logoW: w, logoH: h, fotos, referencias, produtos, padrao, fontesArq, avisos });
+  return Object.assign(k, { key, existe: true, dir, logoArquivo: logo, logoRecorte: recorte, logoW: w, logoH: h, fotos, referencias, produtos, padrao, padraoClub, fontesArq, avisos });
 }
 const todas = opts => Object.keys(DEFAULTS).filter(k => !k.startsWith('_')).map(k => kit(k, opts));
 

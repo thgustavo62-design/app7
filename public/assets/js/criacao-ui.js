@@ -32,10 +32,17 @@
       <p class="cr-ig-leg"><b>${perfil}</b> ${esc((r.legenda || "").slice(0, 180))}${(r.legenda || "").length > 180 ? "… <span class='src'>mais</span>" : ""}</p>
       <p class="src cr-ig-aviso">Se a arte não carregar, o app do Google Drive no computador da agência ainda está enviando (alguns minutos).</p></div>`;
   }
+  /* checklist do portão de qualidade: o que o agente conferiu antes de mandar para aprovação */
+  function qualidadeHtml(r) {
+    const q = r.qualidade; if (!q) return "";
+    const ok = (b, t) => `<li class="${b ? "ok" : "falha"}">${b ? "✔" : "✖"} ${esc(t)}</li>`, sl = q.slides || [], aprov = sl.filter(x => x.aprovada).length, corr = sl.filter(x => x.aprovada && x.tentativas > 0).length;
+    const linhaTxt = q.linha === "club" ? "Linha CLUBE: logo e padrão do clube" : q.linha === "farmacia" ? "Linha FARMÁCIA: logo da farmácia, sem elementos do clube" : "";
+    return `<div class="cr-q ${q.passou ? "passou" : "revisar"}"><b>${q.passou ? "Passou nas regras" : "Revisar: não passou em todas as regras"}</b>${q.motivo ? ` <span class="src">(${esc(q.motivo)})</span>` : ""}<ul>${linhaTxt ? ok(true, linhaTxt) : ""}${q.regras ? ok(true, q.regras + " regra(s) da agência aplicadas") : ""}${ok(q.completas, q.completas ? "Carrossel/post completo" : "Faltam imagens")}${sl.length ? ok(aprov === sl.length, `Textos e logo conferidos: ${aprov} de ${sl.length} imagem(ns)${corr ? ` (${corr} corrigida(s) sozinha(s))` : ""}`) : ok(false, "Arte não conferida pelo ChatGPT")}${sl.filter(x => !x.aprovada && x.problemas.length).map(x => `<li class="falha">Imagem ${x.n}: ${esc(x.problemas.slice(0, 2).join("; "))}</li>`).join("")}</ul></div>`;
+  }
   function cartao(r, aberto) {
     const lista = (t, l) => (l && l.length ? `<p><b>${t}</b></p><ol class="plain">${l.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : "");
-    return `<details class="cr-r"${aberto ? " open" : ""}><summary><b>${esc(r.codigo)}</b> · ${esc(r.titulo)} · ${dm(r.data)} <span class="badge">${BADGE[r.status] || r.status}</span>${r.versao > 1 ? ` <span class="badge">v${r.versao}</span>` : ""}${r.alertas && r.alertas.length ? ` <span class="badge p1">${r.alertas.length} alerta(s)</span>` : ""}</summary>
-      ${r.alertas && r.alertas.length ? `<div class="notice">${r.alertas.map(esc).join("<br>")}</div>` : ""}
+    return `<details class="cr-r"${aberto ? " open" : ""}><summary><b>${esc(r.codigo)}</b> · ${esc(r.titulo)} · ${dm(r.data)} <span class="badge">${BADGE[r.status] || r.status}</span>${r.versao > 1 ? ` <span class="badge">v${r.versao}</span>` : ""}${r.qualidade ? (r.qualidade.passou ? ` <span class="badge" style="background:#1a9b4b;color:#fff">passou nas regras</span>` : ` <span class="badge p1">revisar</span>`) : (r.alertas && r.alertas.length ? ` <span class="badge p1">${r.alertas.length} alerta(s)</span>` : "")}</summary>
+      ${qualidadeHtml(r)}${r.alertas && r.alertas.length ? `<details class="cr-alertas"><summary>${r.alertas.length} alerta(s) para revisar</summary><div class="notice">${r.alertas.map(esc).join("<br>")}</div></details>` : ""}
       ${previa(r)}
       <p><b>Legenda</b></p><p class="cr-leg">${esc(r.legenda).replace(/\n/g, "<br>")}</p>${r.hashtags && r.hashtags.length ? `<p class="src">${esc(r.hashtags.join(" "))}</p>` : ""}
       ${lista("Slides", r.slides)}${lista("Roteiro", r.roteiro)}${r.briefArte ? `<p><b>Brief da arte</b></p><p>${esc(r.briefArte)}</p>` : ""}

@@ -176,7 +176,7 @@ let criativoRodando = false, exportarAte = 0, ultimoErroExport = '';
 let PONTE = null, pausaCriativoAte = 0, chromeAte = 0, avisoSemExtensaoAte = 0;
 if (CRIC.ligado && CRIC.modo === 'extensao') {
   const P = require('./ponte'), portaEnv = process.env.N7_PONTE_PORTA;
-  PONTE = P.criar({ porta: portaEnv !== undefined ? Number(portaEnv) : (CRIC.porta || P.PORTA_PADRAO), log, persistir: true });
+  PONTE = P.criar({ porta: portaEnv !== undefined ? Number(portaEnv) : (CRIC.porta || P.PORTA_PADRAO), log, persistir: true, rotas: req => require('./painel-api').tratar(req, { acionar: () => setTimeout(() => rodarCriativo(false), 1500) }) });
   PONTE.ligar().then(p => { CRIC.ponte = PONTE; log(`Ponte com o Chrome ligada em 127.0.0.1:${p}. Extensão (instale uma vez em chrome://extensions > Carregar sem compactação): ${PONTE.pastaExtensao}`); }).catch(e => log('Ponte com o Chrome: ' + e.message));
 }
 /* manda a legenda (Google Doc) e as artes do rascunho para a pasta do post no Drive. Se falta a permissão de Editor, espera 20 minutos e avisa uma vez */
@@ -221,6 +221,19 @@ async function exportarParaDrive(marca, codigo, imagens, rascunho) {
     ultimoErroExport = ''; log(`Drive: ${codigo} enviado para a pasta do post (legenda${n ? ' + ' + n + ' arte(s)' : noDriveLocal ? '; ' + noDriveLocal + ' arte(s) pelo Drive do computador' : ''}).`); return true;
   } catch (e) { exportarAte = Date.now() + 20 * 60e3; if (e.message !== ultimoErroExport) { ultimoErroExport = e.message; log(`Drive, ${codigo}: ${e.message}`); } return false; }
 }
+/* aprendizado: artes que a equipe APROVOU viram referência (aprovadas\<linha>\<código>) e as descartadas ficam registradas; depois o site marca como aprendido */
+async function aprender(aprovadas, descartadas) {
+  const MARCAS = require('./marca'), BASE = require('./base'), feitos = [];
+  for (const p of aprovadas || []) {
+    try {
+      const kit = MARCAS.kit(p.slug || ''); if (!kit.existe) continue;
+      const n = BASE.guardarAprovada(kit.dir, { codigo: p.codigo, linha: p.linha, origemDir: path.join(PASTA_CRIATIVOS, CRI.slug(p.marca), p.codigo), nomes: p.imagens, titulo: p.titulo });
+      if (n) log(`Aprendizado: ${p.codigo} aprovada (${n} arte(s)) virou referência de ${kit.nome}${p.linha === 'club' ? ' (clube)' : ''}.`); feitos.push(p.codigo);
+    } catch (e) { log('Aprendizado, ' + p.codigo + ': ' + e.message); }
+  }
+  for (const p of descartadas || []) { try { const kit = MARCAS.kit(p.slug || ''); if (!kit.existe) continue; BASE.registrarDescartada(kit.dir, { codigo: p.codigo, titulo: p.titulo, linha: p.linha }); feitos.push(p.codigo); } catch (e) { /* segue */ } }
+  if (feitos.length) { try { await chamar('aprendido', {}, { metodo: 'POST', corpo: { codigos: feitos } }); } catch (e) { log('Aprendizado: ' + e.message); } }
+}
 const nomePastaArtes = (marca, codigo) => (NOMES_PASTA[marca] || CRI.slug(marca)) + '/' + codigo;
 /* rascunhos feitos antes do preview: gera as miniaturas das artes que estão no computador, copia para o Drive e avisa o site */
 async function refazerPreviews(lista) {
@@ -251,6 +264,8 @@ async function rodarCriativo(soAjustes) {
     for (const item of fila) {
       if (!item.ajuste && (n >= CRIC.maxPorRodada || estado.criativo.rascunhos >= CRIC.maxPorDia)) continue;
       try {
+        /* o que a equipe pediu no ajuste vira regra SUGERIDA (a equipe aceita na página da extensão); o pedido automático de refazer arte não conta */
+        if (item.ajuste && !/^Refazer a arte com o ChatGPT/i.test(item.ajuste)) { try { const k = require('./marca').kit(item.slug || ''); if (k.existe) require('./base').sugerirDeAjuste(k.dir, { instrucao: item.ajuste, codigo: item.codigo, linha: 'todas' }); } catch (e) { /* sem base */ } }
         const r = await CRI.rascunhoDe(item, CRIC, { pastaBase: PASTA_CRIATIVOS, estado, log }), { artes, pasta, kit, ...limpo } = r; limpo.pastaArtes = nomePastaArtes(item.marca, item.codigo);
         await chamar('rascunho', {}, { metodo: 'POST', corpo: limpo }); n++; feitos.add(item.codigo);
         log(`${item.ajuste ? 'Rascunho ajustado' : 'Rascunho criado'} para ${item.codigo} (${item.cliente}): "${item.titulo}"${r.canvaUrl ? ' + design no Canva' : ''}${r.imagens.length ? ' + ' + r.imagens.length + ' arte(s) da marca' : ''}${r.alertas.length ? ' · ' + r.alertas.length + ' alerta(s) para revisar' : ''}. Aguarda a sua aprovação.`);
@@ -262,6 +277,7 @@ async function rodarCriativo(soAjustes) {
     }
     for (const p of pendentes) { if (feitos.has(p.codigo)) continue; await exportarParaDrive(p.marca, p.codigo, p.imagens); }
     await refazerPreviews((resp.semPreview || []).filter(p => !feitos.has(p.codigo)));
+    await aprender(resp.aprovadas, resp.descartadas);
     gravarEstado(Object.assign(lerEstado(), { criativo: estado.criativo }));
   } catch (e) { log('Criativo: ' + e.message); } finally { criativoRodando = false; }
 }

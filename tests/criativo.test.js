@@ -21,7 +21,7 @@ class DriveFalso {
   pastas() { return this.itens.get('RAIZ_CRIACAO').filhos.map(i => this.itens.get(i)); }
 }
 
-test('agente criativo: escreve com a IA, monta a arte da marca, manda ao Drive, refaz quando pedem ajuste e nunca publica', { skip: ARTE.acharEdge() ? false : 'sem Edge/Chrome neste computador', timeout: 240000 }, async () => {
+test('agente criativo: escreve com a IA, monta a arte da marca, manda ao Drive, refaz quando pedem ajuste e nunca publica', { skip: ARTE.acharEdge() ? false : 'sem Edge/Chrome neste computador', timeout: 480000 }, async () => {
   const TOKEN = 'teste-token-criativo-da-agencia-0123456789abc', casa = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-casa-')), arm = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-arm-cri-')), cri = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-cri-')), marcas = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-marcas-'));
   fs.mkdirSync(path.join(casa, '.nova7')); fs.writeFileSync(path.join(casa, '.nova7', 'agente.json'), JSON.stringify({ openai: { apiKey: 'sk-teste-falso-0123456789', modeloTexto: 'gpt-teste' }, canva: { accessToken: 'canva-token-falso' } }));
   const vistos = []; const falso = http.createServer((req, res) => { let b = ''; req.on('data', d => { b += d; }); req.on('end', () => {

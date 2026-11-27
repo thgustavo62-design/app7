@@ -1,0 +1,40 @@
+:root { --fundo: #f6f6f4; --cartao: #fff; --texto: #1b1b1f; --suave: #666; --linha: #e2e2dc; --acento: #5356fd; --ok: #1a7a40; --erro: #b00020; --aviso: #8a5a00; }
+@media (prefers-color-scheme: dark) { :root { --fundo: #131316; --cartao: #1c1c21; --texto: #ececf1; --suave: #a0a0aa; --linha: #2e2e36; --acento: #8f92ff; --ok: #5bd18a; --erro: #ff8a9a; --aviso: #f0c060; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fundo); color: var(--texto); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.topo { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; padding: 20px 24px 8px; max-width: 1100px; margin: 0 auto; }
+h1 { margin: 0 0 4px; font-size: 22px; } h2 { margin: 28px 0 4px; font-size: 17px; }
+.sub { margin: 0 0 10px; color: var(--suave); font-size: 13px; max-width: 70ch; }
+main { max-width: 1100px; margin: 0 auto; padding: 0 24px 60px; }
+.estado { padding: 8px 12px; border-radius: 10px; background: var(--cartao); border: 1px solid var(--linha); font-size: 13px; min-width: 240px; }
+.estado b.on { color: var(--ok); } .estado b.off { color: var(--erro); }
+.abas { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.abas button { border: 1px solid var(--linha); background: var(--cartao); color: var(--texto); border-radius: 999px; padding: 7px 16px; cursor: pointer; font: inherit; }
+.abas button[aria-pressed="true"] { background: var(--acento); color: #fff; border-color: transparent; }
+.abas.pequenas button { padding: 4px 12px; font-size: 13px; }
+.aviso { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--aviso); color: var(--aviso); font-size: 13px; }
+.lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.item { background: var(--cartao); border: 1px solid var(--linha); border-radius: 12px; padding: 10px 12px; display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.item.desativada { opacity: .55; }
+.item .texto { flex: 1 1 320px; }
+.etiqueta { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: rgba(127,127,127,.18); margin-right: 6px; }
+.acoes { display: flex; gap: 6px; flex-wrap: wrap; }
+button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--linha); background: var(--cartao); color: var(--texto); padding: 5px 12px; }
+button.primario { background: var(--acento); color: #fff; border-color: transparent; }
+button.perigo { color: var(--erro); }
+button:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+textarea, select { font: inherit; color: var(--texto); background: var(--cartao); border: 1px solid var(--linha); border-radius: 8px; padding: 7px 10px; width: 100%; }
+.linha-form { display: grid; grid-template-columns: 1fr 160px auto; gap: 8px; margin-top: 12px; align-items: start; }
+@media (max-width: 700px) { .linha-form { grid-template-columns: 1fr; } }
+.oculto { position: absolute; left: -9999px; }
+.caixa { background: var(--cartao); border: 1px solid var(--linha); border-radius: 12px; padding: 12px 14px; margin: 8px 0; }
+.caixa h3 { margin: 0 0 6px; font-size: 14px; }
+.paleta { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.cor { display: flex; align-items: center; gap: 6px; font-size: 12px; border: 1px solid var(--linha); border-radius: 8px; padding: 3px 8px 3px 3px; }
+.cor i { width: 22px; height: 22px; border-radius: 6px; display: inline-block; border: 1px solid rgba(127,127,127,.4); }
+.grade-refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.ref { background: var(--cartao); border: 1px solid var(--linha); border-radius: 12px; padding: 8px; font-size: 12px; text-align: center; }
+.ref img { width: 100%; aspect-ratio: 4 / 5; object-fit: contain; background: repeating-conic-gradient(rgba(127,127,127,.15) 0% 25%, transparent 0% 50%) 50% / 16px 16px; border-radius: 8px; }
+.tabela { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--cartao); border-radius: 12px; overflow: hidden; }
+.tabela th, .tabela td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--linha); }
+.ok { color: var(--ok); } .falha { color: var(--erro); }

@@ -45,18 +45,21 @@
     await dormir(2500 + Math.round(bytes / 1e6 * 1500));   // o envio dos arquivos termina
   }
 
-  /* imagens GERADAS na resposta (as anexadas ficam na mensagem da pessoa, não aqui) */
+  /* imagens GERADAS (nunca as anexadas pela pessoa: o alt delas é "Anexo do usuário"). Procura na página toda: a estrutura do bloco da resposta muda (conferido em 2026-11-27,
+     o título "ChatGPT disse:" pode ficar fora do bloco que tem a imagem) */
+  const geradasNaPagina = () => [...document.querySelectorAll('main img, [data-turn-key] img, [data-chatgpt-search-unit-key] img')].filter((i, k, a) => a.indexOf(i) === k && i.complete && i.naturalWidth >= 300 && i.naturalHeight >= 300 && !/anexo do usu|user attach|uploaded/i.test(i.alt || '') && !i.closest('[data-conversation-role="user"], [data-message-author-role="user"], form'));
   const imagensProntas = el => [...el.querySelectorAll('img')].filter(i => i.complete && i.naturalWidth >= 300 && i.naturalHeight >= 300);
-  async function lerImagens(el) {
-    const out = [];
-    for (const i of imagensProntas(el)) { try { const b = await (await fetch(i.src)).blob(); out.push({ mime: b.type || 'image/png', b64: await paraBase64(b), w: i.naturalWidth, h: i.naturalHeight }); } catch (e) { /* imagem que não deu para ler */ } }
+  async function lerImagens(lista) {
+    const out = [], vistas = new Set();
+    for (const i of lista) {
+      if (vistas.has(i.src)) continue; vistas.add(i.src); try { const b = await (await fetch(i.src)).blob(); out.push({ mime: b.type || 'image/png', b64: await paraBase64(b), w: i.naturalWidth, h: i.naturalHeight }); } catch (e) { /* imagem que não deu para ler */ } }
     return out;
   }
 
   const limpo = t => String(t || '').replace(/^\s*(ChatGPT disse:|ChatGPT said:)\s*/i, '').trim();
-  async function lerResposta(el, comImagens) {
+  async function lerResposta(el, novasImagens) {
     const blocos = [...el.querySelectorAll('pre code')].map(c => c.innerText.trim()).filter(Boolean);
-    return { texto: limpo(el.innerText), blocos, imagens: comImagens ? await lerImagens(el) : [] };
+    return { texto: limpo(el.innerText), blocos, imagens: novasImagens ? await lerImagens(novasImagens) : [] };
   }
 
   /* uma mensagem: devolve { texto, blocos, imagens } ou lança Error com mensagem para a agência (login, limite, tempo...) */
@@ -67,7 +70,7 @@
       if (ACHA.login()) throw new Error('O ChatGPT não está logado neste Chrome: entre na conta da agência em chatgpt.com.');
       throw new Error('Não achei o campo de mensagem do ChatGPT (o visual mudou?). Ajuste "compositor" em conversa.js.');
     }
-    const antes = ACHA.respostas().length;
+    const antes = ACHA.respostas().length, imagensAntes = new Set(geradasNaPagina().map(i => i.src)), novasImagens = () => geradasNaPagina().filter(i => !imagensAntes.has(i.src));
     if (anexos.length) await anexar(campo, anexos, pulso);
     preencher(campo, prompt);
     const enviar = await esperar(() => ACHA.enviar(), 15000, 200);
@@ -78,7 +81,7 @@
     /* a resposta nova aparece */
     const t0 = Date.now(); let ultimo = null;
     for (;;) {
-      pulso(); const rs = ACHA.respostas(); if (rs.length > antes) { ultimo = rs[rs.length - 1]; break; }
+      pulso(); const rs = ACHA.respostas(); if (rs.length > antes || (esperaImagem && novasImagens().length)) { ultimo = rs[rs.length - 1] || document.body; break; }
       if (ACHA.limite()) throw new Error('O ChatGPT está com limite de uso no momento: tente de novo mais tarde.');
       if (Date.now() - t0 > tempoEnvioMs + 45000) throw new Error('O ChatGPT não começou a responder.');
       await dormir(500);
@@ -87,18 +90,41 @@
        (ou, para imagem, a imagem pronta), sem contar o título "ChatGPT disse:" (o modelo pode "pensar" vários segundos antes da primeira palavra) */
     let anterior = '', desde = Date.now(), viuEscrever = false; const inicio = Date.now();
     for (;;) {
-      pulso(); const rs = ACHA.respostas(); ultimo = rs[rs.length - 1] || ultimo; const t = limpo(ultimo.innerText) + '|' + imagensProntas(ultimo).length;
+      pulso(); const rs = ACHA.respostas(); ultimo = rs[rs.length - 1] || ultimo; const t = limpo(ultimo.innerText) + '|' + (esperaImagem ? novasImagens().length : 0);
       if (t !== anterior) { anterior = t; desde = Date.now(); }
       const agora = !!(ACHA.parar() || ACHA.escrevendo()); if (agora) { viuEscrever = true; desde = Date.now(); }
-      const temConteudo = esperaImagem ? imagensProntas(ultimo).length > 0 : !!limpo(ultimo.innerText);
+      const temConteudo = esperaImagem ? novasImagens().length > 0 : !!limpo(ultimo.innerText);
       if (!agora && temConteudo && (viuEscrever || Date.now() - inicio > 25000) && Date.now() - desde >= estavelMs) break;
       if (!agora && esperaImagem && !temConteudo && limpo(ultimo.innerText) && (viuEscrever || Date.now() - inicio > 25000) && Date.now() - desde >= 8000) throw new Error('O ChatGPT respondeu sem gerar a imagem: ' + limpo(ultimo.innerText).slice(0, 200));
       if (ACHA.limite()) throw new Error('O ChatGPT está com limite de uso no momento: tente de novo mais tarde.');
       if (Date.now() - inicio > tempoRespostaMs) throw new Error('O ChatGPT demorou demais para terminar a resposta.');
       await dormir(500);
     }
-    const r = await lerResposta(ultimo, esperaImagem); if (!r.texto && !r.imagens.length) throw new Error('A resposta do ChatGPT veio vazia.');
+    const r = await lerResposta(ultimo, esperaImagem ? novasImagens() : null); if (!r.texto && !r.imagens.length) throw new Error('A resposta do ChatGPT veio vazia.');
     return r;
+  }
+
+  /* o JSON da conferência: aceita bloco de código, texto em volta e quebra de linha solta */
+  function extrairObjeto(r) {
+    for (const bruto of [].concat((r && r.blocos) || [], (r && r.texto) || '')) {
+      const t = String(bruto).replace(/```(?:json)?/gi, ''), a = t.indexOf('{'), z = t.lastIndexOf('}'); if (a < 0 || z <= a) continue;
+      for (const c of [t.slice(a, z + 1), t.slice(a, z + 1).replace(/\r?\n/g, ' ')]) { try { const o = JSON.parse(c); if (o && typeof o === 'object') return o; } catch (e) { /* tenta o próximo */ } }
+    }
+    return null;
+  }
+  /* PORTÃO DE QUALIDADE de uma imagem: o ChatGPT confere a arte (com a imagem anexada) contra a lista de regras; se falhar, refaz corrigindo os problemas e confere de novo (até "max" vezes) */
+  async function conferirECorrigir(m, r, pulso) {
+    const v = m.verificar, max = Number.isFinite(v.max) ? v.max : 2; let tentativas = 0, ultima = null;
+    for (;;) {
+      const img = r.imagens && r.imagens[0]; if (!img) return { r, verificacao: { aprovada: false, problemas: ['Não há imagem para conferir.'], tentativas } };
+      const resp = await conversar(v.texto, { pulso, anexos: [{ nome: 'arte-para-conferir.png', mime: img.mime, b64: img.b64 }], esperaImagem: false });
+      const j = extrairObjeto(resp); ultima = j;
+      if (j && j.aprovada === true) return { r, verificacao: { aprovada: true, problemas: [], tentativas, textoLido: String(j.textoLido || '').slice(0, 300) } };
+      const problemas = (j && Array.isArray(j.problemas) && j.problemas.length ? j.problemas : ['A conferência não aprovou a arte.']).map(x => String(x).slice(0, 200)).slice(0, 6);
+      if (tentativas >= max) return { r, verificacao: { aprovada: false, problemas, tentativas, textoLido: String(j && j.textoLido || '').slice(0, 300) } };
+      tentativas++; await dormir(1200);
+      r = await conversar(String(v.corrigir || '').replace('{{problemas}}', problemas.join('; ')), { pulso, anexos: [], esperaImagem: true });
+    }
   }
 
   /* várias mensagens na MESMA conversa (ex.: os slides de um carrossel, mantendo o estilo). Se uma falha, devolve o que já saiu + o erro */
@@ -106,12 +132,16 @@
     const resultados = [];
     for (let i = 0; i < mensagens.length; i++) {
       const m = mensagens[i];
-      try { resultados.push(await conversar(m.texto, { pulso, anexos: m.anexos || [], esperaImagem: !!m.imagem })); }
+      try {
+        let r = await conversar(m.texto, { pulso, anexos: m.anexos || [], esperaImagem: !!m.imagem });
+        if (m.imagem && m.verificar) { const c = await conferirECorrigir(m, r, pulso); r = Object.assign(c.r, { verificacao: c.verificacao }); }
+        resultados.push(r);
+      }
       catch (e) { return { resultados, erro: `Mensagem ${i + 1} de ${mensagens.length}: ${e.message}` }; }
       await dormir(1500);
     }
     return { resultados };
   }
 
-  raiz.N7Conversa = { conversar, conversarVarias, ACHA, preencher };
+  raiz.N7Conversa = { conversar, conversarVarias, conferirECorrigir, extrairObjeto, ACHA, preencher };
 })(typeof window !== 'undefined' ? window : globalThis);

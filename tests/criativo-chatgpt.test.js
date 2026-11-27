@@ -21,7 +21,7 @@ class DriveFalso {
   pastas() { return this.itens.get('RAIZ_CRIACAO').filhos.map(i => this.itens.get(i)); }
 }
 
-test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, a arte da marca sai e o Drive recebe; erro de login pausa e volta; ajuste refaz', { skip: ARTE.acharEdge() ? false : 'sem Edge/Chrome neste computador', timeout: 240000 }, async () => {
+test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, a arte da marca sai e o Drive recebe; erro de login pausa e volta; ajuste refaz', { skip: ARTE.acharEdge() ? false : 'sem Edge/Chrome neste computador', timeout: 480000 }, async () => {
   const TOKEN = 'teste-token-chrome-da-agencia-0123456789abc', casa = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-casa-')), arm = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-arm-chr-')), cri = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-cri-')), marcas = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-marcas-')), extDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-ext-')), driveLocal = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'n7-dl-')), 'ARTES');
   fs.mkdirSync(path.join(casa, '.nova7')); fs.writeFileSync(path.join(casa, '.nova7', 'agente.json'), JSON.stringify({ chatgpt: { modo: 'extensao', abrirChrome: false } }));
   process.env.LEITURA_TOKEN = TOKEN; process.env.N7_FILA_DIAS = '400'; db._resetMemory(); require('../lib/fila').reset();
@@ -48,7 +48,7 @@ test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, 
         if (!extensaoViva) { await new Promise(r => setTimeout(r, 200)); continue; }
         let r; try { r = await ponte('/job?espera=2'); } catch (e) { break; }
         if (r.status !== 200) continue; const job = await r.json();
-        if (job.mensagens) { jobsImagem.push(job); await ponte('/resultado', { method: 'POST', body: JSON.stringify({ id: job.id, resultados: job.mensagens.map(() => ({ texto: '', blocos: [], imagens: [{ mime: 'image/png', b64: PNG1, w: 1122, h: 1402 }] })) }) }); continue; }
+        if (job.mensagens) { jobsImagem.push(job); await ponte('/resultado', { method: 'POST', body: JSON.stringify({ id: job.id, resultados: job.mensagens.map(() => ({ texto: '', blocos: [], imagens: [{ mime: 'image/png', b64: PNG1, w: 1122, h: 1402 }], verificacao: { aprovada: true, problemas: [], tentativas: 1 } })) }) }); continue; }
         pedidos.push(job.prompt); let corpo;
         if (primeira) { primeira = false; corpo = { id: job.id, erro: 'O ChatGPT não está logado neste Chrome: entre na conta da agência em chatgpt.com.' }; }
         else if (/Seu rascunho anterior/.test(job.prompt)) corpo = { id: job.id, texto: 'Pronto, ajustei.', blocos: [JSON.stringify({ legenda: 'Versão ajustada e mais curta.', arte: { tag: 'Dica', titulo: 'Título ajustado', slides: [{ titulo: 'Só um passo', texto: 'Simples assim.' }] }, hashtags: [], alertas: [] })] };
@@ -63,6 +63,9 @@ test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, 
     assert.deepEqual(r.imagens, ['01_capa.png', '02_slide.png', '03_slide.png', '04_fechamento.png']);
     assert.ok(r.alertas.some(a => /garantia/.test(a)), 'a conformidade pega a promessa de garantia: ' + JSON.stringify(r.alertas));
     assert.ok(pedidos.length >= 2 && /Nunca prometa/.test(pedidos[1]) && /v4company/.test(pedidos[1]) && /SOMENTE com o JSON/.test(pedidos[1]), 'o pedido levou as regras, as referências da V4 e a exigência de JSON');
+    assert.ok(jobsImagem[0].mensagens.every(m => m.verificar && /Confira esta arte/.test(m.verificar.texto) && /{{problemas}}/.test(m.verificar.corrigir) && m.verificar.max === 2), 'cada imagem leva o pedido de conferência e de correção');
+    assert.ok(jobsImagem[0].mensagens.every(m => /7. DESIGN/.test(m.verificar.texto) && /8. CONTINUIDADE/.test(m.verificar.texto)), 'a conferência inclui design e continuidade'); assert.ok(jobsImagem[0].mensagens.every(m => /ROTEIRO COMPLETO DO CARROSSEL/.test(m.texto)), 'o roteiro completo vai em todas as mensagens');
+    assert.ok(r.qualidade && r.qualidade.passou === true && r.qualidade.completas && r.qualidade.slides.length === 4 && r.qualidade.slides.every(x => x.aprovada && x.tentativas === 1), 'o checklist de qualidade chegou ao site: ' + JSON.stringify(r.qualidade)); assert.ok(r.alertas.some(a => /corrigida(s) automaticamente/.test(a)));
     const jb = jobsImagem[0]; assert.ok(jb, 'o agente pediu as imagens ao ChatGPT'); assert.equal(jb.temporario, false, 'imagem só sai em conversa normal'); assert.equal(jb.mensagens.length, 4, 'uma mensagem por imagem: capa, 2 slides e fechamento'); assert.ok(jb.mensagens.every(m => m.imagem));
     assert.ok(jb.mensagens[0].anexos.length >= 1 && jb.mensagens[0].anexos[0].b64.length > 100, 'o logotipo foi anexado'); assert.match(jb.mensagens[0].texto, /3D premium/); assert.match(jb.mensagens[0].texto, /Como cuidar bem/); assert.match(jb.mensagens[1].texto, /Passo um/); assert.match(jb.mensagens[1].texto, /MESMO carrossel/); assert.ok(!jb.mensagens[1].anexos, 'só a primeira mensagem leva anexos');
     assert.ok(r.alertas.some(a => /gerada pelo ChatGPT/.test(a)), 'avisa para conferir a ortografia: ' + JSON.stringify(r.alertas));

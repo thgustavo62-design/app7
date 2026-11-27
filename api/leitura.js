@@ -49,7 +49,7 @@ async function autoGravar(b, j, r) {
   out.semanas = { gravadas, divergentes }; return out;
 }
 
-const DO_COMPUTADOR = new Set(['ola', 'criativo-fila', 'criativo-ajustes', 'exportar', 'rascunho', 'previews', 'refazer-artes', 'sincronizar', 'ideias', 'snapshot', 'loja', 'publicadas', 'despublicar', 'publicar', 'proximo', 'baixar', 'batida', 'enviar', 'concluir', 'falhar']);
+const DO_COMPUTADOR = new Set(['ola', 'criativo-fila', 'criativo-ajustes', 'exportar', 'rascunho', 'previews', 'refazer-artes', 'aprendido', 'sincronizar', 'ideias', 'snapshot', 'loja', 'publicadas', 'despublicar', 'publicar', 'proximo', 'baixar', 'batida', 'enviar', 'concluir', 'falhar']);
 
 async function bruto(req, limite) {
   if (Buffer.isBuffer(req.body)) { if (req.body.length > limite) throw F.bad('Pedaço grande demais', 413); return req.body; }
@@ -75,7 +75,8 @@ module.exports = handle(async (req, res) => {
       const j = await b.pegar(String(q.nome || 'pc').slice(0, 60));
       return send(res, 200, { job: j ? F.publico(j) : null });
     }
-    if (acao === 'criativo-fila') { const C = require('../lib/criacao'), F2 = require('../lib/feed'); const dr = F2.novoDrive(cfg().serviceAccount), itens = await C.filaCriacao(getRepo(), SISTEMA, { drive: dr, dias: Number(process.env.N7_FILA_DIAS) || 7 }), aj = await C.filaAjustes(getRepo(), SISTEMA, { drive: dr }); return send(res, 200, { itens: [...aj.itens, ...itens], exportar: aj.exportar, semPreview: aj.semPreview }); }
+    if (acao === 'criativo-fila') { const C = require('../lib/criacao'), F2 = require('../lib/feed'); const dr = F2.novoDrive(cfg().serviceAccount), itens = await C.filaCriacao(getRepo(), SISTEMA, { drive: dr, dias: Number(process.env.N7_FILA_DIAS) || 7 }), aj = await C.filaAjustes(getRepo(), SISTEMA, { drive: dr }); return send(res, 200, { itens: [...aj.itens, ...itens], exportar: aj.exportar, semPreview: aj.semPreview, aprovadas: aj.aprovadas, descartadas: aj.descartadas }); }
+    if (acao === 'aprendido') { if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido' }); const C = require('../lib/criacao'), b = await readJson(req, 20000); return send(res, 200, { aprendidos: await C.marcarAprendido(getRepo(), SISTEMA, b.codigos) }); }
     if (acao === 'refazer-artes') { if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido' }); const C = require('../lib/criacao'), b = await readJson(req, 20000); return send(res, 200, { refazendo: await C.refazerArtes(getRepo(), SISTEMA, b.codigos, b.instrucao) }); }
     if (acao === 'previews') { if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido' }); const C = require('../lib/criacao'), b = await readJson(req, 20000); return send(res, 200, await C.salvarPreviews(getRepo(), SISTEMA, String(b.codigo || ''), b)); }
     if (acao === 'criativo-ajustes') { const C = require('../lib/criacao'), F2 = require('../lib/feed'); return send(res, 200, await C.filaAjustes(getRepo(), SISTEMA, { drive: F2.novoDrive(cfg().serviceAccount) })); }
