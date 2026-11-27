@@ -71,7 +71,7 @@ test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, 
     /* 3) ajuste pelo site: o agente manda o rascunho anterior + o pedido ao ChatGPT e atualiza o mesmo Doc */
     assert.equal((await J('/api/drive', { method: 'POST', body: JSON.stringify({ acao: 'ajustar', codigo: r.codigo, instrucao: 'deixe mais curto' }) })).s, 200);
     const r2 = await esperarAte(async () => { const x = (await rascunhos()).find(y => y.codigo === r.codigo); return x && x.versao === 2 && x.status === 'novo' ? x : null; });
-    assert.ok(r2, 'o agente refez o rascunho pelo ChatGPT: ' + saida); assert.equal(r2.legenda, 'Versão ajustada e mais curta.'); assert.match(pedidos[pedidos.length - 1], /deixe mais curto/); assert.match(pedidos[pedidos.length - 1], /Resultado garantido/);
+    assert.ok(r2, 'o agente refez o rascunho pelo ChatGPT: ' + saida); assert.equal(r2.legenda, 'Versão ajustada e mais curta.'); const pedidoAjuste = pedidos.find(p => /deixe mais curto/.test(p)); assert.ok(pedidoAjuste, 'o pedido de ajuste chegou ao ChatGPT'); assert.match(pedidoAjuste, /Resultado garantido/, 'com o rascunho anterior');
     /* 4) extensão some (Chrome fechado): o agente não trava, avisa e não perde nada */
     extensaoViva = false; parar = true; await laco.catch(() => {});
   } finally { if (agente) agente.kill(); srv.close(); D._trocarDrive(null); for (const k of ['LEITURA_TOKEN', 'N7_FILA_DIAS']) delete process.env[k]; db._resetMemory(); require('../lib/fila').reset(); [casa, arm, cri, marcas, extDir, path.dirname(driveLocal)].forEach(d => fs.rmSync(d, { recursive: true, force: true })); }
