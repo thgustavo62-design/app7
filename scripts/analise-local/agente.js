@@ -162,23 +162,38 @@ async function criarIdeias(cerebro) {
 /* Agente Criativo: com as chaves em agente.json, escreve rascunhos (ChatGPT) e cria o design (Canva) das pautas sem material. Nunca publica. */
 const CRI = require('./criativo'), CRIC = CRI.config(cfgArq);
 const PASTA_CRIATIVOS = process.env.N7_CRIATIVOS || path.join(fs.existsSync(path.join(os.homedir(), 'Documents')) ? path.join(os.homedir(), 'Documents') : path.join(os.homedir(), '.nova7'), 'Nova7 Criativos');
-let criativoRodando = false;
-async function rodarCriativo() {
+let criativoRodando = false, exportarAte = 0, ultimoErroExport = '';
+/* manda a legenda (Google Doc) e as artes do rascunho para a pasta do post no Drive. Se falta a permissão de Editor, espera 20 minutos e avisa uma vez */
+async function exportarParaDrive(marca, codigo, imagens) {
+  if (Date.now() < exportarAte) return false;
+  try {
+    await chamar('exportar', {}, { metodo: 'POST', corpo: { marca, codigo } });
+    const pasta = path.join(PASTA_CRIATIVOS, CRI.slug(marca), codigo); let n = 0;
+    for (const nome of imagens || []) { const f = path.join(pasta, nome); if (!fs.existsSync(f)) continue; await chamar('exportar', {}, { metodo: 'POST', corpo: { marca, codigo, arte: { nome, b64: fs.readFileSync(f).toString('base64') } } }); n++; }
+    ultimoErroExport = ''; log(`Drive: ${codigo} enviado para a pasta do post (legenda${n ? ' + ' + n + ' arte(s)' : ''}).`); return true;
+  } catch (e) { exportarAte = Date.now() + 20 * 60e3; if (e.message !== ultimoErroExport) { ultimoErroExport = e.message; log(`Drive, ${codigo}: ${e.message}`); } return false; }
+}
+async function rodarCriativo(soAjustes) {
   if (!CRIC.ligado || criativoRodando) return; criativoRodando = true;
   try {
-    const fila = (await chamar('criativo-fila')).itens || []; if (!fila.length) return;
+    const resp = await chamar(soAjustes ? 'criativo-ajustes' : 'criativo-fila'), fila = resp.itens || [], pendentes = resp.exportar || [];
     const estado = lerEstado(); const hoje = new Date().toISOString().slice(0, 10); estado.criativo = estado.criativo && estado.criativo.dia === hoje ? estado.criativo : { dia: hoje, rascunhos: 0, imagens: 0 };
-    let n = 0;
+    let n = 0; const feitos = new Set();
     for (const item of fila) {
-      if (n >= CRIC.maxPorRodada || estado.criativo.rascunhos >= CRIC.maxPorDia) break;
-      try { const r = await CRI.rascunhoDe(item, CRIC, { pastaBase: PASTA_CRIATIVOS, estado, log }); await chamar('rascunho', {}, { metodo: 'POST', corpo: r }); n++; log(`Rascunho criado para ${item.codigo} (${item.cliente}): "${item.titulo}"${r.canvaUrl ? ' + design no Canva' : ''}${r.imagens.length ? ' + arte' : ''}${r.alertas.length ? ' · ' + r.alertas.length + ' alerta(s) para revisar' : ''}. Aguarda a sua aprovação.`); }
-      catch (e) { log(`Criativo, ${item.codigo}: ${e.message}`); }
+      if (!item.ajuste && (n >= CRIC.maxPorRodada || estado.criativo.rascunhos >= CRIC.maxPorDia)) continue;
+      try {
+        const r = await CRI.rascunhoDe(item, CRIC, { pastaBase: PASTA_CRIATIVOS, estado, log }), { artes, pasta, kit, ...limpo } = r;
+        await chamar('rascunho', {}, { metodo: 'POST', corpo: limpo }); n++; feitos.add(item.codigo);
+        log(`${item.ajuste ? 'Rascunho ajustado' : 'Rascunho criado'} para ${item.codigo} (${item.cliente}): "${item.titulo}"${r.canvaUrl ? ' + design no Canva' : ''}${r.imagens.length ? ' + ' + r.imagens.length + ' arte(s) da marca' : ''}${r.alertas.length ? ' · ' + r.alertas.length + ' alerta(s) para revisar' : ''}. Aguarda a sua aprovação.`);
+        await exportarParaDrive(item.marca, item.codigo, r.imagens);
+      } catch (e) { log(`Criativo, ${item.codigo}: ${e.message}`); }
     }
+    for (const p of pendentes) { if (feitos.has(p.codigo)) continue; await exportarParaDrive(p.marca, p.codigo, p.imagens); }
     gravarEstado(Object.assign(lerEstado(), { criativo: estado.criativo }));
   } catch (e) { log('Criativo: ' + e.message); } finally { criativoRodando = false; }
 }
-const CRIATIVO_MS = Number(process.env.N7_CRIATIVO_MS) || 20 * 60e3;
-if (CRIC.ligado) { setTimeout(rodarCriativo, Number(process.env.N7_CRIATIVO_INICIO_MS) || 60000); setInterval(rodarCriativo, CRIATIVO_MS); }
+const CRIATIVO_MS = Number(process.env.N7_CRIATIVO_MS) || 20 * 60e3, AJUSTES_MS = Number(process.env.N7_AJUSTES_MS) || 60e3;
+if (CRIC.ligado) { setTimeout(() => rodarCriativo(false), Number(process.env.N7_CRIATIVO_INICIO_MS) || 60000); setInterval(() => rodarCriativo(false), CRIATIVO_MS); setInterval(() => rodarCriativo(true), AJUSTES_MS); }
 let cerebroRodando = false;
 async function rodarCerebro() {
   if (cerebroRodando) return; cerebroRodando = true; const t0 = Date.now(), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-cerebro-'));

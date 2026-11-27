@@ -13,6 +13,8 @@
   Desligar isso:  .\Agente.ps1 -Remover
   Ver situação:   .\Agente.ps1 -Status
   Agente criativo: .Agente.ps1 -ConfigurarCriativo [-Imagens]   (pede a chave da OpenAI e o token do Canva, sem mostrar; ficam só em agente.json)
+  Identidade visual: .\Agente.ps1 -Marcas            (cria Documentos\Nova7 Marcas\<empresa>\ com logo, fotos, fontes e kit.json, e lista o que falta)
+                     .\Agente.ps1 -AmostrasMarcas    (monta uma arte de exemplo de cada empresa para você conferir logo, cores e fonte)
   Chave p/ Vercel: .\Agente.ps1 -CopiarChave  (copia a chave para a área de transferência, sem mostrar; cole em Vercel > Settings >
                    Environment Variables > LEITURA_TOKEN, tipo Sensitive, e faça Redeploy)
 
@@ -30,6 +32,8 @@ param(
   [switch]$CopiarChave,
   [switch]$ConfigurarCriativo,
   [switch]$Imagens,
+  [switch]$Marcas,
+  [switch]$AmostrasMarcas,
   [string]$ModeloTexto = '',
   [int]$Nucleos = 0,
   [string]$Nome = ''
@@ -59,6 +63,13 @@ if ($Configurar) {
   try { icacls $arquivo /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null } catch { }
   Write-Host "Chave guardada em $arquivo (só o seu usuário lê)." -ForegroundColor Green
   Write-Host 'Agora ligue com  .\Agente.ps1  ou deixe automático com  .\Agente.ps1 -Instalar'
+  return
+}
+
+if ($Marcas -or $AmostrasMarcas) {
+  Testar-Node
+  $m = Join-Path $aqui 'marca.js'
+  if ($AmostrasMarcas) { node $m --amostras } else { node $m --preparar }
   return
 }
 

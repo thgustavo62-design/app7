@@ -1238,3 +1238,5 @@ h2, h3, h4 { letter-spacing: -.005em; word-spacing: .05em; }
 .cr-r summary { cursor: pointer; }
 .cr-leg { white-space: normal; padding: 8px 10px; border-radius: 10px; background: rgba(127,127,127,.08); }
 #fd-ref textarea, #fd-ras textarea { width: 100%; }
+
+.cr-r textarea { margin: 4px 0 6px; }
