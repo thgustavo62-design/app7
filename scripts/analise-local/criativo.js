@@ -4,7 +4,7 @@
    NUNCA publica: o rascunho entra no site como "Em produção" e passa pela aprovação interna e do cliente.
    As chaves ficam só em %USERPROFILE%\.nova7\agente.json (campos openai e canva), nunca no site nem no repositório. */
 const fs = require('fs'), path = require('path'), os = require('os');
-const MARCA = require('./marca'), ARTE = require('./arte'), IG = require('./instagram');
+const MARCA = require('./marca'), ARTE = require('./arte'), IG = require('./instagram'), BIB = require('./biblioteca'), PADRAO = require('./padrao'), BANCO = require('./banco-produtos');
 
 const OPENAI = () => String(process.env.N7_OPENAI_URL || 'https://api.openai.com').replace(/\/$/, '');
 const CANVA = () => String(process.env.N7_CANVA_URL || 'https://api.canva.com').replace(/\/$/, '');
@@ -37,7 +37,7 @@ async function chamarJson(url, token, corpo) {
 
 function prompt(item) {
   const ref = item.referencias || {}, kit = MARCA.resumoParaIA(item.kit || {});
-  const sistema = `Você é redator de uma agência de marketing brasileira. Escreva em português do Brasil, no tom da marca, sem inventar fatos, preços, prazos ou resultados. Nunca prometa resultado, cura, economia ou garantia. Se faltar informação, escreva de forma genérica e diga isso em "alertas". A ARTE é montada por designer a partir do seu texto (logo, cores e fotos da empresa): por isso escreva títulos curtos e diretos, sem emojis no título, sem clichês de IA ("descubra", "mergulhe", "no mundo de hoje", "desbloqueie") e sem pedir imagem de robô, cérebro, neon, brilho ou pessoas perfeitas. Responda SOMENTE com um JSON: {"legenda": string (até 1800 caracteres, sem hashtags), "arte": {"tag": string (até 3 palavras, ex.: o tema), "titulo": string (até 60 caracteres, a ideia do post), "subtitulo": string (até 90 caracteres, opcional), "cta": string (até 40 caracteres, só se for carrossel), "slides": [{"titulo": string (até 50 caracteres), "texto": string (até 150 caracteres)}] (só se for carrossel, de 3 a 7 slides)}, "roteiro": string[] (se for Reels, cenas curtas), "briefArte": string (a CENA da arte: elementos, objetos e clima visual que combinam com o assunto; sem texto na imagem), "produtos": string[] (até 3 nomes de produtos reais da categoria que combinam com o post, ex.: "protetor solar", "creatina"; vazio se não fizer sentido), "hashtags": string[] (até 8), "alertas": string[]}.`;
+  const sistema = `Você é redator de uma agência de marketing brasileira. Escreva em português do Brasil, no tom da marca, sem inventar fatos, preços, prazos ou resultados. Nunca prometa resultado, cura, economia ou garantia. Se faltar informação, escreva de forma genérica e diga isso em "alertas". A ARTE é montada por designer a partir do seu texto (logo, cores e fotos da empresa): por isso escreva títulos curtos e diretos, sem emojis no título, sem clichês de IA ("descubra", "mergulhe", "no mundo de hoje", "desbloqueie") e sem pedir imagem de robô, cérebro, neon, brilho ou pessoas perfeitas. Responda SOMENTE com um JSON: {"legenda": string (até 1800 caracteres, sem hashtags), "arte": {"tag": string (até 3 palavras, ex.: o tema), "titulo": string (até 60 caracteres, a ideia do post), "subtitulo": string (até 90 caracteres, opcional), "cta": string (até 40 caracteres, só se for carrossel), "slides": [{"titulo": string (até 50 caracteres), "texto": string (até 150 caracteres)}] (só se for carrossel, de 3 a 7 slides)}, "roteiro": string[] (se for Reels, cenas curtas), "briefArte": string (a CENA da arte: elementos, objetos e clima visual que combinam com o assunto; sem texto na imagem), "tipoPeca": "promocional" | "educativo" | "institucional" | "aviso" | "sorteio" | "produto" (o que melhor descreve este post), "produtos": string[] (até 3 nomes de produtos reais da categoria que combinam com o post, ex.: "protetor solar", "creatina"; vazio se não fizer sentido), "hashtags": string[] (até 8), "alertas": string[]}.`;
   const usuario = { cliente: item.cliente, setor: item.setor, perfil: item.perfil, identidade: kit, pauta: { codigo: item.codigo, titulo: item.titulo, formato: item.formato, data: item.data },
     referencias: { perfisV4: ref.v4 || [], estilo: ref.estilo || '', evitar: ref.evitar || '', exemplosDeLegenda: ref.exemplos || [] }, legendasRecentesDoCliente: item.legendasRecentes || [], instagramDoCliente: item.instagram || undefined };
   const msgs = [{ role: 'system', content: sistema }, { role: 'user', content: 'Crie o rascunho desta pauta seguindo as referências (inspire-se no estilo, nunca copie textos de terceiros). Se houver "instagramDoCliente", mantenha o tom e o jeito do que o cliente já posta e não repita os assuntos das últimas legendas:\n' + JSON.stringify(usuario) }];
@@ -79,7 +79,7 @@ function normalizar(r) {
   const arte = r.arte && typeof r.arte === 'object' ? r.arte : {}, cut = (v, n) => String(v ?? '').trim().slice(0, n);
   const slidesArte = (Array.isArray(arte.slides) ? arte.slides : []).slice(0, 8).map(x => ({ titulo: cut(x && x.titulo, 60), texto: cut(x && x.texto, 180) })).filter(x => x.titulo);
   const slidesTxt = slidesArte.length ? slidesArte.map(x => (x.texto ? x.titulo + ': ' + x.texto : x.titulo)) : [].concat(r.slides || []).map(String);
-  return { legenda: String(r.legenda || '').slice(0, 2200), arte: { tag: cut(arte.tag, 30), titulo: cut(arte.titulo, 70), subtitulo: cut(arte.subtitulo, 100), cta: cut(arte.cta, 45), slides: slidesArte }, slides: slidesTxt, roteiro: [].concat(r.roteiro || []).map(String), briefArte: String(r.briefArte || ''), produtos: [].concat(r.produtos || []).map(x => cut(x, 60)).filter(Boolean).slice(0, 3), hashtags: [].concat(r.hashtags || []).map(String), alertas: [].concat(r.alertas || []).map(String) };
+  return { legenda: String(r.legenda || '').slice(0, 2200), arte: { tag: cut(arte.tag, 30), titulo: cut(arte.titulo, 70), subtitulo: cut(arte.subtitulo, 100), cta: cut(arte.cta, 45), slides: slidesArte }, slides: slidesTxt, roteiro: [].concat(r.roteiro || []).map(String), briefArte: String(r.briefArte || ''), tipoPeca: cut(r.tipoPeca, 20).toLowerCase(), produtos: [].concat(r.produtos || []).map(x => cut(x, 60)).filter(Boolean).slice(0, 3), hashtags: [].concat(r.hashtags || []).map(String), alertas: [].concat(r.alertas || []).map(String) };
 }
 
 /* foto de apoio por IA: só quando a empresa não tem fotos reais e o recurso está ligado. Pedido para parecer foto de verdade, sem rosto, mão, texto ou logo */
@@ -102,6 +102,11 @@ const palavras = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/
 const TAM_MAX_ANEXO = 4.5e6;
 
 /* fotos de produtos reais cujo nome de arquivo combina com o assunto (ex.: creatina-max-titanium.png para um post de creatina) */
+/* fotos reais do banco de produtos da agência (só para farmácias) para os produtos que o texto sugeriu */
+function produtosDoBanco(kit, r, item) {
+  if (!/farm|saude|saúde/i.test((item.setor || '') + ' ' + (kit.key || '')) || !(r.produtos || []).length) return [];
+  return BANCO.buscar(r.produtos, { max: 3 });
+}
 function produtosParaArte(kit, r, item) {
   if (!kit.produtos || !kit.produtos.length) return [];
   const alvo = new Set(palavras([].concat(r.produtos || [], item.titulo, r.arte && r.arte.titulo, r.legenda).join(' ')));
@@ -122,7 +127,7 @@ function mensagensDeArte(item, r, kit, plano, vertical, anexos, nomesAnexos, pro
   const formato = vertical ? '9:16 (vertical, Reels/Story)' : '4:5 (vertical, feed do Instagram)', n = plano.length;
   const cores = `${kit.cores.primaria} (principal), ${kit.cores.secundaria} (secundária), ${kit.cores.destaque} (destaque)`;
   const nome = n > 1 ? 'carrossel' : (vertical ? 'capa de Reels' : 'post');
-  const prod = produtos.length ? `Mostre os produtos das fotos anexadas (${produtos.map(f => path.basename(f, path.extname(f)).replace(/[-_]+/g, ' ')).join(', ')}) FIÉIS ao original: mesma embalagem, rótulo, cores e formato; não invente nem altere o rótulo.`
+  const prod = produtos.length ? `Mostre os produtos das fotos anexadas (${produtos.map(f => path.basename(f, path.extname(f)).replace(/^\d{6,14}\s*-\s*/, '').replace(/[-_]+/g, ' ')).join(', ')}) FIÉIS ao original: mesma embalagem, rótulo, cores e formato; não invente nem altere o rótulo.`
     : ((r.produtos || []).length ? `Se mostrar produtos (${r.produtos.join(', ')}), use embalagens genéricas bonitas, SEM marca nem texto legível de terceiros.` : 'Não precisa mostrar produtos.');
   return plano.map((s, i) => {
     const textos = linhasDoSlide(s).concat(s.tipo === 'fechamento' && handle ? [`Perfil: "@${handle}"`] : []).join('\n');
@@ -130,7 +135,7 @@ function mensagensDeArte(item, r, kit, plano, vertical, anexos, nomesAnexos, pro
     if (i === 0) return { imagem: true, anexos, texto: `Você é diretor de arte sênior de uma agência de marketing brasileira. Gere AGORA a imagem 1 de ${n} de um ${nome} de Instagram da ${kit.nome}. Não faça perguntas e não explique: apenas gere a imagem.
 
 ESTILO: arte publicitária 3D premium, rica e profissional, no mesmo nível das artes de referência anexadas, SEGUINDO O PADRÃO VISUAL DELAS (paleta, tipo de letra 3D, ícones, fundo, acabamento): título em letras 3D grossas com contorno e brilho, ícones 3D brilhantes, iluminação de estúdio, profundidade, elementos flutuantes, composição limpa e hierarquia clara. Use a linguagem visual das referências, mas NÃO copie o conteúdo, os textos nem os produtos delas.
-${kit.estiloArte ? 'PADRÃO DA MARCA: ' + kit.estiloArte + '\n' : ''}IDENTIDADE: cores ${cores}. Use EXATAMENTE o logotipo anexado (não redesenhe, não altere letras nem cores), em tamanho discreto e legível.
+${kit.estiloArte ? 'PADRÃO DA MARCA: ' + kit.estiloArte + '\n' : ''}${PADRAO.receitaDe(kit.padrao, r.tipoPeca) ? 'RECEITA PARA PEÇA ' + r.tipoPeca.toUpperCase() + ' DESTA MARCA: ' + PADRAO.receitaDe(kit.padrao, r.tipoPeca) + '\n' : ''}IDENTIDADE: cores ${cores}. Use EXATAMENTE o logotipo anexado (não redesenhe, não altere letras nem cores), em tamanho discreto e legível.
 FORMATO: ${formato}. Margem de segurança de 6% nas bordas (nada importante colado na borda).
 TEXTOS (escreva EXATAMENTE assim, em português do Brasil, sem erro de ortografia e sem nenhum outro texto):
 ${textos}
@@ -149,9 +154,13 @@ CENA: ${cena}` };
 async function gerarArtesChatGPT(item, r, kit, pasta, c, { log = () => {}, edge } = {}) {
   const plano = ARTE.planoDeSlides(r, item).slice(0, 8), vertical = /reels|story|stories/i.test(item.formato || ''), W = 1080, H = vertical ? 1920 : 1350;
   const hash = [...item.codigo].reduce((a, ch) => a + ch.charCodeAt(0), 0), handle = (item.perfil && item.perfil.handle) || '';
-  const logo = kit.logoArquivo && /\.(png|jpe?g|webp)$/i.test(kit.logoArquivo) && fs.statSync(kit.logoArquivo).size <= TAM_MAX_ANEXO ? kit.logoArquivo : '';
-  const refs = referenciasParaArte(kit, hash).slice(0, 2).concat((item.instagramImgs || []).slice(0, 1).filter(f => fs.statSync(f).size <= TAM_MAX_ANEXO)), prods = produtosParaArte(kit, r, item), arquivos = [logo, ...refs, ...prods].filter(Boolean);
-  const nomes = [logo && 'logotipo da empresa (primeiro anexo)', refs.length && `${refs.length} arte(s) de referência de ESTILO${(item.instagramImgs || []).length ? ' (a última é um post recente do Instagram do cliente: mantenha coerência com o feed dele)' : ''}`, prods.length && `${prods.length} foto(s) de produto real`].filter(Boolean).join('; ') || 'nenhum';
+  const lib = BIB.carregar();
+  const logoProprio = kit.logoArquivo && !String(kit.logoArquivo).startsWith(path.join(__dirname, '..', '..', 'public')) && /\.(png|jpe?g|webp)$/i.test(kit.logoArquivo) && fs.statSync(kit.logoArquivo).size <= TAM_MAX_ANEXO ? kit.logoArquivo : '';
+  const logo = logoProprio || BIB.melhorLogo(lib, kit.key) || (kit.logoArquivo && /\.(png|jpe?g|webp)$/i.test(kit.logoArquivo) && fs.statSync(kit.logoArquivo).size <= TAM_MAX_ANEXO ? kit.logoArquivo : '');
+  const assunto = [item.titulo, r.arte && r.arte.titulo, (r.produtos || []).join(' ')].join(' ');
+  const daBiblioteca = BIB.escolherReferencias(lib, kit.key, { formato: item.formato, assunto, n: 2, hash }).filter(f => fs.statSync(f).size <= TAM_MAX_ANEXO), identidade = BIB.folhaDeIdentidade(lib, kit.key);
+  const refs = (daBiblioteca.length ? daBiblioteca : referenciasParaArte(kit, hash).slice(0, 2)).concat((item.instagramImgs || []).slice(0, 1).filter(f => fs.statSync(f).size <= TAM_MAX_ANEXO)), bancoProd = produtosDoBanco(kit, r, item), prods = produtosParaArte(kit, r, item).concat(bancoProd.map(b => b.arquivo)).slice(0, 3), arquivos = [logo, identidade && fs.statSync(identidade).size <= TAM_MAX_ANEXO ? identidade : '', ...refs, ...prods].filter(Boolean);
+  const nomes = [logo && 'logotipo da empresa (primeiro anexo)', arquivos.includes(identidade) && 'um elemento da identidade visual da marca (mesmo acabamento 3D)', refs.length && `${refs.length} arte(s) de referência de ESTILO (peças já aprovadas e publicadas da empresa)${(item.instagramImgs || []).length ? ' (a última é um post recente do Instagram do cliente: mantenha coerência com o feed dele)' : ''}`, prods.length && `${prods.length} foto(s) de produto real`].filter(Boolean).join('; ') || 'nenhum';
   const msgs = mensagensDeArte(item, r, kit, plano, vertical, arquivos.map(anexoDe), nomes, prods, handle);
   const resp = await c.ponte.pedirConversa(msgs, { tempoMs: plano.length * 6 * 60e3 + 120e3, aguardarConexaoMs: 0, temporario: false });
   fs.mkdirSync(path.join(pasta, 'originais'), { recursive: true });
@@ -166,7 +175,8 @@ async function gerarArtesChatGPT(item, r, kit, pasta, c, { log = () => {}, edge 
   alertas.push('Arte gerada pelo ChatGPT: confira a ortografia dos textos, o logotipo e os produtos antes de aprovar (a IA pode errar letras).');
   if (artes.length < plano.length) alertas.push(`Só ${artes.length} de ${plano.length} imagens foram geradas (${resp.erro || 'erro no ChatGPT'}). Use "Pedir ajuste" para refazer.`);
   if (!logo) alertas.push('Sem logotipo em PNG/JPG para anexar: o ChatGPT pode ter desenhado a marca por conta própria. Ponha logo.png na pasta de marcas.');
-  if (!(kit.referencias || []).length) alertas.push('Sem artes de referência da empresa: o estilo da arte foi livre.');
+  if (bancoProd.some(b => b.remedio)) alertas.push('Um dos produtos da arte parece medicamento (' + bancoProd.filter(b => b.remedio).map(b => b.nome).join(', ').slice(0, 120) + '): confira as regras de publicidade (ANVISA) antes de aprovar.');
+  if (!(kit.referencias || []).length && !daBiblioteca.length) alertas.push('Sem artes de referência da empresa: o estilo da arte foi livre.');
   return { artes, n: artes.length, alertas };
 }
 
@@ -204,4 +214,14 @@ async function rascunhoDe(item, c, { pastaBase, estado, log = () => {}, edge } =
   return Object.assign({ codigo: item.codigo, marca: item.marca, modelo: c.modeloTexto, pasta }, r);
 }
 
-module.exports = { slug, config, rascunhoDe, gerarArtesChatGPT, mensagensDeArte, produtosParaArte, conformidade, gerarTexto, normalizar, extrairJson, promptWeb, prompt, PROIBIDO };
+/* garante o padrão de criação (padrao.json) das empresas que têm peças na biblioteca: 1 por vez, só com a extensão conectada */
+async function garantirPadroes(c, { log = () => {}, max = 1 } = {}) {
+  if (!c.ponte || !c.ponte.conectada()) return 0; const lib = BIB.carregar(); let feitos = 0;
+  for (const slug of Object.keys(BIB.PASTAS)) {
+    if (feitos >= max) break; const kit = MARCA.kit(slug); if (!kit.existe || kit.padrao || !lib.empresas[slug]) continue;
+    try { if (await PADRAO.extrair(c.ponte, kit, lib, extrairJson, { log })) feitos++; } catch (e) { log('Padrão de criação, ' + kit.nome + ': ' + e.message); }
+  }
+  return feitos;
+}
+
+module.exports = { produtosDoBanco, garantirPadroes, slug, config, rascunhoDe, gerarArtesChatGPT, mensagensDeArte, produtosParaArte, conformidade, gerarTexto, normalizar, extrairJson, promptWeb, prompt, PROIBIDO };

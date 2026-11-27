@@ -14,6 +14,7 @@
   Ver situação:   .\Agente.ps1 -Status
   Agente criativo: .Agente.ps1 -ConfigurarCriativo [-Imagens]   (pede a chave da OpenAI e o token do Canva, sem mostrar; ficam só em agente.json)
   ChatGPT pelo Chrome (sem API): .\Agente.ps1 -ExtensaoChrome   (liga o modo, abre a pasta da extensão e a página de extensões do Chrome: instale uma vez)
+  Biblioteca de referências: .\Agente.ps1 -Biblioteca   (lê as artes já aprovadas no Drive e no Downloads e mostra quantas achou por empresa)
   Identidade visual: .\Agente.ps1 -Marcas            (cria Documentos\Nova7 Marcas\<empresa>\ com logo, fotos, fontes e kit.json, e lista o que falta)
                      .\Agente.ps1 -AmostrasMarcas    (monta uma arte de exemplo de cada empresa para você conferir logo, cores e fonte)
   Chave p/ Vercel: .\Agente.ps1 -CopiarChave  (copia a chave para a área de transferência, sem mostrar; cole em Vercel > Settings >
@@ -34,6 +35,7 @@ param(
   [switch]$ConfigurarCriativo,
   [switch]$Imagens,
   [switch]$ExtensaoChrome,
+  [switch]$Biblioteca,
   [switch]$Marcas,
   [switch]$AmostrasMarcas,
   [string]$ModeloTexto = '',
@@ -82,6 +84,8 @@ if ($ExtensaoChrome) {
   try { Start-Process chrome 'chrome://extensions' } catch { Write-Host 'Abra chrome://extensions manualmente.' }
   return
 }
+
+if ($Biblioteca) { Testar-Node; node (Join-Path $aqui 'biblioteca.js'); return }
 
 if ($Marcas -or $AmostrasMarcas) {
   Testar-Node

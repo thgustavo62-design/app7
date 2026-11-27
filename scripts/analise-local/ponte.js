@@ -54,12 +54,12 @@ function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PA
     return { texto: String(rs[0] && rs[0].texto || ''), blocos: (rs[0] && rs[0].blocos || []).map(String) };
   }
   /* a extensão antiga (1.0.x) só sabe texto: avisa para recarregar em vez de mandar o pedido novo para ela */
-  function exigirVersao(maior, menor) {
-    const v = String(versaoExtensao || '').split('.').map(Number); if (v.length >= 2 && !v.some(isNaN) && (v[0] < maior || (v[0] === maior && v[1] < menor))) throw Object.assign(new Error('A extensão do Chrome está desatualizada (versão ' + versaoExtensao + '): recarregue-a em chrome://extensions (ícone de recarregar).'), { codigo: 'EXTENSAO_ANTIGA' });
+  function exigirVersao(maior, menor, remendo = 0) {
+    const v = String(versaoExtensao || '').split('.').map(Number); while (v.length < 3) v.push(0); if (!v.some(isNaN) && String(versaoExtensao || '') && (v[0] < maior || (v[0] === maior && (v[1] < menor || (v[1] === menor && v[2] < remendo))))) throw Object.assign(new Error('A extensão do Chrome está desatualizada (versão ' + versaoExtensao + '): recarregue-a em chrome://extensions (ícone de recarregar).'), { codigo: 'EXTENSAO_ANTIGA' });
   }
   /* lê o Instagram de um perfil (só leitura) pelo Chrome já logado. Devolve { bio, resumo, posts:[{codigo,tipo,alt,legenda,imagem:{mime,b64}}] } */
   async function pedirInstagram(handle, { max = 12, tempoMs = 4 * 60e3, aguardarConexaoMs = 0 } = {}) {
-    exigirVersao(1, 2);
+    exigirVersao(1, 2, 0);
     const b = await enfileirar({ instagram: { handle: String(handle || '').replace(/^@/, ''), max }, temporario: true }, tempoMs, aguardarConexaoMs);
     if (b.erro || !b.instagram) throw falhou({ erro: b.erro || 'O Instagram não devolveu dados.' }, []);
     return b.instagram;
@@ -67,7 +67,7 @@ function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PA
   /* conversa com várias mensagens ([{ texto, anexos:[{nome,mime,b64}], imagem }]) na mesma conversa (normal, não temporária: só assim o ChatGPT gera imagem).
      Devolve { resultados:[{texto,blocos,imagens:[{mime,b64,w,h}]}], erro } — pode vir com parte pronta e um erro */
   async function pedirConversa(mensagens, { tempoMs, aguardarConexaoMs = 0, temporario = false } = {}) {
-    exigirVersao(1, 1);
+    exigirVersao(1, 2, 1);
     const b = await enfileirar({ mensagens, temporario }, tempoMs || Math.max(1, mensagens.length) * 6 * 60e3, aguardarConexaoMs), rs = resultadosDe(b);
     if (b.erro && !rs.length) throw falhou(b, rs);
     return { resultados: rs, erro: b.erro ? String(b.erro).slice(0, 300) : '' };

@@ -102,8 +102,8 @@ test('conversa no visual atual do ChatGPT (o ChatGPT "pensa" 1,5 s antes de escr
 });
 
 /* ChatGPT falso com anexo por colagem e geração de imagem (as imagens vêm de um canvas, como a imagem real: PNG em blob/dados com mais de 300 px) */
-const PAGINA_IMG = `<!doctype html><title>ChatGPT</title><body><main id="chat"></main><form><div class="ProseMirror" contenteditable="true"></div><div id="chips"></div><button type="button" aria-label="Enviar" id="b" disabled>Enviar</button></form><script>
-const campo = document.querySelector('.ProseMirror'), b = document.getElementById('b'), chat = document.getElementById('chat'), chips = document.getElementById('chips'); window.__anexos = [];
+const PAGINA_IMG = `<!doctype html><title>ChatGPT</title><body><main id="chat"></main><form style="display:none" id="decoy"><div class="ProseMirror" contenteditable="true"></div><button type="button" aria-label="Parar">Parar</button><button type="button" aria-label="Enviar">Enviar</button></form><form><div class="ProseMirror" contenteditable="true" id="real"></div><div id="chips"></div><button type="button" aria-label="Enviar" id="b" disabled>Enviar</button></form><script>
+const campo = document.getElementById('real'), b = document.getElementById('b'), chat = document.getElementById('chat'), chips = document.getElementById('chips'); window.__anexos = [];
 campo.addEventListener('paste', e => { e.preventDefault(); const fs = e.clipboardData.files; if (fs && fs.length) { for (const f of fs) { window.__anexos.push({ nome: f.name, tam: f.size, tipo: f.type }); const x = document.createElement('button'); x.type = 'button'; x.setAttribute('aria-label', 'Remover ' + f.name); chips.appendChild(x); } return; } campo.innerText = e.clipboardData.getData('text/plain'); b.disabled = false; });
 b.addEventListener('click', () => { const pedido = campo.innerText; campo.innerText = ''; b.disabled = true; chips.innerHTML = ''; window.__pedidos = (window.__pedidos || []).concat(pedido);
   chat.insertAdjacentHTML('beforeend', '<div data-chatgpt-search-unit-key="u"><h4 data-conversation-role="user"><span>Você disse:</span></h4><div>' + pedido.slice(0, 40) + '</div></div>');

@@ -6,15 +6,16 @@
   const visivel = el => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
 
   const ACHA = {
-    compositor: () => document.querySelector('#prompt-textarea') || document.querySelector('div.ProseMirror[contenteditable="true"]') || document.querySelector('textarea[name="prompt-textarea"]') || document.querySelector('form textarea'),
-    enviar: () => { const b = document.querySelector('button[data-testid="send-button"]') || [...document.querySelectorAll('form button')].find(x => /send prompt|enviar/i.test(x.getAttribute('aria-label') || '')); return b && !b.disabled ? b : null; },
+    /* depois da primeira resposta o ChatGPT deixa DOIS campos na página (um escondido, da tela inicial): vale sempre o visível */
+    compositor: () => { const vis = sel => [...document.querySelectorAll(sel)].find(visivel); return vis('#prompt-textarea') || vis('div.ProseMirror[contenteditable="true"]') || vis('textarea[name="prompt-textarea"]') || vis('form textarea') || null; },
+    enviar: () => { const b = [...document.querySelectorAll('button[data-testid="send-button"]')].find(visivel) || [...document.querySelectorAll('form button')].find(x => visivel(x) && /send prompt|enviar/i.test(x.getAttribute('aria-label') || '')); return b && !b.disabled ? b : null; },
     parar: () => { const b = document.querySelector('button[data-testid="stop-button"]') || [...document.querySelectorAll('button[aria-label]')].find(x => /^(stop streaming|stop generating|parar|interromper)/i.test(x.getAttribute('aria-label') || '')); return b && visivel(b) ? b : null; },
     /* visual antigo: data-message-author-role; visual atual (conferido em 2026-11-27): cada resposta é uma "unidade" com um título h4[data-conversation-role="assistant"] ("ChatGPT disse:") */
     respostas: () => { const antigo = [...document.querySelectorAll('[data-message-author-role="assistant"]')]; if (antigo.length) return antigo; return [...document.querySelectorAll('h4[data-conversation-role="assistant"]')].map(h => h.closest('[data-chatgpt-search-unit-key]') || h.parentElement).filter((e, i, a) => e && a.indexOf(e) === i); },
     /* o botão de enviar vira "Parar" enquanto o ChatGPT escreve; a vez da resposta também fica "in_progress" */
     escrevendo: () => !!document.querySelector('[data-talvt-turn-state="in_progress"]'),
     /* anexos prontos no campo de mensagem: cada um tem um botão "Remover <arquivo>" */
-    anexos: () => document.querySelectorAll('form button[aria-label^="Remover"], form button[aria-label^="Remove"]').length,
+    anexos: () => [...document.querySelectorAll('form button[aria-label^="Remover"], form button[aria-label^="Remove"]')].filter(visivel).length,
     login: () => !!document.querySelector('[data-testid="login-button"], [data-testid="welcome-login-button"]') || /\/auth\/login|\/log-in/.test(location.pathname),
     verificacao: () => /Verify you are human|Verifique se você é humano|Just a moment/i.test(document.title + ' ' + (document.body ? document.body.innerText.slice(0, 400) : '')),
     /* só avisos e janelas da página (nunca o menu lateral com os títulos dos chats, nem as mensagens) */

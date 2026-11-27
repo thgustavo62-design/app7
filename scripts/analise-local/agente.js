@@ -235,6 +235,7 @@ async function rodarCriativo(soAjustes) {
   if (CRIC.modo === 'extensao' && (!CRIC.ponte || Date.now() < pausaCriativoAte)) return;
   criativoRodando = true;
   try {
+    if (CRIC.modo === 'extensao' && !soAjustes) await CRI.garantirPadroes(CRIC, { log });   /* padrão de criação a partir das peças já aprovadas (1ª vez) */
     const resp = await chamar(soAjustes ? 'criativo-ajustes' : 'criativo-fila'); let fila = resp.itens || []; const pendentes = resp.exportar || [];
     /* extensão desconectada: acorda o Chrome (no máximo a cada 15 min) e espera até 90 s; sem ela não há como escrever, mas o envio ao Drive segue */
     if (CRIC.modo === 'extensao' && fila.length && !PONTE.conectada()) {
