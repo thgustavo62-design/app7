@@ -1236,6 +1236,16 @@ h2, h3, h4 { letter-spacing: -.005em; word-spacing: .05em; }
 
 .cr-r { border-top: 1px solid rgba(127,127,127,.25); padding: 8px 0; }
 .cr-r summary { cursor: pointer; }
+.cr-ig { max-width: 340px; border: 1px solid rgba(127,127,127,.3); border-radius: 14px; margin: 8px 0 12px; background: rgba(127,127,127,.05); overflow: hidden; }
+.cr-ig-top { display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
+.cr-ig-av { display: inline-flex; width: 28px; height: 28px; border-radius: 50%; align-items: center; justify-content: center; background: linear-gradient(135deg, #f58529, #dd2a7b, #8134af); color: #fff; font-weight: 700; font-size: 13px; }
+.cr-ig-trilho { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 0; }
+.cr-ig-img { position: relative; flex: 0 0 100%; scroll-snap-align: center; aspect-ratio: 4 / 5; background: rgba(127,127,127,.15); display: block; }
+.cr-ig-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cr-ig-img.falhou::after { content: "Arte ainda não chegou ao Drive"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px; font-size: 13px; opacity: .7; }
+.cr-ig-n { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.55); color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 12px; }
+.cr-ig-leg { margin: 8px 10px 4px; font-size: 13px; line-height: 1.35; }
+.cr-ig-aviso { margin: 0 10px 8px; font-size: 11px; }
 .cr-leg { white-space: normal; padding: 8px 10px; border-radius: 10px; background: rgba(127,127,127,.08); }
 #fd-ref textarea, #fd-ras textarea { width: 100%; }
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Nova7 ↔ ChatGPT",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Deixa o agente criativo da Nova7 usar o seu ChatGPT (já logado) para escrever os rascunhos de posts. Só fala com o agente neste computador (127.0.0.1) e com o chatgpt.com.",
   "minimum_chrome_version": "116",
   "permissions": ["alarms", "tabs", "storage"],

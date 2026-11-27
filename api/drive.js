@@ -9,6 +9,7 @@
    GET  ?marca=M&acao=permissao           diz se a conta de serviço pode criar arquivos na pasta (Editor) e se é Drive compartilhado
    POST {acao:'ajustar', codigo, instrucao}   pede ao agente criativo para refazer o rascunho
    POST {acao:'exportar', marca, codigo}      manda legenda (e as artes já enviadas) do rascunho para a pasta do post no Drive
+   GET  ?acao=arte&codigo=C-F08&n=1        miniatura JPEG da arte (lida do Drive: ARTES/<empresa>/<código>/_preview)
    POST {acao:'sincronizar'}              adianta para Aprovação as pautas com arte e legenda completas no Drive */
 const { getRepo } = require('../lib/db');
 const D = require('../lib/drive-org');
@@ -24,7 +25,14 @@ module.exports = handle(async (req, res) => {
   if (user.trocar) return send(res, 403, { error: 'trocar_senha' });
   const repo = getRepo(), sa = cfg().serviceAccount;
   if (req.method === 'GET') {
-    const q = query(req); if (!q.marca) return send(res, 400, { error: 'Falta a empresa (marca)' });
+    const q = query(req);
+    /* miniatura de uma arte (JPEG pequeno guardado no Drive pelo agente): <img src="/api/drive?acao=arte&codigo=C-F08&n=1"> */
+    if (q.acao === 'arte') {
+      const dw = D.novoDriveEscrita(sa); if (!dw) return send(res, 404, { error: 'O Drive não está ligado.' });
+      const buf = await C.lerPreview(repo, dw, String(q.codigo || ''), Number(q.n) || 1);
+      res.statusCode = 200; res.setHeader('Content-Type', 'image/jpeg'); res.setHeader('Cache-Control', 'private, max-age=600'); res.setHeader('X-Content-Type-Options', 'nosniff'); return res.end(buf);
+    }
+    if (!q.marca) return send(res, 400, { error: 'Falta a empresa (marca)' });
     if (q.acao === 'permissao') { const dw = D.novoDriveEscrita(sa); if (!dw) return send(res, 200, { ligado: false, erro: 'Falta GOOGLE_SERVICE_ACCOUNT_JSON.' }); try { const id = await C.raizDe(repo, q.marca), cap = await dw.capacidades(id); return send(res, 200, Object.assign({ ligado: true, conta: dw.email }, cap)); } catch (e) { return send(res, 200, { ligado: true, conta: dw.email, podeCriar: false, erro: e.expose ? e.message : 'Não consegui consultar o Drive.' }); } }
     if (q.acao === 'logs') return send(res, 200, { logs: await D.logs(repo, user, q.marca) });
     if (q.acao === 'referencias') return send(res, 200, { referencias: await C.lerReferencias(repo, q.marca) });

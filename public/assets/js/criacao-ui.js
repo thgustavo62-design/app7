@@ -23,10 +23,20 @@
     }).catch(e => { host.innerHTML = `<p class="notice">${esc(e.message)}</p>`; });
   }
 
+  /* preview do post como aparece no Instagram: carrossel com as artes (miniaturas lidas do Drive) e a legenda */
+  function previa(r) {
+    if (!r.previews || !r.previews.length) return r.imagens && r.imagens.length ? `<p class="src">Preview: as artes aparecem aqui assim que o agente enviar as miniaturas (até 1 hora).</p>` : "";
+    const n = r.previews.length, empresa = String(r.pastaArtes || "").split("/")[0] || r.marca || "", perfil = esc(empresa);
+    return `<div class="cr-ig"><div class="cr-ig-top"><span class="cr-ig-av">${esc(empresa.slice(0, 1))}</span><b>${perfil}</b><span class="src">${esc(r.formato || "")}</span></div>
+      <div class="cr-ig-trilho" tabindex="0" aria-label="Artes do post">${r.previews.map((p, i) => `<a class="cr-ig-img" href="/api/drive?acao=arte&codigo=${encodeURIComponent(r.codigo)}&n=${i + 1}" target="_blank" rel="noopener"><img loading="lazy" alt="Arte ${i + 1} de ${n} do rascunho ${esc(r.codigo)}" src="/api/drive?acao=arte&codigo=${encodeURIComponent(r.codigo)}&n=${i + 1}"><span class="cr-ig-n">${i + 1}/${n}</span></a>`).join("")}</div>
+      <p class="cr-ig-leg"><b>${perfil}</b> ${esc((r.legenda || "").slice(0, 180))}${(r.legenda || "").length > 180 ? "… <span class='src'>mais</span>" : ""}</p>
+      <p class="src cr-ig-aviso">Se a arte não carregar, o app do Google Drive no computador da agência ainda está enviando (alguns minutos).</p></div>`;
+  }
   function cartao(r) {
     const lista = (t, l) => (l && l.length ? `<p><b>${t}</b></p><ol class="plain">${l.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : "");
     return `<details class="cr-r"><summary><b>${esc(r.codigo)}</b> · ${esc(r.titulo)} · ${dm(r.data)} <span class="badge">${BADGE[r.status] || r.status}</span>${r.versao > 1 ? ` <span class="badge">v${r.versao}</span>` : ""}${r.alertas && r.alertas.length ? ` <span class="badge p1">${r.alertas.length} alerta(s)</span>` : ""}</summary>
       ${r.alertas && r.alertas.length ? `<div class="notice">${r.alertas.map(esc).join("<br>")}</div>` : ""}
+      ${previa(r)}
       <p><b>Legenda</b></p><p class="cr-leg">${esc(r.legenda).replace(/\n/g, "<br>")}</p>${r.hashtags && r.hashtags.length ? `<p class="src">${esc(r.hashtags.join(" "))}</p>` : ""}
       ${lista("Slides", r.slides)}${lista("Roteiro", r.roteiro)}${r.briefArte ? `<p><b>Brief da arte</b></p><p>${esc(r.briefArte)}</p>` : ""}
       <div class="toolbar">${r.canvaUrl ? `<a class="btn" href="${esc(r.canvaUrl)}" target="_blank" rel="noopener">Abrir no Canva</a>` : ""}<button type="button" class="btn" data-copiar="${esc(r.codigo)}">Copiar legenda</button>
@@ -41,6 +51,7 @@
       host.innerHTML = `<p class="src" id="cr-perm">Conferindo a permissão do Drive…</p><div class="toolbar"><button type="button" class="btn" id="cr-sync">Sincronizar posts com o Drive</button></div><p class="src">Pauta com arte <b>e</b> legenda completas no Drive vai para Aprovação (nunca para Pronto ou Publicado).</p>${rascunhos.length ? rascunhos.map(cartao).join("") : `<p class="src">Nenhum rascunho ainda. Com o agente criativo ligado, ele cria rascunhos das pautas dos próximos dias que ainda não têm material.</p>`}`;
       host.querySelector("#cr-sync").onclick = async (ev) => { const b = ev.currentTarget; b.disabled = true; try { const r = await api("/api/drive", { acao: "sincronizar" }); H.toast(r.movidas.length ? `${r.movidas.length} pauta(s) foram para Aprovação.` : "Nada a adiantar agora."); } catch (e) { H.toast(e.message); } b.disabled = false; };
       perm(host);
+      host.querySelectorAll(".cr-ig-img img").forEach(im => im.addEventListener("error", () => { im.parentNode.classList.add("falhou"); im.remove(); }));
       host.querySelectorAll("[data-exp]").forEach(b => { b.onclick = async () => { b.disabled = true; try { await api("/api/drive", { acao: "exportar", marca: b.dataset.marca, codigo: b.dataset.exp }); H.toast("Legenda enviada para a pasta do post no Drive."); carregar(); } catch (e) { H.toast(e.message); b.disabled = false; } }; });
       host.querySelectorAll("[data-aj]").forEach(b => { b.onclick = async () => { const t = host.querySelector('[data-ajtxt="' + b.dataset.aj + '"]'); if (!t || t.value.trim().length < 4) { H.toast("Escreva o que ajustar."); return; } b.disabled = true; try { await api("/api/drive", { acao: "ajustar", codigo: b.dataset.aj, instrucao: t.value.trim() }); H.toast("Pedido enviado: o agente refaz em até 1 minuto."); carregar(); } catch (e) { H.toast(e.message); b.disabled = false; } }; });
       host.querySelectorAll("[data-copiar]").forEach(b => { b.onclick = () => { const r = rascunhos.find(x => x.codigo === b.dataset.copiar); if (r && navigator.clipboard) navigator.clipboard.writeText(r.legenda).then(() => H.toast("Legenda copiada.")); }; });

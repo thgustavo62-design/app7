@@ -70,12 +70,14 @@ test('agente criativo pelo Chrome: pedido vai à extensão, o ChatGPT responde, 
     const pasta1 = await esperarAte(() => { const p = drive.pastas().find(x => x.name.includes('__' + r.codigo + '__')); return p && p.filhos.length >= 1 ? p : null; }, 120);
     assert.ok(pasta1, 'a pasta do post nasceu no Drive com a legenda: ' + saida);
     /* imagens: vão para a pasta do Drive no computador (o app do Google envia), não pela API (a conta de serviço não tem espaço) */
-    const dest = path.join(driveLocal, { M: 'Minas Farma', F: 'Farma e Farma', C: 'Campo Forte', N: 'Nova7' }[r.marca], r.codigo); const copiadas = await esperarAte(() => { try { const l = fs.readdirSync(dest).sort(); return l.length >= 4 ? l : null; } catch (e) { return null; } }, 60);
+    const dest = path.join(driveLocal, { M: 'Minas Farma', F: 'Farma e Farma', C: 'Campo Forte', N: 'Nova7' }[r.marca], r.codigo); const copiadas = await esperarAte(() => { try { const l = fs.readdirSync(dest).filter(n => n !== '_preview').sort(); return l.length >= 4 ? l : null; } catch (e) { return null; } }, 60);
     assert.deepEqual(copiadas, r.imagens.slice().sort(), 'as 4 artes foram copiadas para a pasta do Drive do computador: ' + saida);
+    const minis = fs.readdirSync(path.join(dest, '_preview')).sort(); assert.deepEqual(minis, r.imagens.map(n => n.replace('.png', '.jpg')).sort(), 'as miniaturas do preview também foram para o Drive do computador');
+    const rp = (await rascunhos()).find(x => x.codigo === r.codigo); assert.deepEqual(rp.previews.slice().sort(), minis, 'o site sabe quais miniaturas existem'); assert.equal(rp.pastaArtes, { M: 'Minas Farma', F: 'Farma e Farma', C: 'Campo Forte', N: 'Nova7' }[r.marca] + '/' + r.codigo);
     assert.ok(!pasta1.filhos.some(i => /^image\//.test(drive.itens.get(i).mimeType)), 'nenhuma imagem foi enviada pela API');
     /* 3) ajuste pelo site: o agente manda o rascunho anterior + o pedido ao ChatGPT e atualiza o mesmo Doc */
     assert.equal((await J('/api/drive', { method: 'POST', body: JSON.stringify({ acao: 'ajustar', codigo: r.codigo, instrucao: 'deixe mais curto' }) })).s, 200);
-    const r2 = await esperarAte(async () => { const x = (await rascunhos()).find(y => y.codigo === r.codigo); return x && x.versao === 2 && x.status === 'novo' ? x : null; });
+    const r2 = await esperarAte(async () => { const x = (await rascunhos()).find(y => y.codigo === r.codigo); return x && x.versao === 2 && x.status === 'novo' ? x : null; }, 500);
     assert.ok(r2, 'o agente refez o rascunho pelo ChatGPT: ' + saida); assert.equal(r2.legenda, 'Versão ajustada e mais curta.'); const pedidoAjuste = pedidos.find(p => /deixe mais curto/.test(p)); assert.ok(pedidoAjuste, 'o pedido de ajuste chegou ao ChatGPT'); assert.match(pedidoAjuste, /Resultado garantido/, 'com o rascunho anterior');
     /* 4) extensão some (Chrome fechado): o agente não trava, avisa e não perde nada */
     extensaoViva = false; parar = true; await laco.catch(() => {});

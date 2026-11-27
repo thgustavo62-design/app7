@@ -194,6 +194,7 @@ async function rascunhoDe(item, c, { pastaBase, estado, log = () => {}, edge } =
   }
   r.canvaUrl = ''; if (c.canvaToken) { try { r.canvaUrl = await criarNoCanva(item, c); } catch (e) { r.alertas.push('Design no Canva não criado: ' + e.message); log('Canva: ' + e.message); } }
   cota.rascunhos++;
+  r.previews = r.imagens.length ? await ARTE.miniaturas(pasta, r.imagens, { edge }).catch(() => []) : [];
   return Object.assign({ codigo: item.codigo, marca: item.marca, modelo: c.modeloTexto, pasta }, r);
 }
 

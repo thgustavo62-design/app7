@@ -56,6 +56,8 @@ function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PA
   /* conversa com várias mensagens ([{ texto, anexos:[{nome,mime,b64}], imagem }]) na mesma conversa (normal, não temporária: só assim o ChatGPT gera imagem).
      Devolve { resultados:[{texto,blocos,imagens:[{mime,b64,w,h}]}], erro } — pode vir com parte pronta e um erro */
   async function pedirConversa(mensagens, { tempoMs, aguardarConexaoMs = 0, temporario = false } = {}) {
+    /* a extensão antiga (1.0.x) só sabe texto: avisa para recarregar em vez de mandar o pedido de imagem para ela */
+    const v = String(versaoExtensao || '').split('.').map(Number); if (v.length >= 2 && !v.some(isNaN) && (v[0] < 1 || (v[0] === 1 && v[1] < 1))) throw Object.assign(new Error('A extensão do Chrome está desatualizada (versão ' + versaoExtensao + '): recarregue-a em chrome://extensions (ícone de recarregar).'), { codigo: 'EXTENSAO_ANTIGA' });
     const b = await enfileirar({ mensagens, temporario }, tempoMs || Math.max(1, mensagens.length) * 6 * 60e3, aguardarConexaoMs), rs = resultadosDe(b);
     if (b.erro && !rs.length) throw falhou(b, rs);
     return { resultados: rs, erro: b.erro ? String(b.erro).slice(0, 300) : '' };

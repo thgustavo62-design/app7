@@ -73,7 +73,7 @@ test('agente criativo: escreve com a IA, monta a arte da marca, manda ao Drive, 
     r = (await rascunhos()).find(x => x.codigo === r.codigo); assert.ok(r.drive && r.drive.docId && r.drive.artes.length === 4 && /folders\//.test(r.drive.link), 'o rascunho guarda onde está no Drive');
     /* ajuste: a equipe pede, o agente refaz, o Doc é atualizado e nada vira outra pasta */
     assert.equal((await J('/api/drive', { method: 'POST', body: JSON.stringify({ acao: 'ajustar', codigo: r.codigo, instrucao: 'deixe mais curto' }) })).s, 200);
-    let r2 = null; for (let i = 0; i < 200 && !(r2 && r2.versao === 2 && r2.status === 'novo'); i++) { r2 = (await rascunhos()).find(x => x.codigo === r.codigo); if (!(r2 && r2.versao === 2 && r2.status === 'novo')) await new Promise(x => setTimeout(x, 500)); }
+    let r2 = null; for (let i = 0; i < 500 && !(r2 && r2.versao === 2 && r2.status === 'novo'); i++) { r2 = (await rascunhos()).find(x => x.codigo === r.codigo); if (!(r2 && r2.versao === 2 && r2.status === 'novo')) await new Promise(x => setTimeout(x, 500)); }
     assert.ok(r2 && r2.versao === 2, 'o agente refez o rascunho: ' + saida); assert.equal(r2.legenda, 'Versão ajustada e mais curta.'); assert.equal(r2.ajustes[0].instrucao, 'deixe mais curto'); assert.deepEqual(r2.imagens, ['01_capa.png', '02_slide.png', '03_slide.png']);
     const pedidoAjuste = JSON.stringify(vistos.filter(v => v.url === '/v1/chat/completions').pop().corpo.messages); assert.match(pedidoAjuste, /deixe mais curto/); assert.match(pedidoAjuste, /Resultado garantido/, 'a IA recebeu o rascunho anterior para ajustar');
     for (let i = 0; i < 60 && !/Versão ajustada/.test(drive.itens.get(doc.id).texto); i++) await new Promise(x => setTimeout(x, 500));

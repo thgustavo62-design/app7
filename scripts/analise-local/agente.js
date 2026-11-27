@@ -183,7 +183,9 @@ if (CRIC.ligado && CRIC.modo === 'extensao') {
 /* Conta de serviço do Google não tem espaço para IMAGENS no "Meu Drive" de uma pessoa. Solução: com o app Google Drive para computador instalado, o agente
    copia as artes para uma pasta do Drive no PC (ARTES\<empresa>\<código>) e o próprio Google envia. Pasta: agente.json "driveLocal", env N7_DRIVE_LOCAL ou achada sozinha. */
 function pastaDriveLocal() {
-  const cfgDir = process.env.N7_DRIVE_LOCAL || cfgArq.driveLocal; if (cfgDir) return fs.existsSync(cfgDir) || fs.existsSync(path.dirname(cfgDir)) ? cfgDir : '';
+  /* testes (armazém isolado) nunca mexem no Drive de verdade; "off" desliga */
+  if (process.env.N7_ARMAZEM && !process.env.N7_DRIVE_LOCAL) return '';
+  const cfgDir = process.env.N7_DRIVE_LOCAL || cfgArq.driveLocal; if (cfgDir === 'off') return ''; if (cfgDir) return fs.existsSync(cfgDir) || fs.existsSync(path.dirname(cfgDir)) ? cfgDir : '';
   const cands = []; for (const L of 'GHIJKLMNOPQRSTUVWXYZDEF') for (const n of ['Meu Drive', 'My Drive']) cands.push(L + ':\\' + n);
   for (const n of ['Google Drive', 'Meu Drive', 'My Drive']) cands.push(path.join(os.homedir(), n));
   const raiz = cands.find(c => { try { return fs.statSync(c).isDirectory(); } catch (e) { return false; } }); return raiz ? path.join(raiz, 'ARTES') : '';
@@ -195,6 +197,8 @@ function copiarParaDriveLocal(marca, codigo, imagens) {
   const origem = path.join(PASTA_CRIATIVOS, CRI.slug(marca), codigo), destino = path.join(base, NOMES_PASTA[marca] || CRI.slug(marca), codigo); let n = 0;
   fs.mkdirSync(destino, { recursive: true });
   for (const nome of imagens || []) { const f = path.join(origem, nome); if (fs.existsSync(f)) { fs.copyFileSync(f, path.join(destino, nome)); n++; } }
+  /* miniaturas do preview do site: o site as lê do Drive (ARTES/<empresa>/<código>/_preview) */
+  const prev = path.join(origem, '_preview'); if (fs.existsSync(prev)) { fs.mkdirSync(path.join(destino, '_preview'), { recursive: true }); for (const n2 of fs.readdirSync(prev)) fs.copyFileSync(path.join(prev, n2), path.join(destino, '_preview', n2)); }
   if (n && !driveLocalAvisado) { driveLocalAvisado = true; log('Artes copiadas para o Drive do computador (' + base + '): o app do Google envia sozinho.'); }
   return n;
 }
@@ -207,6 +211,19 @@ async function exportarParaDrive(marca, codigo, imagens) {
     for (const nome of noDriveLocal ? [] : imagens || []) { const f = path.join(pasta, nome); if (!fs.existsSync(f)) continue; await chamar('exportar', {}, { metodo: 'POST', corpo: { marca, codigo, arte: { nome, b64: fs.readFileSync(f).toString('base64') } } }); n++; }
     ultimoErroExport = ''; log(`Drive: ${codigo} enviado para a pasta do post (legenda${n ? ' + ' + n + ' arte(s)' : noDriveLocal ? '; ' + noDriveLocal + ' arte(s) pelo Drive do computador' : ''}).`); return true;
   } catch (e) { exportarAte = Date.now() + 20 * 60e3; if (e.message !== ultimoErroExport) { ultimoErroExport = e.message; log(`Drive, ${codigo}: ${e.message}`); } return false; }
+}
+const nomePastaArtes = (marca, codigo) => (NOMES_PASTA[marca] || CRI.slug(marca)) + '/' + codigo;
+/* rascunhos feitos antes do preview: gera as miniaturas das artes que estão no computador, copia para o Drive e avisa o site */
+async function refazerPreviews(lista) {
+  const ARTE = require('./arte');
+  for (const p of lista || []) {
+    try {
+      const pasta = path.join(PASTA_CRIATIVOS, CRI.slug(p.marca), p.codigo); if (!(p.imagens || []).some(n => fs.existsSync(path.join(pasta, n)))) continue;
+      const nomes = await ARTE.miniaturas(pasta, p.imagens); if (!nomes.length) continue;
+      try { copiarParaDriveLocal(p.marca, p.codigo, p.imagens); } catch (e) { /* sem Drive local */ }
+      await chamar('previews', {}, { metodo: 'POST', corpo: { codigo: p.codigo, previews: nomes, pastaArtes: nomePastaArtes(p.marca, p.codigo) } }); log(`Preview: ${nomes.length} miniatura(s) de ${p.codigo} no site.`);
+    } catch (e) { log(`Preview, ${p.codigo}: ${e.message}`); }
+  }
 }
 async function rodarCriativo(soAjustes) {
   if (!CRIC.ligado || criativoRodando) return;
@@ -224,7 +241,7 @@ async function rodarCriativo(soAjustes) {
     for (const item of fila) {
       if (!item.ajuste && (n >= CRIC.maxPorRodada || estado.criativo.rascunhos >= CRIC.maxPorDia)) continue;
       try {
-        const r = await CRI.rascunhoDe(item, CRIC, { pastaBase: PASTA_CRIATIVOS, estado, log }), { artes, pasta, kit, ...limpo } = r;
+        const r = await CRI.rascunhoDe(item, CRIC, { pastaBase: PASTA_CRIATIVOS, estado, log }), { artes, pasta, kit, ...limpo } = r; limpo.pastaArtes = nomePastaArtes(item.marca, item.codigo);
         await chamar('rascunho', {}, { metodo: 'POST', corpo: limpo }); n++; feitos.add(item.codigo);
         log(`${item.ajuste ? 'Rascunho ajustado' : 'Rascunho criado'} para ${item.codigo} (${item.cliente}): "${item.titulo}"${r.canvaUrl ? ' + design no Canva' : ''}${r.imagens.length ? ' + ' + r.imagens.length + ' arte(s) da marca' : ''}${r.alertas.length ? ' · ' + r.alertas.length + ' alerta(s) para revisar' : ''}. Aguarda a sua aprovação.`);
         await exportarParaDrive(item.marca, item.codigo, r.imagens);
@@ -234,6 +251,7 @@ async function rodarCriativo(soAjustes) {
       }
     }
     for (const p of pendentes) { if (feitos.has(p.codigo)) continue; await exportarParaDrive(p.marca, p.codigo, p.imagens); }
+    await refazerPreviews((resp.semPreview || []).filter(p => !feitos.has(p.codigo)));
     gravarEstado(Object.assign(lerEstado(), { criativo: estado.criativo }));
   } catch (e) { log('Criativo: ' + e.message); } finally { criativoRodando = false; }
 }

@@ -112,6 +112,33 @@ function renderizarUmaVez(htmlFile, pngFile, W, H, { edge = acharEdge(), timeout
   });
 }
 
+/* miniatura JPEG (para o preview no site): o Edge desenha a imagem num canvas e devolve o JPEG pelo DOM (sem programas extras) */
+function dimensoesPng(f) { try { const b = fs.readFileSync(f); if (b.toString('latin1', 1, 4) === 'PNG') return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) }; } catch (e) { /* não é PNG */ } return null; }
+function miniatura(origem, destino, W, H, { q = 0.8, edge = acharEdge(), timeout = 60000 } = {}) {
+  return new Promise((ok, falha) => {
+    if (!edge) return falha(new Error('Não achei o Microsoft Edge nem o Chrome neste computador.'));
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-mini-')), html = path.join(tmp, 'm.html'), mime = /\.jpe?g$/i.test(origem) ? 'image/jpeg' : 'image/png';
+    fs.writeFileSync(html, `<!doctype html><meta charset="utf-8"><textarea id="o"></textarea><script>const im=new Image();im.onload=()=>{const c=document.createElement('canvas');c.width=${W};c.height=${H};const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(im,0,0,${W},${H});document.getElementById('o').textContent=c.toDataURL('image/jpeg',${q});};im.src='data:${mime};base64,${fs.readFileSync(origem).toString('base64')}';</script>`);
+    execFile(edge, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${path.join(tmp, 'p')}`, '--virtual-time-budget=4000', '--dump-dom', url(html)], { timeout, windowsHide: true, maxBuffer: 60e6 }, (err, so) => {
+      try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { /* temporário */ }
+      const m = /<textarea id="o">data:image\/jpeg;base64,([^<]+)<\/textarea>/.exec(String(so || ''));
+      if (!m) return falha(new Error('miniatura não gerada' + (err ? ': ' + String(err.message).slice(0, 80) : '')));
+      fs.writeFileSync(destino, Buffer.from(m[1], 'base64')); ok(destino);
+    });
+  });
+}
+/* uma miniatura (540 px de largura, JPEG) de cada arte da pasta, em pasta/_preview. Devolve os nomes que saíram */
+async function miniaturas(pasta, nomes, opcoes = {}) {
+  const dir = path.join(pasta, '_preview'); fs.mkdirSync(dir, { recursive: true });
+  const um = async n => {
+    const f = path.join(pasta, n); if (!fs.existsSync(f)) return null; const d = dimensoesPng(f) || { w: 1080, h: 1350 }, base = n.replace(/.[^.]+$/, '') + '.jpg';
+    try { await miniatura(f, path.join(dir, base), 540, Math.round(540 * d.h / d.w), opcoes); return base; } catch (e) { return null; }   // esta fica sem miniatura
+  };
+  const lista = (nomes || []).slice(), out = new Array(lista.length); let i = 0;
+  await Promise.all([0, 1, 2].map(async () => { while (i < lista.length) { const k = i++; out[k] = await um(lista[k]); } }));   // 3 por vez
+  return out.filter(Boolean);
+}
+
 /* enquadra uma imagem (gerada pelo ChatGPT) no tamanho exato do post, preenchendo o quadro (corta só as sobras) */
 async function enquadrar(origem, destino, W, H, opcoes = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-enq-'));
@@ -152,4 +179,4 @@ async function compor({ kit, item, r, pasta, handle = '', fotoIdx = 0, edge }) {
   return saida;
 }
 
-module.exports = { compor, planoDeSlides, escolherTema, tema, contraste, acharEdge, renderizar, enquadrar, logoHtml };
+module.exports = { compor, planoDeSlides, escolherTema, tema, contraste, acharEdge, renderizar, enquadrar, miniatura, miniaturas, logoHtml };
