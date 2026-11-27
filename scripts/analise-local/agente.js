@@ -212,6 +212,7 @@ async function exportarParaDrive(marca, codigo, imagens, rascunho) {
   let noDriveLocal = 0; try { noDriveLocal = copiarParaDriveLocal(marca, codigo, imagens, rascunho); } catch (e) { log('Drive local, ' + codigo + ': ' + e.message); }
   /* com o Drive do computador, está tudo na pasta (legenda, artes e miniaturas): não há o que mandar pela API (que só dá erro de espaço) */
   if (noDriveLocal > 0) { const e = lerEstado(); e.exportados = Object.assign(e.exportados || {}, { [marca + '/' + codigo]: marcaDrive }); gravarEstado(e); log(`Drive: ${codigo}: legenda, artes e miniaturas na pasta do Drive do computador (ARTES/${NOMES_PASTA[marca] || CRI.slug(marca)}/${codigo}).`); return true; }
+  if (pastaDriveLocal()) return false;   /* com o Drive do computador a API do Google só dá erro de espaço: não tenta */
   if (Date.now() < exportarAte) return false;
   try {
     await chamar('exportar', {}, { metodo: 'POST', corpo: { marca, codigo } });
