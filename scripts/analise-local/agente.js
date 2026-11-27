@@ -71,7 +71,16 @@ const ler = (tipo, nome, bytes) => new Promise((ok, falha) => { fila.push({ id: 
 
 /* ---------- conversa com o site ---------- */
 const H = { authorization: 'Bearer ' + TOKEN };
-async function chamar(acao, params = {}, { metodo = 'GET', corpo, bin = false } = {}) {
+/* queda de rede (fetch failed, tempo esgotado, conexão derrubada) não é erro do sistema: tenta de novo 3 vezes, esperando 2, 6 e 15 segundos. Erro do site (HTTP 4xx/5xx) não é repetido. */
+const ehQuedaDeRede = e => !e.status && /fetch failed|timeout|aborted|ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|socket|network/i.test(String(e && (e.message + ' ' + (e.cause && e.cause.code || ''))));
+async function chamar(acao, params = {}, opcoes = {}) {
+  const esperas = opcoes.semRepetir ? [] : [2000, 6000, 15000]; let ultimo;
+  for (let i = 0; i <= esperas.length; i++) {
+    try { return await chamarUmaVez(acao, params, opcoes); } catch (e) { ultimo = e; if (!ehQuedaDeRede(e) || i === esperas.length) throw e; await new Promise(r => setTimeout(r, esperas[i])); }
+  }
+  throw ultimo;
+}
+async function chamarUmaVez(acao, params = {}, { metodo = 'GET', corpo, bin = false } = {}) {
   const u = new URL(URL_BASE + '/api/leitura'); u.searchParams.set('acao', acao); Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
   const r = await fetch(u, { method: metodo, headers: Object.assign({}, H, corpo ? { 'content-type': Buffer.isBuffer(corpo) ? 'application/octet-stream' : 'application/json' } : {}), body: corpo ? (Buffer.isBuffer(corpo) ? corpo : JSON.stringify(corpo)) : undefined, signal: AbortSignal.timeout(90000) });
   if (!r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error(j.error || 'HTTP ' + r.status), { status: r.status }); }
@@ -220,7 +229,7 @@ setTimeout(rotina, Number(process.env.N7_ROTINA_INICIO_MS) || 20000); setInterva
   while (!parar) {
     try {
       if (ativos >= nuc) { await dorme(1000); continue; }
-      const r = await chamar('proximo', { nome: NOME, nucleos: nuc, criativo: CRIC.ligado ? 1 : 0 });
+      const r = await chamar('proximo', { nome: NOME, nucleos: nuc, criativo: CRIC.ligado ? 1 : 0 }, { semRepetir: true });
       falhasSeguidas = 0; if (avisouOffline) { log('Conexão com o site restabelecida.'); avisouOffline = false; }
       if (r.job) { ativos++; ultimaAtividade = Date.now(); processar(r.job); continue; }   /* sem esperar: pode haver mais arquivos */
       await dorme(Date.now() - ultimaAtividade < 120000 ? 2000 : 8000);                  /* logo depois de um arquivo, olha mais seguido */
