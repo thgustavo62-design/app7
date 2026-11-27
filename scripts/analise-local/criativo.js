@@ -10,9 +10,11 @@ const OPENAI = () => String(process.env.N7_OPENAI_URL || 'https://api.openai.com
 const CANVA = () => String(process.env.N7_CANVA_URL || 'https://api.canva.com').replace(/\/$/, '');
 const slug = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
 
+/* ChatGPT pelo Chrome (sem API): em agente.json  "chatgpt": { "modo": "extensao" }.  O agente escreve o pedido na ponte local e a extensão
+   "Nova7 ↔ ChatGPT" (no Chrome já logado) conversa no chatgpt.com e devolve a resposta. Sem chave, sem cobrança por uso. */
 function config(cfgArq) {
-  const o = (cfgArq && cfgArq.openai) || {}, c = (cfgArq && cfgArq.canva) || {};
-  return { ligado: !!o.apiKey, apiKey: o.apiKey || '', modeloTexto: o.modeloTexto || 'gpt-4.1', modeloImagem: o.modeloImagem || 'gpt-image-1', imagens: o.imagens === true, canvaToken: c.accessToken || '', maxPorRodada: Number(o.maxPorRodada) || 3, maxPorDia: Number(o.maxPorDia) || 12, maxImagensPorDia: Number(o.maxImagensPorDia) || 6 };
+  const o = (cfgArq && cfgArq.openai) || {}, c = (cfgArq && cfgArq.canva) || {}, w = (cfgArq && cfgArq.chatgpt) || {}, extensao = w.modo === 'extensao';
+  return { ligado: extensao || !!o.apiKey, modo: extensao ? 'extensao' : 'api', apiKey: o.apiKey || '', modeloTexto: extensao ? 'ChatGPT (Chrome)' : (o.modeloTexto || 'gpt-4.1'), modeloImagem: o.modeloImagem || 'gpt-image-1', imagens: !extensao && o.imagens === true, canvaToken: c.accessToken || '', maxPorRodada: Number(o.maxPorRodada || w.maxPorRodada) || 3, maxPorDia: Number(o.maxPorDia || w.maxPorDia) || 12, maxImagensPorDia: Number(o.maxImagensPorDia) || 6, porta: Number(w.porta) || 0, abrirChrome: w.abrirChrome !== false };
 }
 
 /* regras que nenhum rascunho pode furar: viram alerta para a revisão humana (a IA erra) */
@@ -43,9 +45,37 @@ function prompt(item) {
   return msgs;
 }
 
+/* o mesmo pedido em uma mensagem só (o chat não tem papéis de sistema/assistente): vai colado no chatgpt.com */
+function promptWeb(item) {
+  const m = prompt(item); let t = m[0].content + '\n\n' + m[1].content;
+  if (m[3]) t += '\n\nSeu rascunho anterior:\n' + m[2].content + '\n\n' + m[3].content;
+  return t + '\n\nResponda SOMENTE com o JSON pedido: um único objeto, sem explicação antes ou depois.';
+}
+
+/* tira o JSON de uma resposta de chat: aceita bloco de código, texto em volta e quebra de linha dentro de texto */
+function extrairJson(resposta) {
+  const cands = [].concat(resposta && resposta.blocos || [], resposta && resposta.texto || (typeof resposta === 'string' ? resposta : ''));
+  for (const bruto of cands) {
+    const limpo = String(bruto).replace(/^\s*json\s*\n/i, '').replace(/```(?:json)?/gi, '').trim(), a = limpo.indexOf('{'), z = limpo.lastIndexOf('}');
+    if (a < 0 || z <= a) continue; const corte = limpo.slice(a, z + 1);
+    for (const t of [corte, corte.replace(/\r?\n/g, ' ')]) { try { const o = JSON.parse(t); if (o && typeof o === 'object') return o; } catch (e) { /* tenta o próximo */ } }
+  }
+  throw new Error('O ChatGPT não devolveu um JSON válido.');
+}
+
 async function gerarTexto(item, c) {
-  const j = await chamarJson(OPENAI() + '/v1/chat/completions', c.apiKey, { model: c.modeloTexto, messages: prompt(item), response_format: { type: 'json_object' }, temperature: 0.7 });
-  const bruto = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content; let r; try { r = JSON.parse(bruto); } catch (e) { throw new Error('O modelo não devolveu um JSON válido.'); }
+  let r;
+  if (c.modo === 'extensao') {
+    if (!c.ponte) throw new Error('A ponte com a extensão do Chrome não está ligada.');
+    r = extrairJson(await c.ponte.pedir(promptWeb(item)));
+  } else {
+    const j = await chamarJson(OPENAI() + '/v1/chat/completions', c.apiKey, { model: c.modeloTexto, messages: prompt(item), response_format: { type: 'json_object' }, temperature: 0.7 });
+    const bruto = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content; try { r = JSON.parse(bruto); } catch (e) { throw new Error('O modelo não devolveu um JSON válido.'); }
+  }
+  return normalizar(r);
+}
+
+function normalizar(r) {
   const arte = r.arte && typeof r.arte === 'object' ? r.arte : {}, cut = (v, n) => String(v ?? '').trim().slice(0, n);
   const slidesArte = (Array.isArray(arte.slides) ? arte.slides : []).slice(0, 8).map(x => ({ titulo: cut(x && x.titulo, 60), texto: cut(x && x.texto, 180) })).filter(x => x.titulo);
   const slidesTxt = slidesArte.length ? slidesArte.map(x => (x.texto ? x.titulo + ': ' + x.texto : x.titulo)) : [].concat(r.slides || []).map(String);
@@ -85,4 +115,4 @@ async function rascunhoDe(item, c, { pastaBase, estado, log = () => {}, edge } =
   return Object.assign({ codigo: item.codigo, marca: item.marca, modelo: c.modeloTexto, pasta }, r);
 }
 
-module.exports = { slug, config, rascunhoDe, conformidade, gerarTexto, prompt, PROIBIDO };
+module.exports = { slug, config, rascunhoDe, conformidade, gerarTexto, normalizar, extrairJson, promptWeb, prompt, PROIBIDO };

@@ -7,3 +7,5 @@ node_modules/
 chave*.json
 .vercel/
 scripts/analise-local/saida/
+
+scripts/analise-local/extensao-chatgpt/config.json

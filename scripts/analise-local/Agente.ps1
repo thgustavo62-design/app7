@@ -13,6 +13,7 @@
   Desligar isso:  .\Agente.ps1 -Remover
   Ver situação:   .\Agente.ps1 -Status
   Agente criativo: .Agente.ps1 -ConfigurarCriativo [-Imagens]   (pede a chave da OpenAI e o token do Canva, sem mostrar; ficam só em agente.json)
+  ChatGPT pelo Chrome (sem API): .\Agente.ps1 -ExtensaoChrome   (liga o modo, abre a pasta da extensão e a página de extensões do Chrome: instale uma vez)
   Identidade visual: .\Agente.ps1 -Marcas            (cria Documentos\Nova7 Marcas\<empresa>\ com logo, fotos, fontes e kit.json, e lista o que falta)
                      .\Agente.ps1 -AmostrasMarcas    (monta uma arte de exemplo de cada empresa para você conferir logo, cores e fonte)
   Chave p/ Vercel: .\Agente.ps1 -CopiarChave  (copia a chave para a área de transferência, sem mostrar; cole em Vercel > Settings >
@@ -32,6 +33,7 @@ param(
   [switch]$CopiarChave,
   [switch]$ConfigurarCriativo,
   [switch]$Imagens,
+  [switch]$ExtensaoChrome,
   [switch]$Marcas,
   [switch]$AmostrasMarcas,
   [string]$ModeloTexto = '',
@@ -63,6 +65,21 @@ if ($Configurar) {
   try { icacls $arquivo /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null } catch { }
   Write-Host "Chave guardada em $arquivo (só o seu usuário lê)." -ForegroundColor Green
   Write-Host 'Agora ligue com  .\Agente.ps1  ou deixe automático com  .\Agente.ps1 -Instalar'
+  return
+}
+
+if ($ExtensaoChrome) {
+  if (-not (Test-Path $arquivo)) { throw 'Antes, configure a chave do computador:  .\Agente.ps1 -Configurar' }
+  $cfg = Get-Content $arquivo -Raw | ConvertFrom-Json
+  $cfg | Add-Member -NotePropertyName chatgpt -NotePropertyValue ([pscustomobject]@{ modo = 'extensao' }) -Force
+  [IO.File]::WriteAllText($arquivo, ($cfg | ConvertTo-Json -Depth 6), (New-Object Text.UTF8Encoding($false)))
+  $ext = Join-Path $aqui 'extensao-chatgpt'
+  Write-Host 'Modo "ChatGPT pelo Chrome" ligado em agente.json (sem API, sem chave).' -ForegroundColor Green
+  Write-Host "Instale a extensão UMA vez no Chrome:  1) ligue 'Modo do desenvolvedor' (canto superior direito)  2) 'Carregar sem compactação'  3) escolha a pasta:"
+  Write-Host "   $ext" -ForegroundColor Cyan
+  Write-Host 'Deixe o Chrome logado no ChatGPT e reinicie o agente (feche e abra a janela do agente, ou rode de novo o -Instalar).'
+  Start-Process explorer.exe $ext
+  try { Start-Process chrome 'chrome://extensions' } catch { Write-Host 'Abra chrome://extensions manualmente.' }
   return
 }
 

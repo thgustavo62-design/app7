@@ -172,6 +172,13 @@ async function criarIdeias(cerebro) {
 const CRI = require('./criativo'), CRIC = CRI.config(cfgArq);
 const PASTA_CRIATIVOS = process.env.N7_CRIATIVOS || path.join(fs.existsSync(path.join(os.homedir(), 'Documents')) ? path.join(os.homedir(), 'Documents') : path.join(os.homedir(), '.nova7'), 'Nova7 Criativos');
 let criativoRodando = false, exportarAte = 0, ultimoErroExport = '';
+/* ChatGPT pelo Chrome: sobe a ponte local (127.0.0.1) que a extensão "Nova7 ↔ ChatGPT" consulta. Sem API, sem chave. */
+let PONTE = null, pausaCriativoAte = 0, chromeAte = 0, avisoSemExtensaoAte = 0;
+if (CRIC.ligado && CRIC.modo === 'extensao') {
+  const P = require('./ponte'), portaEnv = process.env.N7_PONTE_PORTA;
+  PONTE = P.criar({ porta: portaEnv !== undefined ? Number(portaEnv) : (CRIC.porta || P.PORTA_PADRAO), log, persistir: true });
+  PONTE.ligar().then(p => { CRIC.ponte = PONTE; log(`Ponte com o Chrome ligada em 127.0.0.1:${p}. Extensão (instale uma vez em chrome://extensions > Carregar sem compactação): ${PONTE.pastaExtensao}`); }).catch(e => log('Ponte com o Chrome: ' + e.message));
+}
 /* manda a legenda (Google Doc) e as artes do rascunho para a pasta do post no Drive. Se falta a permissão de Editor, espera 20 minutos e avisa uma vez */
 async function exportarParaDrive(marca, codigo, imagens) {
   if (Date.now() < exportarAte) return false;
@@ -183,9 +190,16 @@ async function exportarParaDrive(marca, codigo, imagens) {
   } catch (e) { exportarAte = Date.now() + 20 * 60e3; if (e.message !== ultimoErroExport) { ultimoErroExport = e.message; log(`Drive, ${codigo}: ${e.message}`); } return false; }
 }
 async function rodarCriativo(soAjustes) {
-  if (!CRIC.ligado || criativoRodando) return; criativoRodando = true;
+  if (!CRIC.ligado || criativoRodando) return;
+  if (CRIC.modo === 'extensao' && (!CRIC.ponte || Date.now() < pausaCriativoAte)) return;
+  criativoRodando = true;
   try {
-    const resp = await chamar(soAjustes ? 'criativo-ajustes' : 'criativo-fila'), fila = resp.itens || [], pendentes = resp.exportar || [];
+    const resp = await chamar(soAjustes ? 'criativo-ajustes' : 'criativo-fila'); let fila = resp.itens || []; const pendentes = resp.exportar || [];
+    /* extensão desconectada: acorda o Chrome (no máximo a cada 15 min) e espera até 90 s; sem ela não há como escrever, mas o envio ao Drive segue */
+    if (CRIC.modo === 'extensao' && fila.length && !PONTE.conectada()) {
+      if (CRIC.abrirChrome && PONTE.jaViu() && Date.now() > chromeAte) { chromeAte = Date.now() + 15 * 60e3; log('Extensão do Chrome fora do ar: abrindo o Chrome no ChatGPT para ela voltar.'); require('./ponte').abrirChrome(); }
+      if (!(await PONTE.aguardarConexao(90000))) { if (Date.now() > avisoSemExtensaoAte) { avisoSemExtensaoAte = Date.now() + 30 * 60e3; log(`Criativo: ${fila.length} pauta(s) esperando, mas a extensão "Nova7 ↔ ChatGPT" não está conectada. Abra o Chrome (logado no ChatGPT) com a extensão instalada: pasta ${PONTE.pastaExtensao}.`); } fila = []; }
+    }
     const estado = lerEstado(); const hoje = new Date().toISOString().slice(0, 10); estado.criativo = estado.criativo && estado.criativo.dia === hoje ? estado.criativo : { dia: hoje, rascunhos: 0, imagens: 0 };
     let n = 0; const feitos = new Set();
     for (const item of fila) {
@@ -195,7 +209,10 @@ async function rodarCriativo(soAjustes) {
         await chamar('rascunho', {}, { metodo: 'POST', corpo: limpo }); n++; feitos.add(item.codigo);
         log(`${item.ajuste ? 'Rascunho ajustado' : 'Rascunho criado'} para ${item.codigo} (${item.cliente}): "${item.titulo}"${r.canvaUrl ? ' + design no Canva' : ''}${r.imagens.length ? ' + ' + r.imagens.length + ' arte(s) da marca' : ''}${r.alertas.length ? ' · ' + r.alertas.length + ' alerta(s) para revisar' : ''}. Aguarda a sua aprovação.`);
         await exportarParaDrive(item.marca, item.codigo, r.imagens);
-      } catch (e) { log(`Criativo, ${item.codigo}: ${e.message}`); }
+      } catch (e) {
+        log(`Criativo, ${item.codigo}: ${e.message}`);
+        if (e.codigo) { pausaCriativoAte = Date.now() + (Number(process.env.N7_CRIATIVO_PAUSA_MS) || 5 * 60e3); break; }   // ChatGPT sem login/limite/fora do ar: não insiste em cada pauta, tenta de novo em 5 min
+      }
     }
     for (const p of pendentes) { if (feitos.has(p.codigo)) continue; await exportarParaDrive(p.marca, p.codigo, p.imagens); }
     gravarEstado(Object.assign(lerEstado(), { criativo: estado.criativo }));
