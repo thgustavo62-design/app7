@@ -39,5 +39,8 @@ test('preview: a miniatura sai do Drive pela API; sem a pasta ou antes de sincro
     assert.equal((await J('/api/drive?acao=arte&codigo=CF-08&n=2')).status, 404, 'miniatura que não existe');
     assert.equal((await fetch(base + '/api/drive?acao=arte&codigo=CF-08&n=1')).status, 401, 'só quem está logado vê as artes');
     const ras = (await (await J('/api/drive?marca=C&acao=rascunhos')).json()).rascunhos[0]; assert.deepEqual(ras.previews, ['01_capa.jpg']);
+    /* o agente (ou a equipe) pede para refazer a arte dos rascunhos: viram "ajustando" e entram na fila de ajustes do agente */
+    r = await agente('refazer-artes', { codigos: ['CF-08', 'NAO-EXISTE'] }); assert.equal(r.status, 200); assert.deepEqual((await r.json()).refazendo, ['CF-08']);
+    const aj = (await (await J('/api/drive?marca=C&acao=rascunhos')).json()).rascunhos[0]; assert.equal(aj.status, 'ajustando'); assert.equal(aj.ajuste.refazerArte, true); assert.match(aj.ajuste.instrucao, /ChatGPT/);
   } finally { srv.close(); D._trocarDrive(null); delete process.env.LEITURA_TOKEN; db._resetMemory(); require('../lib/fila').reset(); }
 });

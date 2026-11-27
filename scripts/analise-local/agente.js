@@ -206,9 +206,12 @@ function copiarParaDriveLocal(marca, codigo, imagens, rascunho) {
   return n;
 }
 async function exportarParaDrive(marca, codigo, imagens, rascunho) {
+  /* já copiado antes (mesmas artes)? Não recopia a cada rodada: a pasta do Drive é da equipe e pode ter sido reorganizada. Rascunho novo ou refeito (com o objeto) sempre copia */
+  const marcaDrive = marca + '/' + codigo + ':' + (imagens || []).join(','), jaFeitos = (lerEstado().exportados || {});
+  if (!rascunho && pastaDriveLocal() && jaFeitos[marca + '/' + codigo] === marcaDrive) return true;
   let noDriveLocal = 0; try { noDriveLocal = copiarParaDriveLocal(marca, codigo, imagens, rascunho); } catch (e) { log('Drive local, ' + codigo + ': ' + e.message); }
   /* com o Drive do computador, está tudo na pasta (legenda, artes e miniaturas): não há o que mandar pela API (que só dá erro de espaço) */
-  if (noDriveLocal > 0) { log(`Drive: ${codigo}: legenda, artes e miniaturas na pasta do Drive do computador (ARTES/${NOMES_PASTA[marca] || CRI.slug(marca)}/${codigo}).`); return true; }
+  if (noDriveLocal > 0) { const e = lerEstado(); e.exportados = Object.assign(e.exportados || {}, { [marca + '/' + codigo]: marcaDrive }); gravarEstado(e); log(`Drive: ${codigo}: legenda, artes e miniaturas na pasta do Drive do computador (ARTES/${NOMES_PASTA[marca] || CRI.slug(marca)}/${codigo}).`); return true; }
   if (Date.now() < exportarAte) return false;
   try {
     await chamar('exportar', {}, { metodo: 'POST', corpo: { marca, codigo } });

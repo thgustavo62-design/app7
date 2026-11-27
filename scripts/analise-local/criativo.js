@@ -215,7 +215,7 @@ async function rascunhoDe(item, c, { pastaBase, estado, log = () => {}, edge } =
 }
 
 /* garante o padrão de criação (padrao.json) das empresas que têm peças na biblioteca: 1 por vez, só com a extensão conectada */
-async function garantirPadroes(c, { log = () => {}, max = 1 } = {}) {
+async function garantirPadroes(c, { log = () => {}, max = 2 } = {}) {
   if (!c.ponte || !c.ponte.conectada()) return 0; const lib = BIB.carregar(); let feitos = 0;
   for (const slug of Object.keys(BIB.PASTAS)) {
     if (feitos >= max) break; const kit = MARCA.kit(slug); if (!kit.existe || kit.padrao || !lib.empresas[slug]) continue;
