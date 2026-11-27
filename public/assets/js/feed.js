@@ -144,11 +144,12 @@
       ${campo("fd-segs", "Seguidores", p.seguidores, "12,4 mil", 12)}${campo("fd-seguindo", "Seguindo", p.seguindo, "310", 12)}
       ${campo("fd-dest", "Destaques (separe por vírgula)", (p.destaques || []).map(x => x.nome).join(", "), "Promoções, Clube, Dicas", 160)}</div>
       <button type="button" class="btn primary" id="fd-salvar-perfil">Salvar perfil</button></details>` : "";
+    const organizar = pode ? `<details class="fd-det"><summary>Organizar o Drive (agente)</summary><div id="fd-org"></div></details><details class="fd-det"><summary>Referências do agente criativo (V4)</summary><div id="fd-ref"></div></details><details class="fd-det"><summary>Rascunhos e posts (agente criativo)</summary><div id="fd-ras"></div></details>` : "";
     return `<aside class="fd-side">
       <div class="panel"><div class="panel-body"><span class="col-title">Mostrar</span><div class="fd-chips">${chips}</div>
         ${H.isClient ? "" : `<label class="fd-sw"><input type="checkbox" id="fd-cli"${ui.cliente ? " checked" : ""}> <span>Visão do cliente <small>(sem códigos nem etapas internas)</small></span></label>`}
         ${pode ? `<p class="src">Arraste os posts que ainda não foram publicados para mudar a ordem, ou abra um post e use as setas. A ordem fica só no preview: não muda as datas do calendário.</p>` : ""}</div></div>
-      <div class="panel"><div class="panel-body">${aviso}${pasta}${perfil}</div></div></aside>`;
+      <div class="panel"><div class="panel-body">${aviso}${pasta}${perfil}${organizar}</div></div></aside>`;
   }
 
   function desenhar() {
@@ -221,6 +222,8 @@
       grade.ondragover = e => { const b = e.target.closest(".fd-cell[draggable]"); if (!arrasta || !b) return; e.preventDefault(); $$(".alvo", grade).forEach(x => x.classList.remove("alvo")); b.classList.add("alvo"); };
       grade.ondrop = e => { const b = e.target.closest(".fd-cell[draggable]"); if (!arrasta || !b) return; e.preventDefault(); const nova = mover(lista, arrasta, b.dataset.id); arrasta = ""; guardarOrdem(m, nova); };
     }
+    const org = $("#fd-org", view); if (org && root.N7DriveOrg) root.N7DriveOrg.montar(org, m, Object.assign({}, H, { recarregar: () => carregar(m, true) }));
+    const ref = $("#fd-ref", view), ras = $("#fd-ras", view), cr = root.N7Criacao; if (ref && cr) ref.closest("details").addEventListener("toggle", ev => { if (ev.target.open && !ref.dataset.ok) { ref.dataset.ok = "1"; cr.montarReferencias(ref, m, H); } }); if (ras && cr) ras.closest("details").addEventListener("toggle", ev => { if (ev.target.open) cr.montarRascunhos(ras, m, H); });
     const sp = $("#fd-salvar-perfil", view);
     if (sp) sp.onclick = () => {
       const v = id => ($("#" + id, view).value || "").trim();

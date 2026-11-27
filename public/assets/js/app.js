@@ -220,7 +220,7 @@
   /* ajudantes da Central de Inteligência: dados do site entregues às funções puras do cérebro (assets/js/brain/) */
   const brainHelpers = () => ({ ico, banner, toast, esc, store, team: REG.team || [], canWrite: CAN_WRITE, today: TODAY_ISO,
     input: () => ({ today: TODAY_ISO, clients: CLIENTS.map(c => ({ key: c.key, id: c.id, name: c.name, services: c.services })), posts: posts(), weeks: allWeeks(), gens: store.get("weekGen", []), decisions: store.get("decisions", []),
-      promo: window.N7PromoBrain ? window.N7PromoBrain.summaries() : {}, vendas: window.N7VendasBrain ? window.N7VendasBrain.summaries() : {}, owners: store.get("owners", {}), team: REG.team || [], authority: store.get("authority", []), goals: store.get("goals", {}), ideas: F.getIdeas(), slots: F.getFlow().slots, checks,
+      promo: window.N7PromoBrain ? window.N7PromoBrain.summaries() : {}, vendas: window.N7VendasBrain ? window.N7VendasBrain.summaries() : {}, criacao: window.N7CriacaoBrain ? window.N7CriacaoBrain.data() : {}, owners: store.get("owners", {}), team: REG.team || [], authority: store.get("authority", []), goals: store.get("goals", {}), ideas: F.getIdeas(), slots: F.getFlow().slots, checks,
       needsClient: p => { const st = F.approvalState(p.code, p.b); return st.needs.includes("client") && !st.rec.client; }, planSource: D.PLAN_SOURCE }),
     go: (route, brand, ideas, extra) => { if (brand) prefs.kbrand = brand; if (ideas) prefs.kview = "ideias"; if (brand || ideas) savePrefs(); if (/^promocoes/.test(route) && window.N7Promocoes) window.N7Promocoes.focus(Object.assign({ loja: brand }, extra || {})); location.hash = "#" + route; } });
   const teamName = e => { const t = ((REG.team || []).find(u => u.email === e)); return t ? t.nome : e; };
@@ -299,6 +299,7 @@
     /* o cérebro lê o resumo das promoções de cada farmácia; carrega em segundo plano e atualiza a tela quando chega */
     if (ACCESS.cerebro() && CLIENTS.some(c => has(c, "promocoes")) && window.N7PromoBrain) window.N7PromoBrain.ensure(() => { if (current === "cerebro" || current === "painel") route(); });
     if (ACCESS.cerebro() && CLIENTS.some(c => has(c, "promocoes")) && window.N7VendasBrain) window.N7VendasBrain.ensure(() => { if (current === "cerebro" || current === "painel") route(); });
+    if (ACCESS.cerebro() && window.N7CriacaoBrain) window.N7CriacaoBrain.ensure(CLIENTS.filter(c => has(c, "redes") || has(c, "criativos")).map(c => c.key), () => { if (current === "cerebro" || current === "painel") route(); });
     ROUTES[r].render(view, sub);
     scrollTo(0, 0);
     current = r;

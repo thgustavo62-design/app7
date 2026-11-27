@@ -49,7 +49,7 @@ async function autoGravar(b, j, r) {
   out.semanas = { gravadas, divergentes }; return out;
 }
 
-const DO_COMPUTADOR = new Set(['ola', 'ideias', 'snapshot', 'loja', 'publicadas', 'despublicar', 'publicar', 'proximo', 'baixar', 'batida', 'enviar', 'concluir', 'falhar']);
+const DO_COMPUTADOR = new Set(['ola', 'criativo-fila', 'rascunho', 'sincronizar', 'ideias', 'snapshot', 'loja', 'publicadas', 'despublicar', 'publicar', 'proximo', 'baixar', 'batida', 'enviar', 'concluir', 'falhar']);
 
 async function bruto(req, limite) {
   if (Buffer.isBuffer(req.body)) { if (req.body.length > limite) throw F.bad('Pedaço grande demais', 413); return req.body; }
@@ -70,11 +70,14 @@ module.exports = handle(async (req, res) => {
     if (!F.tokenOk(req)) return send(res, 401, { error: 'A chave enviada é diferente da variável LEITURA_TOKEN da Vercel (confira se colou a chave inteira, sem espaço, e refaça o Redeploy).' });
     if (acao === 'ola') return send(res, 200, { ok: true });                              /* só confere a chave; não pega arquivo nem conta como "ligado" */
     if (acao === 'proximo') {
-      await b.visto({ nome: String(q.nome || '').slice(0, 60), nucleos: Number(q.nucleos) || 0 });
+      await b.visto({ nome: String(q.nome || '').slice(0, 60), nucleos: Number(q.nucleos) || 0, criativo: q.criativo === '1' });
       await b.limpar().catch(() => {});
       const j = await b.pegar(String(q.nome || 'pc').slice(0, 60));
       return send(res, 200, { job: j ? F.publico(j) : null });
     }
+    if (acao === 'criativo-fila') { const C = require('../lib/criacao'), F2 = require('../lib/feed'); return send(res, 200, { itens: await C.filaCriacao(getRepo(), SISTEMA, { drive: F2.novoDrive(cfg().serviceAccount), dias: Number(process.env.N7_FILA_DIAS) || 7 }) }); }
+    if (acao === 'rascunho') { if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido' }); const C = require('../lib/criacao'); return send(res, 200, { rascunho: await C.guardarRascunho(getRepo(), SISTEMA, await readJson(req, 300000)) }); }
+    if (acao === 'sincronizar') { if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido' }); const C = require('../lib/criacao'), F2 = require('../lib/feed'); return send(res, 200, await C.sincronizar(getRepo(), SISTEMA, { drive: F2.novoDrive(cfg().serviceAccount) })); }
     if (acao === 'ideias') {                                                              /* ideias de conteúdo que saem das análises; ideia que já existe NÃO é recriada nem alterada */
       if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido' });
       const M = require('../lib/model'), repo = getRepo(), corpo = await readJson(req, 200000), lista = Array.isArray(corpo.ideias) ? corpo.ideias.slice(0, 12) : [];
@@ -133,7 +136,7 @@ module.exports = handle(async (req, res) => {
   if (req.method === 'GET') {
     if (acao === 'estado') {
       const v = await b.ultimoVisto(), seg = v ? (Date.now() - v.visto) / 1000 : null;
-      return send(res, 200, { online: seg != null && seg <= F.ONLINE_S, haSegundos: seg == null ? null : Math.round(seg), nucleos: v && v.info && v.info.nucleos || 0, computador: v && v.info && v.info.nome || '' });
+      return send(res, 200, { online: seg != null && seg <= F.ONLINE_S, haSegundos: seg == null ? null : Math.round(seg), nucleos: v && v.info && v.info.nucleos || 0, computador: v && v.info && v.info.nome || '', criativo: !!(v && v.info && v.info.criativo) });
     }
     if (acao === 'cerebro') {                                                              /* o que os agentes rodaram no computador da agência na última vez */
       const x = (await b.analises()).find(y => y.loja === '_cerebro'); if (!x) return send(res, 200, { cerebro: null });

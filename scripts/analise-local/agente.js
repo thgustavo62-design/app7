@@ -159,10 +159,31 @@ async function criarIdeias(cerebro) {
   const r = await chamar('ideias', {}, { metodo: 'POST', corpo: { ideias } });
   if (r.criadas && r.criadas.length) log(`Criei ${r.criadas.length} ideia(s) de conteúdo no banco de ideias do site a partir das análises.`);
 }
+/* Agente Criativo: com as chaves em agente.json, escreve rascunhos (ChatGPT) e cria o design (Canva) das pautas sem material. Nunca publica. */
+const CRI = require('./criativo'), CRIC = CRI.config(cfgArq);
+const PASTA_CRIATIVOS = process.env.N7_CRIATIVOS || path.join(fs.existsSync(path.join(os.homedir(), 'Documents')) ? path.join(os.homedir(), 'Documents') : path.join(os.homedir(), '.nova7'), 'Nova7 Criativos');
+let criativoRodando = false;
+async function rodarCriativo() {
+  if (!CRIC.ligado || criativoRodando) return; criativoRodando = true;
+  try {
+    const fila = (await chamar('criativo-fila')).itens || []; if (!fila.length) return;
+    const estado = lerEstado(); const hoje = new Date().toISOString().slice(0, 10); estado.criativo = estado.criativo && estado.criativo.dia === hoje ? estado.criativo : { dia: hoje, rascunhos: 0, imagens: 0 };
+    let n = 0;
+    for (const item of fila) {
+      if (n >= CRIC.maxPorRodada || estado.criativo.rascunhos >= CRIC.maxPorDia) break;
+      try { const r = await CRI.rascunhoDe(item, CRIC, { pastaBase: PASTA_CRIATIVOS, estado, log }); await chamar('rascunho', {}, { metodo: 'POST', corpo: r }); n++; log(`Rascunho criado para ${item.codigo} (${item.cliente}): "${item.titulo}"${r.canvaUrl ? ' + design no Canva' : ''}${r.imagens.length ? ' + arte' : ''}${r.alertas.length ? ' · ' + r.alertas.length + ' alerta(s) para revisar' : ''}. Aguarda a sua aprovação.`); }
+      catch (e) { log(`Criativo, ${item.codigo}: ${e.message}`); }
+    }
+    gravarEstado(Object.assign(lerEstado(), { criativo: estado.criativo }));
+  } catch (e) { log('Criativo: ' + e.message); } finally { criativoRodando = false; }
+}
+const CRIATIVO_MS = Number(process.env.N7_CRIATIVO_MS) || 20 * 60e3;
+if (CRIC.ligado) { setTimeout(rodarCriativo, Number(process.env.N7_CRIATIVO_INICIO_MS) || 60000); setInterval(rodarCriativo, CRIATIVO_MS); }
 let cerebroRodando = false;
 async function rodarCerebro() {
   if (cerebroRodando) return; cerebroRodando = true; const t0 = Date.now(), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'n7-cerebro-'));
   try {
+    try { const sy = await chamar('sincronizar', {}, { metodo: 'POST', corpo: { x: 1 } }); if (sy.movidas && sy.movidas.length) log(`Posts: ${sy.movidas.length} pauta(s) com arte e legenda completas no Drive foram para Aprovação (${sy.movidas.map(m => m.code).join(', ')}).`); } catch (e) { log('Sincronizar posts: ' + e.message); }
     const snap = await chamar('snapshot'); snap.fonte = 'computador da agência (dados do site)'; const arq = path.join(dir, 'snapshot.json'); fs.writeFileSync(arq, JSON.stringify(snap));
     const cod = await new Promise(res => { const p = spawn(process.execPath, [path.join(__dirname, 'analisar.js'), arq, dir, '--armazem', '--marca', MARCA, '--nucleos', String(nuc)], { stdio: 'ignore', env: process.env }); p.on('exit', res); p.on('error', () => res(-1)); });
     if (!fs.existsSync(path.join(dir, 'resultado.json'))) throw new Error('a análise não gerou resultado (código ' + cod + ')');
@@ -184,7 +205,7 @@ setTimeout(rotina, Number(process.env.N7_ROTINA_INICIO_MS) || 20000); setInterva
   while (!parar) {
     try {
       if (ativos >= nuc) { await dorme(1000); continue; }
-      const r = await chamar('proximo', { nome: NOME, nucleos: nuc });
+      const r = await chamar('proximo', { nome: NOME, nucleos: nuc, criativo: CRIC.ligado ? 1 : 0 });
       falhasSeguidas = 0; if (avisouOffline) { log('Conexão com o site restabelecida.'); avisouOffline = false; }
       if (r.job) { ativos++; ultimaAtividade = Date.now(); processar(r.job); continue; }   /* sem esperar: pode haver mais arquivos */
       await dorme(Date.now() - ultimaAtividade < 120000 ? 2000 : 8000);                  /* logo depois de um arquivo, olha mais seguido */

@@ -1228,3 +1228,13 @@ h2, h3, h4 { letter-spacing: -.005em; word-spacing: .05em; }
 
 .av-sel { padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(127,127,127,.35); background: transparent; color: inherit; margin: 6px 0 10px; max-width: 100%; }
 .av-sem { padding: 6px 2px; }
+
+.do-lista { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
+.do-lista li { padding: 8px 10px; border-radius: 12px; background: rgba(127,127,127,.08); }
+.do-lista small { display: block; opacity: .75; margin-top: 2px; }
+.do-de { text-decoration: line-through; opacity: .65; word-break: break-all; } .do-para { font-weight: 600; word-break: break-all; }
+
+.cr-r { border-top: 1px solid rgba(127,127,127,.25); padding: 8px 0; }
+.cr-r summary { cursor: pointer; }
+.cr-leg { white-space: normal; padding: 8px 10px; border-radius: 10px; background: rgba(127,127,127,.08); }
+#fd-ref textarea, #fd-ras textarea { width: 100%; }

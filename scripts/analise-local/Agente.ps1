@@ -12,6 +12,7 @@
   Ligar sozinho:  .\Agente.ps1 -Instalar          (inicia escondido toda vez que você entrar no Windows)
   Desligar isso:  .\Agente.ps1 -Remover
   Ver situação:   .\Agente.ps1 -Status
+  Agente criativo: .Agente.ps1 -ConfigurarCriativo [-Imagens]   (pede a chave da OpenAI e o token do Canva, sem mostrar; ficam só em agente.json)
   Chave p/ Vercel: .\Agente.ps1 -CopiarChave  (copia a chave para a área de transferência, sem mostrar; cole em Vercel > Settings >
                    Environment Variables > LEITURA_TOKEN, tipo Sensitive, e faça Redeploy)
 
@@ -27,6 +28,9 @@ param(
   [switch]$Remover,
   [switch]$Status,
   [switch]$CopiarChave,
+  [switch]$ConfigurarCriativo,
+  [switch]$Imagens,
+  [string]$ModeloTexto = '',
   [int]$Nucleos = 0,
   [string]$Nome = ''
 )
@@ -55,6 +59,24 @@ if ($Configurar) {
   try { icacls $arquivo /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null } catch { }
   Write-Host "Chave guardada em $arquivo (só o seu usuário lê)." -ForegroundColor Green
   Write-Host 'Agora ligue com  .\Agente.ps1  ou deixe automático com  .\Agente.ps1 -Instalar'
+  return
+}
+
+if ($ConfigurarCriativo) {
+  if (-not (Test-Path $arquivo)) { throw 'Antes, configure a chave do computador:  .Agente.ps1 -Configurar' }
+  function Ler-Segredo($texto) { $s = Read-Host $texto -AsSecureString; $b = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($s); try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($b) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b) } }
+  $cfg = Get-Content $arquivo -Raw | ConvertFrom-Json
+  $oa = Ler-Segredo 'Chave da API da OpenAI (ChatGPT; Enter para deixar como está)'
+  $cv = Ler-Segredo 'Token de acesso do Canva (Connect API; Enter para pular)'
+  $o = if ($cfg.PSObject.Properties['openai']) { $cfg.openai } else { [pscustomobject]@{} }
+  if ($oa) { $o | Add-Member -NotePropertyName apiKey -NotePropertyValue $oa -Force }
+  if ($ModeloTexto) { $o | Add-Member -NotePropertyName modeloTexto -NotePropertyValue $ModeloTexto -Force }
+  if ($Imagens) { $o | Add-Member -NotePropertyName imagens -NotePropertyValue $true -Force }
+  $cfg | Add-Member -NotePropertyName openai -NotePropertyValue $o -Force
+  if ($cv) { $cfg | Add-Member -NotePropertyName canva -NotePropertyValue ([pscustomobject]@{ accessToken = $cv }) -Force }
+  [IO.File]::WriteAllText($arquivo, ($cfg | ConvertTo-Json -Depth 6), (New-Object Text.UTF8Encoding($false)))
+  try { icacls $arquivo /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null } catch { }
+  Write-Host ('Agente criativo: OpenAI ' + $(if ($cfg.openai.apiKey) { 'configurada' } else { 'NÃO configurada' }) + ', imagens ' + $(if ($cfg.openai.imagens) { 'ligadas' } else { 'desligadas' }) + ', Canva ' + $(if ($cfg.canva.accessToken) { 'configurado' } else { 'não configurado' }) + '. Reinicie o agente para valer.') -ForegroundColor Green
   return
 }
 

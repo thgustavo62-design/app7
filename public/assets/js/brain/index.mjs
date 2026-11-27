@@ -18,7 +18,7 @@ import { health, clienteAgent, healthLevel } from "./health.mjs";
 
 /* completa o contexto e faz a análise semanal que os agentes de resultado usam */
 export function prepare(ctx) {
-  ctx = Object.assign({ posts: [], weeks: [], gens: [], clients: [], decisions: [], ideas: [], slots: {}, vendas: {}, checks: null, needsClient: () => false, planSource: null }, ctx);
+  ctx = Object.assign({ posts: [], weeks: [], gens: [], clients: [], decisions: [], ideas: [], slots: {}, vendas: {}, criacao: {}, checks: null, needsClient: () => false, planSource: null }, ctx);
   const lastClosed = A.lastClosed("semana", A.parse(ctx.today));
   const withData = A.periodsWith(ctx.weeks.filter(r => r.inicio <= lastClosed && A.hasData(A.norm(r))), "semana");
   const inicio = withData.length ? withData[withData.length - 1] : null;

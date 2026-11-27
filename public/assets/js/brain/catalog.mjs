@@ -5,12 +5,13 @@ export const AREAS = {
   conteudo: { id: "conteudo", name: "Conteúdo", does: "Ritmo editorial, qualidade e criativos" },
   resultado: { id: "resultado", name: "Resultado", does: "Vendas, anúncios e redes sociais" },
   estrategia: { id: "estrategia", name: "Estratégia", does: "Visão por cliente e oportunidades" },
+  criacao: { id: "criacao", name: "Criação", does: "Posts, Drive e o agente criativo: material no prazo, pastas organizadas e rascunhos da IA para revisar" },
   mercado: { id: "mercado", name: "Mercado", does: "O que o cupom mostra: categorias que sobem e caem, horários, cesta, fidelização e onde focar o marketing" },
   promocao: { id: "promocao", name: "Promoções", does: "Estoque, preço e campanhas de cada farmácia" },
   autoridade: { id: "autoridade", name: "Autoridade", does: "Ritmo, alcance qualificado e convites de marcas pessoais e profissionais" },
   contexto: { id: "contexto", name: "Contexto", does: "Datas, feriados e qualidade dos dados" }
 };
-export const AREA_ORDER = ["operacao", "conteudo", "resultado", "mercado", "promocao", "autoridade", "estrategia", "contexto"];
+export const AREA_ORDER = ["operacao", "conteudo", "criacao", "resultado", "mercado", "promocao", "autoridade", "estrategia", "contexto"];
 
 export const AGENTS = {
   producao: { id: "producao", area: "operacao", name: "Produção", icon: "list", does: "Vigia o calendário: pautas atrasadas, pautas que vencem em até 2 dias sem ter começado e clientes sem pauta nos próximos 7 dias.", rules: ["Atrasada: nota sobe com os dias de atraso e a quantidade", "Vence em até 1 dia e nem começou: nota 90", "Cliente de redes sem pauta nos próximos 7 dias: nota 62"] },
@@ -27,6 +28,9 @@ export const AGENTS = {
   ruptura: { id: "ruptura", area: "promocao", name: "Ruptura", icon: "alert", does: "Procura itens que mais faturam (classe A ou B) com estoque para 15 dias ou menos no ritmo dos últimos 60 dias.", rules: ["Nota 52 mais 2,5 por item (até 24) e 8 se houver item de classe A", "Cobertura = estoque ÷ vendas por dia dos últimos 60 dias", "A ação é conferir a reposição antes de anunciar promoção nesses itens"] },
   margem: { id: "margem", area: "promocao", name: "Preço e margem", icon: "money", does: "Vigia itens que vendem com margem abaixo de 12% e preço de venda no custo ou abaixo dele.", rules: ["Preço de venda igual ou abaixo do último preço de entrada: nota 80 (conferir preço ou custo)", "5 itens ou mais com margem abaixo de 12% e venda em 90 dias: nota 48 a 68", "Margem é sobre a venda: (preço − custo) ÷ preço"] },
   campanha: { id: "campanha", area: "promocao", name: "Campanha da semana", icon: "cal", does: "Compara a cadência semanal de campanhas de cada farmácia com as campanhas salvas e aprovadas para hoje e os 2 próximos dias.", rules: ["Sem campanha aprovada para o dia da cadência: nota 72 (menos 5 por dia de distância)", "Campanha salva só como rascunho: nota 60", "Minas Farma: Segunda do Bebê, Dias do Leite, Quinta dos Suplementos, Perfumaria e Fim de Semana da Limpeza. Farma e Farma: Atacadão do Bebê, quarta e quinta"] },
+  postagens: { id: "postagens", area: "criacao", name: "Postagens", icon: "cal", does: "Cruza o calendário com o Drive: pautas dos próximos 7 dias sem material, e pautas que já têm arte e legenda completas mas ainda estão em produção (elas vão sozinhas para Aprovação).", rules: ["Pauta em até 7 dias sem arte no Drive vira achado; em 1 dia sobe 30 pontos, em 3 dias sobe 18", "Arte e legenda completas com status em produção: o agente passa para Aprovação, nunca para Pronto nem Publicado"] },
+  drive: { id: "drive", area: "criacao", name: "Drive", icon: "file", does: "Vigia a organização das pastas de postagem: fora do padrão AAAA-MM-DD__CÓDIGO__Titulo, código sem pauta e pasta com arte sem legenda. Só propõe; renomear exige a sua aprovação e nunca apaga.", rules: ["Pasta fora do padrão ou com código que não existe no calendário", "Arte sem documento de legenda", "Organizar o Drive no Preview de Feed: o agente propõe, você aprova, e dá para desfazer"] },
+  criacao: { id: "criacao", area: "criacao", name: "Agente criativo", icon: "spark", does: "Mostra os rascunhos que a IA (ChatGPT e Canva) fez a partir das referências da V4 e dos posts que já funcionaram. Nada é publicado: todo rascunho espera a sua revisão e a aprovação do cliente.", rules: ["Rascunho novo esperando revisão vira achado", "Alerta quando há pauta sem material e o agente criativo está desligado", "Os rascunhos vêm com alertas de conformidade (promessa de resultado, garantia, cura, economia de imposto)"] },
   categorias: { id: "categorias", area: "mercado", name: "Categorias", icon: "layers", does: "Compara, categoria por categoria, as últimas semanas completas com as anteriores, SEMPRE em relação à loja: se a loja inteira cai 14%, só é queda de categoria a que cai mais que isso.", rules: ["Defender: pesa 4% ou mais das vendas e cai 8% ou mais que a loja", "Reanimar: pesa menos de 4% e cai 15% ou mais que a loja", "Acelerar (ganho): cresce 10% ou mais acima da loja", "4 contra 4 semanas com 8 semanas completas; menos semanas, menos confiança", "Dado com mais de 3 semanas perde 25% da nota"] },
   horarios: { id: "horarios", area: "mercado", name: "Horários", icon: "clock", does: "Acha o pico e o vale do dia (janelas de 3 horas seguidas) a partir de cada cupom e sugere equipe no pico e ação de venda no vale.", rules: ["Pico com 20% ou mais das vendas e vale com 16% ou menos", "Nota 44 mais a diferença entre pico e vale"] },
   cesta: { id: "cesta", area: "mercado", name: "Cesta", icon: "cart", does: "Olha o que se compra junto (lift acima do acaso) e os cupons de um item só, para combo e venda adicional no caixa.", rules: ["Par com 15 cupons ou mais e lift calculado sobre produtos com 30 cupons ou mais", "45% ou mais dos cupons com um item só vira achado"] },
@@ -40,7 +44,7 @@ export const AGENTS = {
   dados: { id: "dados", area: "contexto", name: "Qualidade dos dados", icon: "file", does: "Avisa o que falta para a análise ser confiável: semana sem números, decisão da semana em branco e calendário fora da Central.", rules: ["Cliente com serviço e sem número na última semana", "Semana com dados e sem decisão registrada", "Calendário usando a cópia em vez da Central"] },
   calendario: { id: "calendario", area: "contexto", name: "Datas e feriados", icon: "clock", does: "Olha os próximos 10 dias atrás de feriado ou data atípica que mude o conteúdo e o horário das publicações.", rules: ["Feriado em até 3 dias: nota 70", "Feriado em até 7 dias: nota 57"] }
 };
-export const AGENT_ORDER = ["aprovacao", "producao", "pipeline", "capacidade", "midia", "criativo", "vendas", "redes", "estoque", "ruptura", "margem", "campanha", "qualidade", "editorial", "consistencia", "autoridade", "convites", "categorias", "horarios", "cesta", "fidelizacao", "foco", "cliente", "oportunidades", "dados", "calendario"];
+export const AGENT_ORDER = ["aprovacao", "producao", "pipeline", "capacidade", "midia", "criativo", "vendas", "redes", "estoque", "ruptura", "margem", "campanha", "qualidade", "editorial", "consistencia", "autoridade", "convites", "postagens", "drive", "criacao", "categorias", "horarios", "cesta", "fidelizacao", "foco", "cliente", "oportunidades", "dados", "calendario"];
 
 export const SYNAPSES = [
   { id: "cat-estoque", nome: "Categoria em queda, estoque parado", de: ["categorias"], para: ["estoque"], texto: "Categoria perdendo força na mesma loja que tem dinheiro parado em estoque: a campanha de queima pode ser focada nessa categoria, atacando os dois problemas de uma vez." },
@@ -62,7 +66,7 @@ export const SYNAPSES = [
 
 /* quais agentes trabalham para cada serviço que a agência presta (ids de services.js) */
 export const SERVICE_AGENTS = {
-  redes: ["aprovacao", "producao", "pipeline", "editorial", "qualidade", "redes", "calendario", "dados", "cliente", "oportunidades"],
+  redes: ["aprovacao", "producao", "pipeline", "editorial", "qualidade", "redes", "postagens", "drive", "criacao", "calendario", "dados", "cliente", "oportunidades"],
   trafego: ["midia", "criativo", "redes", "dados", "cliente"],
   criativos: ["producao", "pipeline", "capacidade", "aprovacao", "qualidade", "criativo"],
   varejo: ["vendas", "midia", "calendario", "dados", "cliente"],
