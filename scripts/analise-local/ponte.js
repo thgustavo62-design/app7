@@ -53,11 +53,21 @@ function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PA
     if (b.erro && !rs.length) throw falhou(b, rs);
     return { texto: String(rs[0] && rs[0].texto || ''), blocos: (rs[0] && rs[0].blocos || []).map(String) };
   }
+  /* a extensão antiga (1.0.x) só sabe texto: avisa para recarregar em vez de mandar o pedido novo para ela */
+  function exigirVersao(maior, menor) {
+    const v = String(versaoExtensao || '').split('.').map(Number); if (v.length >= 2 && !v.some(isNaN) && (v[0] < maior || (v[0] === maior && v[1] < menor))) throw Object.assign(new Error('A extensão do Chrome está desatualizada (versão ' + versaoExtensao + '): recarregue-a em chrome://extensions (ícone de recarregar).'), { codigo: 'EXTENSAO_ANTIGA' });
+  }
+  /* lê o Instagram de um perfil (só leitura) pelo Chrome já logado. Devolve { bio, resumo, posts:[{codigo,tipo,alt,legenda,imagem:{mime,b64}}] } */
+  async function pedirInstagram(handle, { max = 12, tempoMs = 4 * 60e3, aguardarConexaoMs = 0 } = {}) {
+    exigirVersao(1, 2);
+    const b = await enfileirar({ instagram: { handle: String(handle || '').replace(/^@/, ''), max }, temporario: true }, tempoMs, aguardarConexaoMs);
+    if (b.erro || !b.instagram) throw falhou({ erro: b.erro || 'O Instagram não devolveu dados.' }, []);
+    return b.instagram;
+  }
   /* conversa com várias mensagens ([{ texto, anexos:[{nome,mime,b64}], imagem }]) na mesma conversa (normal, não temporária: só assim o ChatGPT gera imagem).
      Devolve { resultados:[{texto,blocos,imagens:[{mime,b64,w,h}]}], erro } — pode vir com parte pronta e um erro */
   async function pedirConversa(mensagens, { tempoMs, aguardarConexaoMs = 0, temporario = false } = {}) {
-    /* a extensão antiga (1.0.x) só sabe texto: avisa para recarregar em vez de mandar o pedido de imagem para ela */
-    const v = String(versaoExtensao || '').split('.').map(Number); if (v.length >= 2 && !v.some(isNaN) && (v[0] < 1 || (v[0] === 1 && v[1] < 1))) throw Object.assign(new Error('A extensão do Chrome está desatualizada (versão ' + versaoExtensao + '): recarregue-a em chrome://extensions (ícone de recarregar).'), { codigo: 'EXTENSAO_ANTIGA' });
+    exigirVersao(1, 1);
     const b = await enfileirar({ mensagens, temporario }, tempoMs || Math.max(1, mensagens.length) * 6 * 60e3, aguardarConexaoMs), rs = resultadosDe(b);
     if (b.erro && !rs.length) throw falhou(b, rs);
     return { resultados: rs, erro: b.erro ? String(b.erro).slice(0, 300) : '' };
@@ -106,7 +116,7 @@ function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PA
   });
   const parar = () => { fila.concat([...emAndamento.values()]).forEach(p => { clearTimeout(p.timer); p.reject(Object.assign(new Error('Agente encerrado.'), { codigo: 'TEMPO' })); }); fila.length = 0; emAndamento.clear(); acordar(); try { srv.close(); srv.closeAllConnections && srv.closeAllConnections(); } catch (e) { /* já fechado */ } };
 
-  return { ligar, parar, pedir, pedirConversa, conectada, jaViu: () => vista, aguardarConexao, token, pastaExtensao, estado: () => Object.assign({ conectada: conectada(), versaoExtensao, naFila: fila.length, emAndamento: emAndamento.size }, estado), get porta() { return srv.address() && srv.address().port; } };
+  return { ligar, parar, pedir, pedirConversa, pedirInstagram, conectada, jaViu: () => vista, aguardarConexao, token, pastaExtensao, estado: () => Object.assign({ conectada: conectada(), versaoExtensao, naFila: fila.length, emAndamento: emAndamento.size }, estado), get porta() { return srv.address() && srv.address().port; } };
 }
 
 /* acorda o Chrome quando a extensão não aparece (o Chrome precisa estar aberto para a extensão trabalhar) */

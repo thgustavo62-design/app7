@@ -1246,6 +1246,12 @@ h2, h3, h4 { letter-spacing: -.005em; word-spacing: .05em; }
 .cr-ig-n { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.55); color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 12px; }
 .cr-ig-leg { margin: 8px 10px 4px; font-size: 13px; line-height: 1.35; }
 .cr-ig-aviso { margin: 0 10px 8px; font-size: 11px; }
+.cr-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; align-items: start; }
+.cr-grade .cr-r { border: 1px solid rgba(127,127,127,.3); border-radius: 14px; padding: 10px 12px; }
+.ar-abas { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.ar-abas .btn[aria-pressed="true"] { background: var(--accent, #5356fd); color: #fff; border-color: transparent; }
+.ar-n { display: inline-block; min-width: 18px; padding: 0 6px; margin-left: 6px; border-radius: 10px; background: rgba(127,127,127,.25); font-size: 12px; text-align: center; }
+.ar-abas .btn[aria-pressed="true"] .ar-n { background: rgba(255,255,255,.3); }
 .cr-leg { white-space: normal; padding: 8px 10px; border-radius: 10px; background: rgba(127,127,127,.08); }
 #fd-ref textarea, #fd-ras textarea { width: 100%; }
 

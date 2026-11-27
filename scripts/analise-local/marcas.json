@@ -2,56 +2,190 @@
   "_leia": "Kit de marca de cada empresa (cores medidas nos logos do site em 2026-11-27). Para ajustar sem mexer aqui: crie Documentos\\Nova7 Marcas\\<empresa>\\kit.json com só o que mudar, e ponha logo.png/logo.svg, fontes\\ e fotos\\ na mesma pasta. Cor marcada com confirmar:true foi estimada e precisa da sua conferência.",
   "minas-farma": {
     "nome": "Minas Farma",
-    "cores": { "primaria": "#E5030A", "secundaria": "#F37B0A", "destaque": "#F37B0A", "escuro": "#17181B", "claro": "#FFFFFF", "creme": "#FBF6F1" },
-    "fontes": { "titulo": "Bahnschrift", "corpo": "Segoe UI" },
-    "logo": { "arquivo": "minas-farma.png", "fundo": "transparente", "temas": ["claro", "escuro"] },
-    "preferencia": { "capa": "escuro", "conteudo": "claro", "cta": "claro" },
+    "cores": {
+      "primaria": "#E5030A",
+      "secundaria": "#F37B0A",
+      "destaque": "#F37B0A",
+      "escuro": "#17181B",
+      "claro": "#FFFFFF",
+      "creme": "#FBF6F1"
+    },
+    "fontes": {
+      "titulo": "Bahnschrift",
+      "corpo": "Segoe UI"
+    },
+    "logo": {
+      "arquivo": "minas-farma.png",
+      "fundo": "transparente",
+      "temas": [
+        "claro",
+        "escuro"
+      ]
+    },
+    "preferencia": {
+      "capa": "escuro",
+      "conteudo": "claro",
+      "cta": "claro"
+    },
     "tom": "farmácia de bairro, próxima, confiável e prática; linguagem simples; vermelho como cor principal e laranja só como detalhe",
-    "evitar": "visual de banco de imagem, brilhos, neon, degradês roxos, pessoas perfeitas de sorriso artificial, promessa de saúde ou cura"
+    "evitar": "visual de banco de imagem, brilhos, neon, degradês roxos, pessoas perfeitas de sorriso artificial, promessa de saúde ou cura",
+    "estiloArte": "Minas Club e campanhas: fundo azul royal e branco-gelo com bokeh e raios de luz, presentes e etiquetas 3D azuis e vermelhas flutuando desfocadas, título em letras 3D brancas com contorno azul e faixa vermelha, pincelada amarela sob a palavra-chave, cartões brancos arredondados translúcidos com ícones 3D, botão vermelho de chamada, logotipo Rede MinasFarma no topo. Comunicados de atendimento: fundo branco limpo com verde, mockup de celular e selo vermelho com a cruz."
   },
   "farma-e-farma": {
     "nome": "Farma e Farma",
-    "cores": { "primaria": "#E21118", "secundaria": "#66C2C7", "destaque": "#66C2C7", "escuro": "#14272A", "claro": "#FFFFFF", "creme": "#F2FAFA" },
-    "fontes": { "titulo": "Bahnschrift", "corpo": "Segoe UI" },
-    "logo": { "arquivo": "farma-e-farma.png", "fundo": "transparente", "temas": ["claro", "escuro"] },
-    "preferencia": { "capa": "escuro", "conteudo": "claro", "cta": "claro" },
+    "cores": {
+      "primaria": "#E21118",
+      "secundaria": "#66C2C7",
+      "destaque": "#66C2C7",
+      "escuro": "#14272A",
+      "claro": "#FFFFFF",
+      "creme": "#F2FAFA"
+    },
+    "fontes": {
+      "titulo": "Bahnschrift",
+      "corpo": "Segoe UI"
+    },
+    "logo": {
+      "arquivo": "farma-e-farma.png",
+      "fundo": "transparente",
+      "temas": [
+        "claro",
+        "escuro"
+      ]
+    },
+    "preferencia": {
+      "capa": "escuro",
+      "conteudo": "claro",
+      "cta": "claro"
+    },
     "tom": "farmácia moderna, limpa e acolhedora; vermelho e turquesa em equilíbrio, muito espaço em branco",
-    "evitar": "visual de banco de imagem, brilhos, neon, degradês roxos, pessoas perfeitas, promessa de saúde ou cura"
+    "evitar": "visual de banco de imagem, brilhos, neon, degradês roxos, pessoas perfeitas, promessa de saúde ou cura",
+    "estiloArte": "Farma Club e promoções: fundo vermelho profundo com textura de tecido acetinado e brilho dourado; elementos 3D brilhantes em vermelho e dourado (coroa, etiquetas de porcentagem, presentes, moedas, cestinha, pódios dourados); título em letras 3D grossas brancas e amarelas com contorno vermelho; cartões arredondados cremes com cantos dourados; faixa de destaque vermelha com pincelada amarela. Versão editorial (educativa/avisos): papel rasgado creme e vermelho, tipografia condensada preta e vermelha, selos amarelos, foto realista de pessoa quando fizer sentido."
   },
   "campo-forte": {
     "nome": "Campo Forte",
-    "cores": { "primaria": "#01896D", "secundaria": "#A1D01E", "destaque": "#FC7302", "acentoEscuro": "#A1D01E", "escuro": "#02130D", "claro": "#F3F6EE", "creme": "#EEF3E6" },
-    "fontes": { "titulo": "Bahnschrift", "corpo": "Segoe UI" },
-    "logo": { "arquivo": "campo-forte.png", "fundo": "escuro", "temas": ["escuro"], "recorte": { "x": 28, "y": 38, "w": 208, "h": 208 } },
-    "preferencia": { "capa": "escuro", "conteudo": "escuro", "cta": "escuro" },
+    "cores": {
+      "primaria": "#01896D",
+      "secundaria": "#A1D01E",
+      "destaque": "#FC7302",
+      "acentoEscuro": "#A1D01E",
+      "escuro": "#02130D",
+      "claro": "#F3F6EE",
+      "creme": "#EEF3E6"
+    },
+    "fontes": {
+      "titulo": "Bahnschrift",
+      "corpo": "Segoe UI"
+    },
+    "logo": {
+      "arquivo": "campo-forte.png",
+      "fundo": "escuro",
+      "temas": [
+        "escuro"
+      ],
+      "recorte": {
+        "x": 28,
+        "y": 38,
+        "w": 208,
+        "h": 208
+      }
+    },
+    "preferencia": {
+      "capa": "escuro",
+      "conteudo": "escuro",
+      "cta": "escuro"
+    },
     "tom": "agro, sólido e direto; verde escuro com lima e um toque de laranja; imagens de campo, grãos e máquinas reais",
     "evitar": "visual de banco de imagem, brilhos, neon, campos irreais de tão perfeitos, texto dentro da imagem"
   },
   "nova7": {
     "nome": "Nova7",
-    "cores": { "primaria": "#5356FD", "secundaria": "#26E9ED", "destaque": "#7330FC", "escuro": "#040508", "claro": "#F4F6FB", "creme": "#EEF1F8" },
-    "fontes": { "titulo": "Bahnschrift", "corpo": "Segoe UI" },
-    "logo": { "arquivo": "nova7.png", "fundo": "escuro", "temas": ["escuro"] },
-    "preferencia": { "capa": "escuro", "conteudo": "escuro", "cta": "escuro" },
+    "cores": {
+      "primaria": "#5356FD",
+      "secundaria": "#26E9ED",
+      "destaque": "#7330FC",
+      "escuro": "#040508",
+      "claro": "#F4F6FB",
+      "creme": "#EEF1F8"
+    },
+    "fontes": {
+      "titulo": "Bahnschrift",
+      "corpo": "Segoe UI"
+    },
+    "logo": {
+      "arquivo": "nova7.png",
+      "fundo": "escuro",
+      "temas": [
+        "escuro"
+      ]
+    },
+    "preferencia": {
+      "capa": "escuro",
+      "conteudo": "escuro",
+      "cta": "escuro"
+    },
     "tom": "agência de marketing e tecnologia; fundo quase preto, azul e ciano com roxo no detalhe; tipografia grande e limpa",
     "evitar": "visual de robô ou cérebro de IA, brilhos exagerados, partículas, degradês em tudo"
   },
   "altus-contabilidade": {
     "nome": "Altus Contabilidade",
-    "cores": { "primaria": "#4D433C", "secundaria": "#915D32", "destaque": "#915D32", "escuro": "#2B2521", "claro": "#EDEDED", "creme": "#EDEDED" },
-    "fontes": { "titulo": "Georgia", "corpo": "Segoe UI" },
-    "logo": { "arquivo": "altus-contabilidade.png", "fundo": "claro", "temas": ["claro"] },
-    "preferencia": { "capa": "claro", "conteudo": "claro", "cta": "claro" },
+    "cores": {
+      "primaria": "#4D433C",
+      "secundaria": "#915D32",
+      "destaque": "#915D32",
+      "escuro": "#2B2521",
+      "claro": "#EDEDED",
+      "creme": "#EDEDED"
+    },
+    "fontes": {
+      "titulo": "Georgia",
+      "corpo": "Segoe UI"
+    },
+    "logo": {
+      "arquivo": "altus-contabilidade.png",
+      "fundo": "claro",
+      "temas": [
+        "claro"
+      ]
+    },
+    "preferencia": {
+      "capa": "claro",
+      "conteudo": "claro",
+      "cta": "claro"
+    },
     "tom": "contabilidade sóbria e de confiança; marrom e cobre sobre fundo claro; títulos com serifa; sem promessa de economia de imposto",
     "evitar": "visual de banco de imagem, símbolos de cifrão e moedas, promessa de economia, urgência exagerada"
   },
   "junior-lopes-contador": {
     "nome": "Junior Lopes Contador",
     "confirmar": true,
-    "cores": { "primaria": "#2E3A48", "secundaria": "#8A6D3B", "destaque": "#8A6D3B", "escuro": "#1C232C", "claro": "#F4F2EE", "creme": "#F4F2EE", "confirmar": true },
-    "fontes": { "titulo": "Georgia", "corpo": "Segoe UI" },
-    "logo": { "arquivo": "", "fundo": "transparente", "temas": ["claro", "escuro"], "usarNome": true },
-    "preferencia": { "capa": "escuro", "conteudo": "claro", "cta": "claro" },
+    "cores": {
+      "primaria": "#2E3A48",
+      "secundaria": "#8A6D3B",
+      "destaque": "#8A6D3B",
+      "escuro": "#1C232C",
+      "claro": "#F4F2EE",
+      "creme": "#F4F2EE",
+      "confirmar": true
+    },
+    "fontes": {
+      "titulo": "Georgia",
+      "corpo": "Segoe UI"
+    },
+    "logo": {
+      "arquivo": "",
+      "fundo": "transparente",
+      "temas": [
+        "claro",
+        "escuro"
+      ],
+      "usarNome": true
+    },
+    "preferencia": {
+      "capa": "escuro",
+      "conteudo": "claro",
+      "cta": "claro"
+    },
     "tom": "contador pessoa física e referência: autoridade tranquila, linguagem clara; azul-acinzentado com detalhe dourado (provisório)",
     "evitar": "promessa de economia de imposto, urgência exagerada, visual de banco de imagem"
   }

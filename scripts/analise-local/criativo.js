@@ -4,7 +4,7 @@
    NUNCA publica: o rascunho entra no site como "Em produção" e passa pela aprovação interna e do cliente.
    As chaves ficam só em %USERPROFILE%\.nova7\agente.json (campos openai e canva), nunca no site nem no repositório. */
 const fs = require('fs'), path = require('path'), os = require('os');
-const MARCA = require('./marca'), ARTE = require('./arte');
+const MARCA = require('./marca'), ARTE = require('./arte'), IG = require('./instagram');
 
 const OPENAI = () => String(process.env.N7_OPENAI_URL || 'https://api.openai.com').replace(/\/$/, '');
 const CANVA = () => String(process.env.N7_CANVA_URL || 'https://api.canva.com').replace(/\/$/, '');
@@ -14,7 +14,7 @@ const slug = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLow
    "Nova7 ↔ ChatGPT" (no Chrome já logado) conversa no chatgpt.com e devolve a resposta. Sem chave, sem cobrança por uso. */
 function config(cfgArq) {
   const o = (cfgArq && cfgArq.openai) || {}, c = (cfgArq && cfgArq.canva) || {}, w = (cfgArq && cfgArq.chatgpt) || {}, extensao = w.modo === 'extensao';
-  return { ligado: extensao || !!o.apiKey, modo: extensao ? 'extensao' : 'api', apiKey: o.apiKey || '', modeloTexto: extensao ? 'ChatGPT (Chrome)' : (o.modeloTexto || 'gpt-4.1'), modeloImagem: o.modeloImagem || 'gpt-image-1', imagens: !extensao && o.imagens === true, canvaToken: c.accessToken || '', maxPorRodada: Number(o.maxPorRodada || w.maxPorRodada) || 3, maxPorDia: Number(o.maxPorDia || w.maxPorDia) || 12, maxImagensPorDia: Number(o.maxImagensPorDia) || 6, porta: Number(w.porta) || 0, abrirChrome: w.abrirChrome !== false, artes: w.artes === 'modelo' ? 'modelo' : 'ia', artesPorDia: Number(w.artesPorDia) || 40 };
+  return { ligado: extensao || !!o.apiKey, modo: extensao ? 'extensao' : 'api', apiKey: o.apiKey || '', modeloTexto: extensao ? 'ChatGPT (Chrome)' : (o.modeloTexto || 'gpt-4.1'), modeloImagem: o.modeloImagem || 'gpt-image-1', imagens: !extensao && o.imagens === true, canvaToken: c.accessToken || '', maxPorRodada: Number(o.maxPorRodada || w.maxPorRodada) || 3, maxPorDia: Number(o.maxPorDia || w.maxPorDia) || 12, maxImagensPorDia: Number(o.maxImagensPorDia) || 6, porta: Number(w.porta) || 0, abrirChrome: w.abrirChrome !== false, instagram: w.instagram !== false, artes: w.artes === 'modelo' ? 'modelo' : 'ia', artesPorDia: Number(w.artesPorDia) || 40 };
 }
 
 /* regras que nenhum rascunho pode furar: viram alerta para a revisão humana (a IA erra) */
@@ -39,8 +39,8 @@ function prompt(item) {
   const ref = item.referencias || {}, kit = MARCA.resumoParaIA(item.kit || {});
   const sistema = `Você é redator de uma agência de marketing brasileira. Escreva em português do Brasil, no tom da marca, sem inventar fatos, preços, prazos ou resultados. Nunca prometa resultado, cura, economia ou garantia. Se faltar informação, escreva de forma genérica e diga isso em "alertas". A ARTE é montada por designer a partir do seu texto (logo, cores e fotos da empresa): por isso escreva títulos curtos e diretos, sem emojis no título, sem clichês de IA ("descubra", "mergulhe", "no mundo de hoje", "desbloqueie") e sem pedir imagem de robô, cérebro, neon, brilho ou pessoas perfeitas. Responda SOMENTE com um JSON: {"legenda": string (até 1800 caracteres, sem hashtags), "arte": {"tag": string (até 3 palavras, ex.: o tema), "titulo": string (até 60 caracteres, a ideia do post), "subtitulo": string (até 90 caracteres, opcional), "cta": string (até 40 caracteres, só se for carrossel), "slides": [{"titulo": string (até 50 caracteres), "texto": string (até 150 caracteres)}] (só se for carrossel, de 3 a 7 slides)}, "roteiro": string[] (se for Reels, cenas curtas), "briefArte": string (a CENA da arte: elementos, objetos e clima visual que combinam com o assunto; sem texto na imagem), "produtos": string[] (até 3 nomes de produtos reais da categoria que combinam com o post, ex.: "protetor solar", "creatina"; vazio se não fizer sentido), "hashtags": string[] (até 8), "alertas": string[]}.`;
   const usuario = { cliente: item.cliente, setor: item.setor, perfil: item.perfil, identidade: kit, pauta: { codigo: item.codigo, titulo: item.titulo, formato: item.formato, data: item.data },
-    referencias: { perfisV4: ref.v4 || [], estilo: ref.estilo || '', evitar: ref.evitar || '', exemplosDeLegenda: ref.exemplos || [] }, legendasRecentesDoCliente: item.legendasRecentes || [] };
-  const msgs = [{ role: 'system', content: sistema }, { role: 'user', content: 'Crie o rascunho desta pauta seguindo as referências (inspire-se no estilo, nunca copie textos de terceiros):\n' + JSON.stringify(usuario) }];
+    referencias: { perfisV4: ref.v4 || [], estilo: ref.estilo || '', evitar: ref.evitar || '', exemplosDeLegenda: ref.exemplos || [] }, legendasRecentesDoCliente: item.legendasRecentes || [], instagramDoCliente: item.instagram || undefined };
+  const msgs = [{ role: 'system', content: sistema }, { role: 'user', content: 'Crie o rascunho desta pauta seguindo as referências (inspire-se no estilo, nunca copie textos de terceiros). Se houver "instagramDoCliente", mantenha o tom e o jeito do que o cliente já posta e não repita os assuntos das últimas legendas:\n' + JSON.stringify(usuario) }];
   if (item.ajuste && item.anterior) msgs.push({ role: 'assistant', content: JSON.stringify(item.anterior) }, { role: 'user', content: 'Ajuste o rascunho acima conforme este pedido da equipe e devolva o JSON completo de novo: ' + String(item.ajuste).slice(0, 600) });
   return msgs;
 }
@@ -129,8 +129,8 @@ function mensagensDeArte(item, r, kit, plano, vertical, anexos, nomesAnexos, pro
     const cena = i === 0 || s.tipo === 'capa' ? (r.briefArte || '') : `variação coerente com o tema "${r.arte && r.arte.titulo || item.titulo}"`;
     if (i === 0) return { imagem: true, anexos, texto: `Você é diretor de arte sênior de uma agência de marketing brasileira. Gere AGORA a imagem 1 de ${n} de um ${nome} de Instagram da ${kit.nome}. Não faça perguntas e não explique: apenas gere a imagem.
 
-ESTILO: arte publicitária 3D premium, rica e profissional, no mesmo nível das artes de referência anexadas: título em letras 3D grossas com contorno e brilho, ícones 3D brilhantes, iluminação de estúdio, profundidade, elementos flutuantes, composição limpa e hierarquia clara. Use a linguagem visual das referências, mas NÃO copie o conteúdo, os textos nem os produtos delas.
-IDENTIDADE: cores ${cores}. Use EXATAMENTE o logotipo anexado (não redesenhe, não altere letras nem cores), em tamanho discreto e legível.
+ESTILO: arte publicitária 3D premium, rica e profissional, no mesmo nível das artes de referência anexadas, SEGUINDO O PADRÃO VISUAL DELAS (paleta, tipo de letra 3D, ícones, fundo, acabamento): título em letras 3D grossas com contorno e brilho, ícones 3D brilhantes, iluminação de estúdio, profundidade, elementos flutuantes, composição limpa e hierarquia clara. Use a linguagem visual das referências, mas NÃO copie o conteúdo, os textos nem os produtos delas.
+${kit.estiloArte ? 'PADRÃO DA MARCA: ' + kit.estiloArte + '\n' : ''}IDENTIDADE: cores ${cores}. Use EXATAMENTE o logotipo anexado (não redesenhe, não altere letras nem cores), em tamanho discreto e legível.
 FORMATO: ${formato}. Margem de segurança de 6% nas bordas (nada importante colado na borda).
 TEXTOS (escreva EXATAMENTE assim, em português do Brasil, sem erro de ortografia e sem nenhum outro texto):
 ${textos}
@@ -150,8 +150,8 @@ async function gerarArtesChatGPT(item, r, kit, pasta, c, { log = () => {}, edge 
   const plano = ARTE.planoDeSlides(r, item).slice(0, 8), vertical = /reels|story|stories/i.test(item.formato || ''), W = 1080, H = vertical ? 1920 : 1350;
   const hash = [...item.codigo].reduce((a, ch) => a + ch.charCodeAt(0), 0), handle = (item.perfil && item.perfil.handle) || '';
   const logo = kit.logoArquivo && /\.(png|jpe?g|webp)$/i.test(kit.logoArquivo) && fs.statSync(kit.logoArquivo).size <= TAM_MAX_ANEXO ? kit.logoArquivo : '';
-  const refs = referenciasParaArte(kit, hash), prods = produtosParaArte(kit, r, item), arquivos = [logo, ...refs, ...prods].filter(Boolean);
-  const nomes = [logo && 'logotipo da empresa (primeiro anexo)', refs.length && `${refs.length} arte(s) de referência de ESTILO`, prods.length && `${prods.length} foto(s) de produto real`].filter(Boolean).join('; ') || 'nenhum';
+  const refs = referenciasParaArte(kit, hash).slice(0, 2).concat((item.instagramImgs || []).slice(0, 1).filter(f => fs.statSync(f).size <= TAM_MAX_ANEXO)), prods = produtosParaArte(kit, r, item), arquivos = [logo, ...refs, ...prods].filter(Boolean);
+  const nomes = [logo && 'logotipo da empresa (primeiro anexo)', refs.length && `${refs.length} arte(s) de referência de ESTILO${(item.instagramImgs || []).length ? ' (a última é um post recente do Instagram do cliente: mantenha coerência com o feed dele)' : ''}`, prods.length && `${prods.length} foto(s) de produto real`].filter(Boolean).join('; ') || 'nenhum';
   const msgs = mensagensDeArte(item, r, kit, plano, vertical, arquivos.map(anexoDe), nomes, prods, handle);
   const resp = await c.ponte.pedirConversa(msgs, { tempoMs: plano.length * 6 * 60e3 + 120e3, aguardarConexaoMs: 0, temporario: false });
   fs.mkdirSync(path.join(pasta, 'originais'), { recursive: true });
@@ -173,7 +173,13 @@ async function gerarArtesChatGPT(item, r, kit, pasta, c, { log = () => {}, edge 
 /* um rascunho completo para uma pauta: texto, conformidade, arte da marca (logo, cores e fotos da empresa) e design no Canva (se ligado) */
 async function rascunhoDe(item, c, { pastaBase, estado, log = () => {}, edge } = {}) {
   const kit = MARCA.kit(item.slug || item.marca); item = Object.assign({}, item, { kit });
+  /* o que o cliente já posta no Instagram (tom, assuntos, padrão visual): lido pela extensão, guardado por 7 dias. Se falhar, segue sem */
+  if (c.modo === 'extensao' && c.instagram && c.ponte && kit.existe && item.perfil && item.perfil.handle) {
+    try { const dir = path.join(kit.dir, 'instagram'), d = await IG.dadosDoInstagram(c.ponte, item.perfil.handle, dir); if (d) item = Object.assign({}, item, { instagram: IG.resumoParaIA(d), instagramImgs: IG.imagensDe(d, dir, 1) }); }
+    catch (e) { log('Instagram de ' + item.perfil.handle + ': ' + e.message); item.instagramAviso = e.message; }
+  }
   const r = await gerarTexto(item, c); r.alertas.push(...conformidade(r, item));
+  if (item.instagramAviso) r.alertas.push('Não li o Instagram do cliente (' + item.instagramAviso + '): o rascunho não considerou o que ele já posta.');
   const hoje = new Date().toISOString().slice(0, 10), cota = (estado.criativo = estado.criativo && estado.criativo.dia === hoje ? estado.criativo : { dia: hoje, rascunhos: 0, imagens: 0 });
   const pasta = path.join(pastaBase, slug(item.marca), item.codigo); r.imagens = []; r.artes = [];
   if (!kit.existe) r.alertas.push(...kit.avisos); else {

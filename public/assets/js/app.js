@@ -180,6 +180,7 @@
     cerebro: { title: "Central de Inteligência", render: (v, sub) => window.N7Cerebro.render(v, sub, brainHelpers()) },
     calendario: { title: "Calendário Kanban", render: renderKanban },
     feed: { title: "Preview de Feed", render: v => window.N7Feed.render(v, { ico, banner, toast, clients: () => CLIENTS, pautas: b => posts().filter(p => p.b === b), openPauta: code => openDrawer(code), status: STATUS, today: TODAY_ISO, isClient: IS_CLIENT }) },
+    artes: { title: "Aprovação de artes", render: (v, sub) => window.N7Artes.render(v, { ico, toast, clients: () => CLIENTS.filter(c => has(c, "redes") || has(c, "criativos")) }, sub) },
     alertas: { title: "Alertas", render: renderAlertas },
     fluxo: { title: "Fluxo e horários", render: renderFluxo },
     playbook: { title: "Playbook", render: renderPlaybook },
@@ -198,6 +199,7 @@
     comercial: () => IS_ADMIN,
     calendario: () => anyPostClients(),
     feed: () => anyPostClients(),
+    artes: () => anyPostClients(),
     fluxo: () => !IS_CLIENT && anyPostClients(),
     alertas: () => !IS_CLIENT && D.ALERTS.length > 0,
     playbook: () => !IS_CLIENT,
@@ -245,6 +247,7 @@
     comercial: () => [["carteira", "Carteira atual"], ["funil", "Funil de vendas"], ["novos", "Clientes novos"], ["mapa", "Mapa"], ["contratos", "Contratos"]],
     promocoes: () => [["", "Visão geral"], ["candidatos", "Candidatos"], ["campanha", "Montar campanha"], ["campanhas", "Campanhas"], ["resultado", "Resultado"], ["analise", "Análise completa"], ["importar", "Importar"]],
     cerebro: () => [["", "Hoje"], ["clientes", "Clientes"], ["radar", "Radar"], ["agentes", "Agentes 3D"], ["servicos", "Serviços 3D"], ["conexoes", "Conexões"], ["memoria", "Memória"], ["regras", "Como pensa"]],
+    artes: () => CLIENTS.filter(c => has(c, "redes") || has(c, "criativos")).map(c => [c.id, c.name]),
     config: () => [["usuarios", "Usuários"], ["clientes", "Clientes e serviços"], ["fontes", "Fontes de dados"]]
   };
   const subsOf = id => (byId[id] ? clientSubs(byId[id]) : NAVSUB[id] ? NAVSUB[id]() : []);
@@ -257,7 +260,7 @@
     const ps = posts();
     const late = id => ps.filter(p => p.b === byId[id].key && p.late).length;
     const p0 = D.ALERTS.filter(a => a.p === "P0").length;
-    const ops = [["calendario", "cal", "Calendário Kanban", ""], ["feed", "ig", "Preview de Feed", ""], ["fluxo", "sliders", "Fluxo e horários", ""], ["alertas", "bell", "Alertas", `<span class="nav-count">${p0} P0</span>`], ["playbook", "file", "Playbook", ""]].filter(([id]) => ACCESS[id]());
+    const ops = [["calendario", "cal", "Calendário Kanban", ""], ["feed", "ig", "Preview de Feed", ""], ["artes", "eye", "Aprovação de artes", ""], ["fluxo", "sliders", "Fluxo e horários", ""], ["alertas", "bell", "Alertas", `<span class="nav-count">${p0} P0</span>`], ["playbook", "file", "Playbook", ""]].filter(([id]) => ACCESS[id]());
     $("#nav").innerHTML = `
       <div class="nav-group">Visão</div>
       <a class="nav-item" href="#painel">${ico("home")}<span>Painel</span></a>
