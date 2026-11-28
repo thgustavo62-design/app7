@@ -62,6 +62,23 @@
     return { texto: limpo(el.innerText), blocos, imagens: novasImagens ? await lerImagens(novasImagens) : [] };
   }
 
+  /* 2026-11-28: a 2ª mensagem de um carrossel falhava ("não começou a responder") porque o ChatGPT ainda estava terminando a resposta anterior (botão "Parar"): o Enter era ignorado.
+     Antes de escrever, espera a página ficar ociosa (sem "Parar" e sem turno em andamento) por 2 s seguidos, até maxMs. */
+  async function aguardarOciosa(pulso, maxMs = 6 * 60e3) {
+    const t0 = Date.now(); let desde = 0;
+    for (;;) {
+      pulso(); if (!(ACHA.parar() || ACHA.escrevendo())) { if (!desde) desde = Date.now(); if (Date.now() - desde >= 2000) return true; } else desde = 0;
+      if (Date.now() - t0 > maxMs) return false; await dormir(500);
+    }
+  }
+  /* retrato curto da página para as mensagens de erro (o que o ChatGPT estava mostrando) */
+  function retratoDaPagina() {
+    try {
+      const av = [...document.querySelectorAll('[role="alert"], [role="dialog"], [role="status"]')].map(x => limpo(x.innerText)).filter(Boolean).join(' / ').slice(0, 160), rs = ACHA.respostas(), ult = rs.length ? limpo(rs[rs.length - 1].innerText).slice(-140) : '';
+      return ' [página: ' + (ACHA.parar() ? 'botão Parar visível' : 'sem botão Parar') + (ACHA.escrevendo() ? ', turno em andamento' : '') + (av ? ', aviso: ' + av : '') + (ult ? ', última resposta: "' + ult + '"' : '') + ']';
+    } catch (e) { return ''; }
+  }
+
   /* uma mensagem: devolve { texto, blocos, imagens } ou lança Error com mensagem para a agência (login, limite, tempo...) */
   async function conversar(prompt, { pulso = () => {}, anexos = [], esperaImagem = false, tempoCampoMs = 40000, tempoEnvioMs = 45000, tempoRespostaMs = esperaImagem ? 5 * 60e3 : 6 * 60e3, estavelMs = esperaImagem ? 4000 : 2500 } = {}) {
     const campo = await esperar(() => { const c = ACHA.compositor(); return c && visivel(c) ? c : null; }, tempoCampoMs);
@@ -70,6 +87,7 @@
       if (ACHA.login()) throw new Error('O ChatGPT não está logado neste Chrome: entre na conta da agência em chatgpt.com.');
       throw new Error('Não achei o campo de mensagem do ChatGPT (o visual mudou?). Ajuste "compositor" em conversa.js.');
     }
+    await aguardarOciosa(pulso);
     const antes = ACHA.respostas().length, imagensAntes = new Set(geradasNaPagina().map(i => i.src)), novasImagens = () => geradasNaPagina().filter(i => !imagensAntes.has(i.src));
     if (anexos.length) await anexar(campo, anexos, pulso);
     preencher(campo, prompt);
@@ -79,11 +97,12 @@
       campo.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
     } else enviar.click();
     /* a resposta nova aparece */
-    const t0 = Date.now(); let ultimo = null;
+    const t0 = Date.now(); let ultimo = null, reenviou = false;
     for (;;) {
       pulso(); const rs = ACHA.respostas(); if (rs.length > antes || (esperaImagem && novasImagens().length)) { ultimo = rs[rs.length - 1] || document.body; break; }
       if (ACHA.limite()) throw new Error('O ChatGPT está com limite de uso no momento: tente de novo mais tarde.');
-      if (Date.now() - t0 > tempoEnvioMs + 45000) throw new Error('O ChatGPT não começou a responder.');
+      if (!reenviou && Date.now() - t0 > tempoEnvioMs) { reenviou = true; const b = ACHA.enviar(); if (b) b.click(); else campo.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true })); }
+      if (Date.now() - t0 > tempoEnvioMs + 45000) throw new Error('O ChatGPT não começou a responder.' + retratoDaPagina());
       await dormir(500);
     }
     /* só dá por terminada quando (1) já vimos o ChatGPT escrevendo ou passaram 25 s, (2) não está mais escrevendo e (3) há texto de verdade

@@ -156,3 +156,25 @@ test('conversa na página: escreve, envia, espera terminar e devolve a resposta 
     assert.match(falha, /não está logado/);
   } finally { await b.close(); }
 });
+
+/* 2026-11-28: a 2ª mensagem de um carrossel falhava ("não começou a responder"). Hipótese: o ChatGPT ainda terminava a resposta anterior e o envio era ignorado.
+   Esta página tem vários turnos e volta a ficar ocupada (turno em andamento) pouco DEPOIS de a resposta ser dada por completa; o botão "Enviar" continua visível e habilitado, mas o clique é IGNORADO enquanto ocupada.
+   A extensão agora espera a página ficar ociosa antes de escrever. A causa real só se confirma na próxima falha: o erro traz o retrato da página (botão Parar, turno em andamento, avisos, última resposta). */
+const PAGINA_OCUPADA = `<!doctype html><title>ChatGPT</title><body><main id="chat"></main><form><div class="ProseMirror" contenteditable="true" aria-label="Pergunte ao ChatGPT"></div><button type="button" id="b" aria-label="Enviar" disabled>Enviar</button></form><script>
+const campo = document.querySelector('.ProseMirror'), b = document.getElementById('b'), chat = document.getElementById('chat');
+campo.addEventListener('paste', e => { e.preventDefault(); campo.innerText = e.clipboardData.getData('text/plain'); b.disabled = false; });
+b.addEventListener('click', () => { if (chat.querySelector('[data-talvt-turn-state="in_progress"]')) return; const pedido = campo.innerText; campo.innerText = ''; b.disabled = true; window.__pedidos = (window.__pedidos || []).concat(pedido);
+  chat.insertAdjacentHTML('beforeend', '<div data-chatgpt-search-unit-key="u"><h4 data-conversation-role="user"><span>Você disse:</span></h4><div>' + pedido + '</div></div>');
+  chat.insertAdjacentHTML('beforeend', '<div data-talvt-turn-state="idle"><div data-chatgpt-search-unit-key="a"><h4 data-conversation-role="assistant"><span>ChatGPT disse:</span></h4><div class="r"></div></div></div>');
+  const turno = chat.lastElementChild, st = x => turno.setAttribute('data-talvt-turn-state', x);
+  setTimeout(() => st('in_progress'), 1000); setTimeout(() => { turno.querySelector('.r').textContent = '{"legenda":"Texto novo"}'; }, 1600); setTimeout(() => st('complete'), 2000);
+  setTimeout(() => st('in_progress'), 3600); setTimeout(() => st('complete'), 7500); });
+</script></body>`;
+test('conversa: espera o ChatGPT ficar ocioso antes da mensagem seguinte (o clique durante o turno em andamento é ignorado)', { skip: ARTE.acharEdge() ? false : 'sem Edge/Chrome neste computador', timeout: 150000 }, async () => {
+  const { chromium } = require('playwright-core'); const b = await chromium.launch({ channel: 'msedge', headless: true }); const pg = await b.newPage();
+  try {
+    await pg.setContent(PAGINA_OCUPADA); await pg.addScriptTag({ path: path.join(__dirname, '..', 'scripts', 'analise-local', 'extensao-chatgpt', 'conversa.js') });
+    const r = await pg.evaluate(async () => { const a = await window.N7Conversa.conversar('Mensagem 1', { estavelMs: 600 }); await new Promise(x => setTimeout(x, 1200)); const c = await window.N7Conversa.conversar('Mensagem 2', { estavelMs: 600, tempoEnvioMs: 3000 }); return { a: a.texto, c: c.texto, pedidos: window.__pedidos }; });
+    assert.deepEqual(r.pedidos, ['Mensagem 1', 'Mensagem 2'], 'as duas mensagens foram enviadas, a segunda só depois de a página ficar ociosa'); assert.equal(r.a, '{"legenda":"Texto novo"}'); assert.equal(r.c, '{"legenda":"Texto novo"}');
+  } finally { await b.close(); }
+});
