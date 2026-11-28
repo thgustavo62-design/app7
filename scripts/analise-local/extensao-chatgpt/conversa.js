@@ -14,6 +14,8 @@
     respostas: () => { const antigo = [...document.querySelectorAll('[data-message-author-role="assistant"]')]; if (antigo.length) return antigo; return [...document.querySelectorAll('h4[data-conversation-role="assistant"]')].map(h => h.closest('[data-chatgpt-search-unit-key]') || h.parentElement).filter((e, i, a) => e && a.indexOf(e) === i); },
     /* o botão de enviar vira "Parar" enquanto o ChatGPT escreve; a vez da resposta também fica "in_progress" */
     escrevendo: () => !!document.querySelector('[data-talvt-turn-state="in_progress"]'),
+    /* mensagens da pessoa na página (o ChatGPT descarrega turnos antigos: só vale comparar antes x depois) */
+    suas: () => document.querySelectorAll('[data-conversation-role="user"], [data-message-author-role="user"]').length,
     /* anexos prontos no campo de mensagem: cada um tem um botão "Remover <arquivo>" */
     anexos: () => [...document.querySelectorAll('form button[aria-label^="Remover"], form button[aria-label^="Remove"]')].filter(visivel).length,
     login: () => !!document.querySelector('[data-testid="login-button"], [data-testid="welcome-login-button"]') || /\/auth\/login|\/log-in/.test(location.pathname),
@@ -75,36 +77,47 @@
   function retratoDaPagina() {
     try {
       const av = [...document.querySelectorAll('[role="alert"], [role="dialog"], [role="status"]')].map(x => limpo(x.innerText)).filter(Boolean).join(' / ').slice(0, 70), rs = ACHA.respostas(), ult = rs.length ? limpo(rs[rs.length - 1].innerText).slice(0, 50) : '';
-      const c = ACHA.compositor(), env = [...document.querySelectorAll('button[data-testid="send-button"], form button[aria-label]')].filter(visivel).map(x => (x.getAttribute('aria-label') || x.getAttribute('data-testid')) + (x.disabled ? '(desab.)' : '')).join('/').slice(0, 60), suas = document.querySelectorAll('[data-conversation-role="user"], [data-message-author-role="user"]').length;
+      const c = ACHA.compositor(), env = [...document.querySelectorAll('button[data-testid="send-button"], form button[aria-label]')].filter(visivel).map(x => (x.getAttribute('aria-label') || x.getAttribute('data-testid')) + (x.disabled ? '(desab.)' : '')).join('/').slice(0, 60), suas = ACHA.suas();
       /* os dados mais úteis vêm primeiro: a mensagem de erro é cortada em ~300 caracteres */
       return ' [campo ' + (c ? textoDoCampo(c).length + ' car.' : 'não achado') + '; botões ' + (env || 'nenhum') + '; suas ' + suas + '; respostas ' + rs.length + '; anexos ' + ACHA.anexos() + (ACHA.parar() ? '; Parar' : '') + (ACHA.escrevendo() ? '; turno em andamento' : '') + (av ? '; aviso "' + av + '"' : '') + (ult ? '; resposta: "' + ult + '"' : '') + ']';
     } catch (e) { return ''; }
   }
 
   /* uma mensagem: devolve { texto, blocos, imagens } ou lança Error com mensagem para a agência (login, limite, tempo...) */
-  async function conversar(prompt, { pulso = () => {}, anexos = [], esperaImagem = false, tempoCampoMs = 40000, tempoEnvioMs = 45000, tempoRespostaMs = esperaImagem ? 5 * 60e3 : 6 * 60e3, estavelMs = esperaImagem ? 4000 : 2500 } = {}) {
-    const campo = await esperar(() => { const c = ACHA.compositor(); return c && visivel(c) ? c : null; }, tempoCampoMs);
+  async function conversar(prompt, { pulso = () => {}, anexos = [], esperaImagem = false, tempoCampoMs = 40000, tempoEnvioMs = 45000, folgaEnvioMs = 45000, tempoRespostaMs = esperaImagem ? 8 * 60e3 : 6 * 60e3, estavelMs = esperaImagem ? 4000 : 2500 } = {}) {
+    let campo = await esperar(() => { const c = ACHA.compositor(); return c && visivel(c) ? c : null; }, tempoCampoMs);
     if (!campo) {
       if (ACHA.verificacao()) throw new Error('O ChatGPT pediu a verificação "sou humano": abra o chatgpt.com no Chrome e conclua uma vez.');
       if (ACHA.login()) throw new Error('O ChatGPT não está logado neste Chrome: entre na conta da agência em chatgpt.com.');
       throw new Error('Não achei o campo de mensagem do ChatGPT (o visual mudou?). Ajuste "compositor" em conversa.js.');
     }
     await aguardarOciosa(pulso);
-    const antes = ACHA.respostas().length, imagensAntes = new Set(geradasNaPagina().map(i => i.src)), novasImagens = () => geradasNaPagina().filter(i => !imagensAntes.has(i.src));
+    const respostasAntes = ACHA.respostas(), antes = respostasAntes.length, elementosAntes = new Set(respostasAntes), textoAntes = respostasAntes.length ? respostasAntes[respostasAntes.length - 1].innerText : '', suasAntes = ACHA.suas();
+    const imagensAntes = new Set(geradasNaPagina().map(i => i.src)), novasImagens = () => geradasNaPagina().filter(i => !imagensAntes.has(i.src));
     if (anexos.length) await anexar(campo, anexos, pulso);
-    preencher(campo, prompt);
+    /* 2026-11-28 (C-F09, mensagem 1): depois de anexar as imagens o campo foi trocado/perdeu o foco e o texto NÃO entrou (campo 0 car., 5 anexos): a mensagem nunca saiu.
+       Pega o campo de novo depois dos anexos e só segue com o texto de verdade dentro; tenta até 3 vezes. */
+    for (let k = 0; k < 3; k++) { campo = ACHA.compositor() || campo; preencher(campo, prompt); await dormir(300); if (textoDoCampo(campo)) break; await dormir(700); pulso(); }
+    if (!textoDoCampo(campo)) throw new Error('Não consegui escrever a mensagem no campo do ChatGPT.' + retratoDaPagina());
+    const escreveu = true;
     const enviar = await esperar(() => ACHA.enviar(), 15000, 200);
     if (!enviar) {
       if (!textoDoCampo(campo)) throw new Error('Não consegui escrever a mensagem no campo do ChatGPT.');
       campo.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
     } else enviar.click();
-    /* a resposta nova aparece */
+    /* a resposta nova aparece. 2026-11-28: contar respostas não basta (o ChatGPT descarrega turnos antigos da página e, na imagem, o bloco da resposta só aparece no fim, ~4 min):
+       "começou" = apareceu bloco novo (ou o último bloco virou outro, com texto diferente) / imagem nova. Se a mensagem foi ENVIADA (campo vazio ou mensagem sua nova) e a página mostra atividade, ou só demora, espera até tempoRespostaMs;
+       só desiste cedo quando a mensagem NÃO saiu (texto ainda no campo). */
     const t0 = Date.now(); let ultimo = null, reenviou = false;
+    /* enviada = apareceu mensagem sua nova, ou o texto que estava no campo sumiu junto com os anexos (o ChatGPT limpa o campo ao enviar) */
+    const enviada = () => { if (ACHA.suas() > suasAntes) return true; const c = ACHA.compositor(); return escreveu && (!c || !textoDoCampo(c)) && ACHA.anexos() === 0; };
     for (;;) {
-      pulso(); const rs = ACHA.respostas(); if (rs.length > antes || (esperaImagem && novasImagens().length)) { ultimo = rs[rs.length - 1] || document.body; break; }
+      pulso(); const rs = ACHA.respostas(), fim = rs[rs.length - 1], foi = enviada(), mudou = foi && !!fim && !elementosAntes.has(fim) && fim.innerText !== textoAntes;
+      if (rs.length > antes || mudou || (esperaImagem && novasImagens().length)) { ultimo = fim || document.body; break; }
       if (ACHA.limite()) throw new Error('O ChatGPT está com limite de uso no momento: tente de novo mais tarde.');
-      if (!reenviou && Date.now() - t0 > tempoEnvioMs) { reenviou = true; const b = ACHA.enviar(); if (b) b.click(); else campo.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true })); }
-      if (Date.now() - t0 > tempoEnvioMs + 45000) throw new Error('O ChatGPT não começou a responder.' + retratoDaPagina());
+      if (!foi && !reenviou && Date.now() - t0 > tempoEnvioMs) { reenviou = true; const b = ACHA.enviar(); if (b) b.click(); else campo.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true })); }
+      if (!foi && Date.now() - t0 > tempoEnvioMs + folgaEnvioMs) throw new Error('A mensagem não foi enviada ao ChatGPT.' + retratoDaPagina());
+      if (foi && Date.now() - t0 > tempoRespostaMs) throw new Error('O ChatGPT recebeu a mensagem mas não começou a responder em ' + Math.round(tempoRespostaMs / 60e3) + ' min.' + retratoDaPagina());
       await dormir(500);
     }
     /* só dá por terminada quando (1) já vimos o ChatGPT escrevendo ou passaram 25 s, (2) não está mais escrevendo e (3) há texto de verdade
