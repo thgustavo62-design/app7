@@ -285,7 +285,7 @@ async function garantirPadroes(c, { log = () => {}, max = 2 } = {}) {
     if (kit.clube && kit.padrao && !kit.padrao.linha) { try { fs.renameSync(path.join(kit.dir, 'padrao.json'), path.join(kit.dir, 'padrao.antigo-misturado.json')); kit.padrao = null; } catch (e) { /* segue */ } }
     for (const linha of (kit.clube ? ['farmacia', 'club'] : [''])) {
       if (feitos >= max) break; if ((linha === 'club' ? kit.padraoClub : kit.padrao)) continue;
-      try { if (await PADRAO.extrair(c.ponte, kit, lib, extrairJson, { log, linha })) feitos++; } catch (e) { log('Padrão de criação, ' + kit.nome + (linha ? ' (' + linha + ')' : '') + ': ' + e.message); }
+      try { if (await PADRAO.extrair(c.ponte, kit, lib, extrairJson, { log, linha })) feitos++; } catch (e) { log('Padrão de criação, ' + kit.nome + (linha ? ' (' + linha + ')' : '') + ': ' + e.message); return feitos; }
     }
   }
   return feitos;

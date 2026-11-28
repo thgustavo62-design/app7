@@ -259,7 +259,6 @@ async function rodarCriativo(soAjustes) {
   if (CRIC.modo === 'extensao' && (!CRIC.ponte || Date.now() < pausaCriativoAte)) return;
   criativoRodando = true;
   try {
-    if (CRIC.modo === 'extensao' && !soAjustes) await CRI.garantirPadroes(CRIC, { log });   /* padrão de criação a partir das peças já aprovadas (1ª vez) */
     const resp = await chamar(soAjustes ? 'criativo-ajustes' : 'criativo-fila'); let fila = resp.itens || []; const pendentes = resp.exportar || [];
     /* extensão desconectada: acorda o Chrome (no máximo a cada 15 min) e espera até 90 s; sem ela não há como escrever, mas o envio ao Drive segue */
     if (CRIC.modo === 'extensao' && fila.length && !PONTE.conectada()) {
@@ -285,6 +284,8 @@ async function rodarCriativo(soAjustes) {
     for (const p of pendentes) { if (feitos.has(p.codigo)) continue; await exportarParaDrive(p.marca, p.codigo, p.imagens); }
     await refazerPreviews((resp.semPreview || []).filter(p => !feitos.has(p.codigo)));
     await aprender(resp.aprovadas, resp.descartadas);
+    /* padrão de criação (extração pelo ChatGPT, leva vários minutos): SÓ DEPOIS das artes e dos ajustes pendentes, e só se não sobrou pauta esperando nem houve erro do ChatGPT nesta rodada (2026-11-28: no começo da rodada ele bloqueava o refazer artes) */
+    if (CRIC.modo === 'extensao' && !soAjustes && !fila.some(i => !feitos.has(i.codigo)) && Date.now() >= pausaCriativoAte) await CRI.garantirPadroes(CRIC, { log });
     gravarEstado(Object.assign(lerEstado(), { criativo: estado.criativo }));
   } catch (e) { log('Criativo: ' + e.message); } finally { criativoRodando = false; }
 }
