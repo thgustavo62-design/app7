@@ -33,7 +33,7 @@ function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PA
   const visto = req => { vistoEm = Date.now(); versaoExtensao = String(req.headers['x-n7-versao'] || versaoExtensao); if (!vista) { vista = true; if (persistir) marcarVista(); } };
 
   function acordar() { const e = esperando; esperando = []; e.forEach(f => f()); }
-  function finalizar(id, fn, resultado) { const p = emAndamento.get(id) || fila.find(x => x.id === id); if (!p) return false; clearTimeout(p.timer); historico.push({ tipo: p.tipo, em: new Date().toISOString(), segundos: Math.round((Date.now() - p.criadoEm) / 1000), ok: !!(resultado && !resultado.erro), erro: String(resultado && resultado.erro || '').slice(0, 160) }); emAndamento.delete(id); const i = fila.indexOf(p); if (i >= 0) fila.splice(i, 1); fn(p); return true; }
+  function finalizar(id, fn, resultado) { const p = emAndamento.get(id) || fila.find(x => x.id === id); if (!p) return false; clearTimeout(p.timer); historico.push({ tipo: p.tipo, em: new Date().toISOString(), segundos: Math.round((Date.now() - p.criadoEm) / 1000), ok: !!(resultado && !resultado.erro), erro: String(resultado && resultado.erro || '').slice(0, 320) }); emAndamento.delete(id); const i = fila.indexOf(p); if (i >= 0) fila.splice(i, 1); fn(p); return true; }
 
   /* pede ao ChatGPT (pela extensão) e devolve { texto, blocos }. Rejeita com .codigo = 'SEM_EXTENSAO' | 'TEMPO' | 'CHATGPT' */
   /* enfileira um trabalho e devolve o corpo bruto que a extensão respondeu ({ resultados, erro } ou, no formato antigo, { texto, blocos, erro }) */
@@ -92,15 +92,18 @@ function criar({ porta = PORTA_PADRAO, token, log = () => {}, pastaExtensao = PA
       if (u.pathname === '/ping') { visto(req); return json(res, 200, { ok: true, na_fila: fila.length, em_andamento: emAndamento.size }); }
       if (u.pathname === '/job') {
         visto(req);
+        /* 2026-11-28: a extensão só volta a buscar pedido depois de devolver o anterior. Se buscou com um ainda em andamento, ela foi recarregada (ou o Chrome reiniciou o serviço) e PERDEU o pedido:
+           antes o agente esperava até o limite (até 98 min num carrossel) sem saber. Agora falha na hora e o agente pede de novo. */
+        for (const q of [...emAndamento.values()]) if (Date.now() - (q.entregueEm || 0) > 3000) finalizar(q.id, x => { estado.falhas++; estado.ultimoErro = 'A extensão reiniciou durante o pedido.'; x.reject(Object.assign(new Error('A extensão do Chrome reiniciou (foi recarregada?) durante o pedido: ele se perdeu. Peça de novo.'), { codigo: 'EXTENSAO_REINICIOU' })); }, { erro: 'A extensão reiniciou durante o pedido.' });
         const espera = Math.min(25, Math.max(0, Number(u.searchParams.get('espera')) || 0)) * 1000, t0 = Date.now();
         while (!fila.length && Date.now() - t0 < espera && !req.destroyed) { await new Promise(r => { esperando.push(r); setTimeout(r, 1000); }); vistoEm = Date.now(); }
         const p = fila.shift(); if (!p) { res.statusCode = 204; return res.end(); }
-        emAndamento.set(p.id, p); return json(res, 200, Object.assign({ id: p.id }, p.carga));
+        p.entregueEm = Date.now(); emAndamento.set(p.id, p); return json(res, 200, Object.assign({ id: p.id }, p.carga));
       }
       if (u.pathname === '/resultado' && req.method === 'POST') {
         vistoEm = Date.now(); const b = JSON.parse(await ler(req) || '{}');
         const ok = finalizar(String(b.id), p => {
-          if (b.erro) { estado.falhas++; estado.ultimoErro = String(b.erro).slice(0, 200); } else estado.feitos++;
+          if (b.erro) { estado.falhas++; estado.ultimoErro = String(b.erro).slice(0, 320); } else estado.feitos++;
           p.resolve(b);
         }, b);
         return json(res, ok ? 200 : 404, { ok });

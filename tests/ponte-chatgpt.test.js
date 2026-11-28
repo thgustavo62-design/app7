@@ -178,3 +178,18 @@ test('conversa: espera o ChatGPT ficar ocioso antes da mensagem seguinte (o cliq
     assert.deepEqual(r.pedidos, ['Mensagem 1', 'Mensagem 2'], 'as duas mensagens foram enviadas, a segunda só depois de a página ficar ociosa'); assert.equal(r.a, '{"legenda":"Texto novo"}'); assert.equal(r.c, '{"legenda":"Texto novo"}');
   } finally { await b.close(); }
 });
+
+/* 2026-11-28: extensão recarregada no meio de um pedido: ela perde o pedido e volta a buscar. Antes o agente esperava até o limite (até 98 min); agora falha na hora. */
+test('ponte: extensão que volta a buscar pedido com um ainda em andamento (foi recarregada) faz o pedido falhar na hora', async () => {
+  const { p, fim } = await novaPonte(); try {
+    assert.equal((await chamar(p, '/job?espera=0')).status, 204);
+    const pedido = p.pedir('x', { tempoMs: 60000 }), falha = assert.rejects(pedido, e => e.codigo === 'EXTENSAO_REINICIOU');
+    const job = await (await chamar(p, '/job?espera=5')).json(); assert.equal(job.prompt, 'x');
+    await new Promise(r => setTimeout(r, 3200));
+    assert.equal((await chamar(p, '/job?espera=0')).status, 204, 'a extensão nova busca de novo, sem devolver o anterior');
+    await falha; assert.equal(p.estado().emAndamento, 0);
+    /* e o que veio depois funciona normalmente */
+    const outro = p.pedir('y', { tempoMs: 5000 }); const j2 = await (await chamar(p, '/job?espera=5')).json();
+    await chamar(p, '/resultado', { method: 'POST', body: JSON.stringify({ id: j2.id, texto: 'ok', blocos: [] }) }); assert.equal((await outro).texto, 'ok');
+  } finally { fim(); }
+});
