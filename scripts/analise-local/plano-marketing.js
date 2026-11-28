@@ -42,7 +42,7 @@ function montar({ inteligencia: i, hoje, temEstoque = false }) {
   const q = quando(i, hoje), an = i.andamento, rotulo = an ? `semana em andamento (${dm(an.semana.inicio)} a ${dm(an.semana.ate)})` : `semana de ${dm(i.semana.inicio)}`;
   const ideiaDe = (grupo, titulo, motivo, ev, alvo, tipo, nivel, regra, formato) => {
     const note = [`Por quê: ${motivo}`, ev.length ? `Evidência: ${ev.slice(0, 2).join('; ')}` : '', `Sugestão: ${formato}, ${DIA_LONGO[q.dia]} ${dm(q.data)} às ${q.hora}.`, `Anuncia: ${alvo} (${tipo})`, regra ? `Atenção: ${regra}` : '', 'Rascunho do plano de marketing: a equipe aprova ou descarta.'].filter(Boolean).join(' — ');
-    return { title: corta(`${grupo}: ${alvo}`, 120), note: corta(note, 590), format: formato };
+    return { title: corta(`${grupo}: ${alvo}`, 120), note: corta(note, 480), format: formato };
   };
   const base = (grupo, rot, alvo, tipo, categoria, dif, motivo, ev, formato) => {
     const e = eleg(categoria);

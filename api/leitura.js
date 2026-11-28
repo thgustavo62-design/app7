@@ -90,7 +90,7 @@ module.exports = handle(async (req, res) => {
       const prefixoPlano = id => { const m = /^(auto-.+?-plano-\d{4}-W\d{2}-)/.exec(String(id)); return m ? m[1] : null; };
       ideiasAtuais.forEach(i => { const p = prefixoPlano(i.id); if (p) cota.set(p, (cota.get(p) || 0) + 1); });
       const novas = lista.filter(i => { if (!/^auto-[A-Za-z0-9_-]{4,55}$/.test(String(i.id)) || existentes.has(i.id)) return false; const p = prefixoPlano(i.id); if (!p) return true; if ((cota.get(p) || 0) >= 3) return false; cota.set(p, (cota.get(p) || 0) + 1); return true; });
-      const ops = novas.map(i => ({ t: 'idea', op: 'upsert', id: i.id, b: String(i.b), format: i.format === 'Reels' ? 'Reels' : 'Carrossel', title: String(i.title || '').slice(0, 140), note: String(i.note || '').slice(0, 600), stage: 'nova', src: 'Agente (PowerShell): ' + String(i.src || 'análise de vendas').slice(0, 80), at: new Date().toISOString().slice(0, 10) }));
+      const ops = novas.map(i => ({ t: 'idea', op: 'upsert', id: i.id, b: String(i.b), format: i.format === 'Reels' ? 'Reels' : 'Carrossel', title: String(i.title || '').slice(0, 140), note: String(i.note || '').slice(0, 480), stage: 'nova', src: 'Agente (PowerShell): ' + String(i.src || 'análise de vendas').slice(0, 80), at: new Date().toISOString().slice(0, 10) }));
       if (ops.length) await M.applyOps(repo, ops, SISTEMA);
       return send(res, 200, { criadas: ops.map(o => o.id), jaExistiam: lista.length - ops.length });
     }

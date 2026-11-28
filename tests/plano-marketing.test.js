@@ -56,7 +56,7 @@ const NOMES = iso => ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][new Date
 test('ideias rascunho: no máximo 3, id estável por marca e semana, sem cliente e só do que pode ser anunciado', () => {
   const p = plano(), a = PM.ideiasDoPlano(p, 'M', '2026-W46'), b = PM.ideiasDoPlano(plano(), 'M', '2026-W46');
   assert.ok(a.length >= 1 && a.length <= 3); assert.deepEqual(a.map(x => x.id), b.map(x => x.id), 'mesmo plano, mesmos ids: a ideia nunca é criada duas vezes');
-  a.forEach(x => { assert.match(x.id, /^auto-M-plano-2026-W46-[a-z0-9-]+$/); assert.ok(x.id.length <= 58); assert.ok(['Reels', 'Carrossel'].includes(x.format)); assert.ok(x.note.length <= 600); assert.match(x.note, /Por quê:/); assert.match(x.note, /Sugestão:/); assert.match(x.note, /Anuncia:/); assert.equal(x.src, 'plano de marketing da semana'); });
+  a.forEach(x => { assert.match(x.id, /^auto-M-plano-2026-W46-[a-z0-9-]+$/); assert.ok(x.id.length <= 58); assert.ok(['Reels', 'Carrossel'].includes(x.format)); assert.ok(x.note.length <= 480, 'o banco de ideias recusa observação acima de 500 caracteres'); assert.match(x.note, /Por quê:/); assert.match(x.note, /Sugestão:/); assert.match(x.note, /Anuncia:/); assert.equal(x.src, 'plano de marketing da semana'); });
   assert.ok(!/JARDIANCE|NINHO/.test(JSON.stringify(a)), 'receita e fórmula infantil não viram ideia'); assert.ok(!JSON.stringify(p).includes('00001234'), 'sem cliente');
   assert.deepEqual(PM.ideiasDoPlano({ ok: false }, 'M', '2026-W46'), []);
 });
