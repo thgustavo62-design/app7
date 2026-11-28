@@ -28,6 +28,18 @@
     return `<div class="in-dias" role="img" aria-label="Vendas por dia da semana contra o esperado">${dias.map(d => `<div class="in-dia"><div class="in-barras"><i class="r" style="height:${Math.round((d.vendasCentavos / mx) * 100)}%" title="${esc(brl(d.vendasCentavos))}"></i><i class="e" style="height:${Math.round((d.esperadoCentavos / mx) * 100)}%" title="Esperado ${esc(brl(d.esperadoCentavos))}"></i></div><b>${esc(d.dia)}</b><small>${dm(d.data)}</small><span class="${tom(d.var)}">${pct(d.var)}</span></div>`).join("")}</div>
       <p class="src">Barra cheia = vendas do dia; barra clara = média do mesmo dia da semana nas semanas anteriores.</p>`; };
 
+  /* os dias já fechados da semana atual contra os mesmos dias das semanas anteriores */
+  const andamentoHtml = e => {
+    if (!e) return "";
+    const tone = tom(e.total.var), linha = (p, cls) => `<tr>${prod({ desc: p.desc, categoria: p.categoria })}${celula(brl(p.vendeuCentavos), 1)}${celula(brl(p.difCentavos), 1, cls)}</tr>`;
+    return `<div class="section-title"><h3>Semana em andamento</h3><span>${dm(e.semana.inicio)} a ${dm(e.semana.ate)} · ${e.semana.dias} dia(s) fechado(s)</span></div>
+      <div class="in-andamento"><p><b>${brl(e.total.vendasCentavos)}</b> vendidos contra <b>${brl(e.total.esperadoCentavos)}</b> nos mesmos dias das ${e.base.n} semana(s) anteriores <span class="delta ${tone}">${pct(e.total.var)}</span></p>
+      ${diasHtml(e.porDia)}</div>
+      <div class="in-duas"><div><div class="section-title"><h3>Acima do ritmo</h3><span>nesta semana</span></div>${tabela([["Produto"], ["Vendeu", 1], ["R$ acima", 1]], e.acima.slice(0, 6).map(p => linha(p, "up")), "Nenhum produto firme acima do ritmo.")}</div>
+      <div><div class="section-title"><h3>Abaixo do ritmo</h3><span>nesta semana</span></div>${tabela([["Produto"], ["Vendeu", 1], ["R$ abaixo", 1]], e.abaixo.slice(0, 6).map(p => linha(p, "down")), "Nenhum produto firme abaixo do ritmo.")}</div></div>
+      <p class="src">${esc(e.nota)}</p>`;
+  };
+
   function pagina(c, a, H_) {
     const i = a && a.inteligencia;
     const topo = `<div class="head"><div><h2>Inteligência de vendas</h2><p class="src">O que está vendendo e o que não está, por produto e categoria, na última semana completa (segunda a domingo). Nenhum dado de cliente entra aqui. Vem da análise feita no computador da agência${a && a.publicadoEm ? `, publicada em ${esc(new Date(a.publicadoEm).toLocaleString("pt-BR"))}` : ""}.</p></div></div>`;
@@ -38,6 +50,7 @@
     const sc = i.qualidade && i.qualidade.semCategoriaEspecifica, avisoCat = sc > 0.4 ? `<p class="notice info"><b>${Math.round(sc * 100)}% das vendas da semana estão em "Outros" ou "Medicamentos (demais)"</b>, porque o relatório de vendas não traz a categoria do produto. Os focos de categoria usam só o restante. A leitura por produto não é afetada. Para melhorar, vamos cruzar com a categoria do estoque.</p>` : "";
     return topo + `<p class="src"><b>Semana de ${dm(i.semana.inicio)} a ${dm(i.semana.fim)}</b> comparada com ${i.base.n} semana(s) anterior(es).</p>${conf}${avisoCat}
       <div class="kpis k3">${kp("Vendas da semana", brl(t.semanaCentavos), `${pct(t.varAnterior)} contra a semana anterior`)}${kp("Média das anteriores", brl(t.baseMediaCentavos), `${pct(t.varBase)} a semana contra a média`)}${kp("Produtos vendidos", int(m.produtosVendidos), `ritmo da loja ${pct(m.tendenciaLoja)}`)}</div>
+      ${andamentoHtml(i.andamento)}
       <div class="section-title"><h3>Foco da semana</h3><span>até 3, o que mudou antes do que é estrutural</span></div>
       <div class="in-focos">${(i.foco || []).length ? i.foco.map(focoHtml).join("") : `<p class="src">Nada fugiu do ritmo da loja o bastante para virar foco esta semana.</p>`}</div>
       <div class="section-title"><h3>O que mais vendeu</h3><span>em R$ na semana</span></div>

@@ -76,6 +76,15 @@ export function movimento(ctx) {
     if ((i.foco || []).length) out.push(F("movimento", `mov-foco-${c.key}`, { marca: c.key, nome: c.name, score: clamp((46 + Math.min(24, parte * 300) + i.foco.length * 2) * k), tags: ["movimento", "foco"], titulo: `${c.name}: foco da semana de ${sem}`,
       detalhe: i.foco.slice(0, 2).map(f => f.titulo).join("; ") + ".", evidencia: [...i.foco.map(f => `${f.titulo}: ${f.detalhe}${f.rsEmJogoCentavos != null ? " (R$ em jogo " + money(f.rsEmJogoCentavos) + ")" : ""}`), `Semana ${money(i.total.semanaCentavos)}, ${pct(i.total.varBase)} contra a média das anteriores`, ...nota],
       acao: i.foco[0].acao, link: link(c) }));
+    const an = i.andamento;
+    if (an && an.semana.dias >= 2 && an.total.var != null && Math.abs(an.total.var) >= 0.10) {
+      const cai = an.total.var < 0, pior = an.porDia.filter(x => x.var != null && x.var < -0.1).map(x => `${x.dia} ${pct(x.var)}`);
+      out.push(F("movimento", `mov-andamento-${c.key}`, { marca: c.key, nome: c.name, kind: cai ? "acao" : "ganho", score: clamp((42 + Math.min(26, Math.abs(an.total.var) * 130)) * k * Math.min(1, 0.55 + an.semana.dias * 0.08)), tags: ["movimento", "semana-em-andamento"],
+        titulo: `${c.name}: semana em andamento ${cai ? "caiu" : "subiu"} ${pct(Math.abs(an.total.var))} contra o ritmo das últimas semanas`,
+        detalhe: `${an.semana.dias} dia(s) fechado(s): ${money(an.total.vendasCentavos)} contra ${money(an.total.esperadoCentavos)} nos mesmos dias das semanas anteriores.`,
+        evidencia: [...an.porDia.map(x => `${x.dia} ${dm(x.data)}: ${money(x.vendasCentavos)} (${x.var == null ? "—" : pct(x.var)} contra o mesmo dia)`), ...(an.abaixo[0] ? [`Mais abaixo do ritmo: ${an.abaixo[0].desc} (${money(-an.abaixo[0].difCentavos)} abaixo)`] : []), "Semana ainda aberta: o resultado final pode mudar."],
+        acao: cai ? `Olhar os dias de queda${pior.length ? " (" + pior.join(", ") + ")" : ""}: conferir ruptura nos itens que mais caíram e reforçar ação de venda no resto da semana.` : "Entender o que puxou e garantir estoque e destaque nos itens que estão acima do ritmo.", link: link(c) }));
+    }
     const pa = (i.movimento.pararam || []);
     if (pa.length >= 2) out.push(F("movimento", `mov-parou-${c.key}`, { marca: c.key, nome: c.name, score: clamp((38 + Math.min(20, pa.length * 3)) * k), tags: ["movimento", "ruptura"], titulo: `${c.name}: ${pa.length} produtos que vendiam toda semana não venderam nada`,
       detalhe: "Pode ser falta de estoque, mudança de preço ou mudança de hábito: confira antes de agir.", evidencia: [...pa.slice(0, 4).map(p => `${p.desc}: vendia ${money(p.baseMediaCentavos)} por semana`), ...nota], acao: "Conferir o estoque desses itens; se há estoque, olhar preço e posição no balcão.", link: link(c) }));

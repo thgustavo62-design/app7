@@ -143,6 +143,30 @@ function foco({ mov, hor, ces, ref, nB }) {
   return out;
 }
 
+/* ---------- SEMANA EM ANDAMENTO: os dias já fechados desta semana contra os MESMOS dias (seg, ter...) das semanas completas anteriores ---------- */
+function andamentoSemana({ rows, cob, ultimo, base, cat }) {
+  const m = segunda(ultimo); let n = 0; while (n < 7 && cob.has(mais(m, n))) n++;                      /* dias seguidos cobertos a partir da segunda */
+  if (n < 1 || !base.length) return null;
+  const diasDe = ini => Array.from({ length: n }, (_, i) => mais(ini, i)), alvo = new Set(diasDe(m)), bases = base.map(b => new Set(diasDe(b)));
+  const soma = set => { const t = { v: 0, cat: new Map(), prod: new Map(), dia: new Map() };
+    rows.forEach(r => { if (!set.has(r.data) || I.isNaoProduto(r)) return; const v = cents(r.valor); t.v += v; t.dia.set(r.data, (t.dia.get(r.data) || 0) + v);
+      const p = t.prod.get(r.barras) || { desc: r.desc, cat: cat(r.desc) || 'Outros', v: 0 }; p.v += v; t.prod.set(r.barras, p); t.cat.set(p.cat, (t.cat.get(p.cat) || 0) + v); });
+    return t; };
+  const A = soma(alvo), B = bases.map(soma), esp = Math.round(media(B.map(x => x.v))), tend = esp > 0 ? A.v / esp - 1 : 0;
+  const lin = (v, bs, extra) => { const bm = media(bs), e = Math.round(bm * (1 + tend)); return Object.assign({ vendeuCentavos: v, baseMediaCentavos: Math.round(bm), esperadoCentavos: e, difCentavos: v - e, relativaAoRitmo: e > 0 ? v / e - 1 : null }, extra); };
+  const minimo = Math.max(1500, Math.round(MIN_PROD_BASE * n / 7));
+  const barras = new Set([...A.prod.keys(), ...B.flatMap(x => [...x.prod.keys()])]);
+  const produtos = [...barras].map(b => { const pr = A.prod.get(b) || B.map(x => x.prod.get(b)).find(Boolean); return lin((A.prod.get(b) || { v: 0 }).v, B.map(x => (x.prod.get(b) || { v: 0 }).v), { desc: pr.desc, categoria: pr.cat }); })
+    .filter(p => p.baseMediaCentavos >= minimo);
+  const categorias = [...new Set([...A.cat.keys(), ...B.flatMap(x => [...x.cat.keys()])])].filter(c => !GENERICAS.has(c)).map(c => lin(A.cat.get(c) || 0, B.map(x => x.cat.get(c) || 0), { categoria: c })).filter(c => c.baseMediaCentavos >= minimo * 2);
+  const porDia = diasDe(m).map(d => { const dow = dowDe(d), esperado = Math.round(media(base.map((b, k) => B[k].dia.get(mais(b, dow)) || 0))), v = A.dia.get(d) || 0; return { data: d, dia: NOME_DIA[dow], vendasCentavos: v, esperadoCentavos: esperado, var: esperado > 0 ? v / esperado - 1 : null }; });
+  return { semana: { inicio: m, dias: n, ate: mais(m, n - 1) }, base: { semanas: base, n: base.length },
+    total: { vendasCentavos: A.v, esperadoCentavos: esp, var: esp > 0 ? A.v / esp - 1 : null }, porDia, hoje: porDia[porDia.length - 1],
+    acima: produtos.filter(p => p.difCentavos > 0).sort((a, b) => b.difCentavos - a.difCentavos).slice(0, 8), abaixo: produtos.filter(p => p.difCentavos < 0 && p.vendeuCentavos > 0).sort((a, b) => a.difCentavos - b.difCentavos).slice(0, 8),
+    categorias: categorias.sort((a, b) => b.difCentavos - a.difCentavos).slice(0, 12),
+    nota: `Os ${n} dia(s) fechados desta semana (${mais(m, 0).slice(8, 10)}/${mais(m, 0).slice(5, 7)} a ${mais(m, n - 1).slice(8, 10)}/${mais(m, n - 1).slice(5, 7)}) contra os mesmos dias das ${base.length} semana(s) completas anteriores. Semana ainda aberta: o resultado final pode mudar.` };
+}
+
 /* ponto de entrada: rows = linhas de venda conferidas (formato do armazém); retorna null se não há o que comparar */
 function analisarSemana({ rows, diasCobertos = null, categoria = null, semana = null }) {
   const cat = categoria || categoriaFina;
@@ -156,8 +180,9 @@ function analisarSemana({ rows, diasCobertos = null, categoria = null, semana = 
   const ant = A.porSem.get(baseW[baseW.length - 1]).v, baseMed = Math.round(media(baseW.map(m => A.porSem.get(m).v)));
   const semCat = R.v > 0 ? [...R.cat.entries()].filter(([c]) => GENERICAS.has(c)).reduce((t, [, v]) => t + v, 0) / R.v : 0;
   const confianca = baseW.length >= 4 ? 'alta' : baseW.length >= 2 ? 'média' : 'baixa';
+  const ultimo = dl.slice().sort().pop(), andamento = !semana && segunda(ultimo) > ref ? andamentoSemana({ rows, cob: new Set(dl), ultimo, base: ms.slice(-4), cat }) : null;      /* semana aberta: só quando há dias depois da última semana completa */
   return {
-    ok: true, confianca, qualidade: { semCategoriaEspecifica: semCat }, semana: { inicio: ref, fim: mais(ref, 6) }, base: { semanas: baseW, n: baseW.length },
+    ok: true, confianca, andamento, qualidade: { semCategoriaEspecifica: semCat }, semana: { inicio: ref, fim: mais(ref, 6) }, base: { semanas: baseW, n: baseW.length },
     total: { semanaCentavos: R.v, anteriorCentavos: ant, baseMediaCentavos: baseMed, varAnterior: ant > 0 ? R.v / ant - 1 : null, varBase: baseMed > 0 ? R.v / baseMed - 1 : null },
     movimento: { tendenciaLoja: mov.tendenciaLoja, categorias: mov.categorias.slice(0, 25), topValor: mov.topValor, topQtd: mov.topQtd, subiram: mov.subiram, cairam: mov.cairam, novos: mov.novos, pararam: mov.pararam, produtosVendidos: mov.totalProdutosVendidos },
     dias: dia, horario: hor, cesta: ces.pares, foco: foco({ mov, hor, ces, ref, nB: baseW.length }),
@@ -173,6 +198,9 @@ function markdown(nome, i) {
   L.push(`# Inteligência de vendas — ${nome}`, '', `Semana de ${d(i.semana.inicio)} a ${d(i.semana.fim)} · comparada com ${i.base.n} semana(s) anterior(es) · confiança ${i.confianca}`, '',
     `Vendas da semana **${R$(t.semanaCentavos)}** (${pct(t.varAnterior)} contra a semana anterior; ${pct(t.varBase)} contra a média das anteriores, ${R$(t.baseMediaCentavos)}). Ritmo da loja: ${pct(m.tendenciaLoja)}.`, '');
   if (i.qualidade && i.qualidade.semCategoriaEspecifica > 0.4) L.push(`> ${Math.round(i.qualidade.semCategoriaEspecifica * 100)}% das vendas estão em "Outros" ou "Medicamentos (demais)": o relatório de vendas não traz a categoria. Os focos de categoria usam só o restante.`, '');
+  if (i.andamento) { const e = i.andamento; L.push(`## Semana em andamento (${d(e.semana.inicio)} a ${d(e.semana.ate)}, ${e.semana.dias} dia(s) fechado(s))`, '',
+    `Vendeu **${R$(e.total.vendasCentavos)}** contra ${R$(e.total.esperadoCentavos)} nos mesmos dias das ${e.base.n} semana(s) anteriores (${pct(e.total.var)}).`, '', ...e.porDia.map(x => `- ${x.dia} ${d(x.data)}: ${R$(x.vendasCentavos)} (${pct(x.var)} contra a média do mesmo dia)`), '',
+      'Acima do ritmo:', ...(e.acima.length ? e.acima.slice(0, 6).map(p => `- ${p.desc}: ${R$(p.vendeuCentavos)}, ${R$(p.difCentavos)} acima do esperado`) : ['- nenhum']), '', 'Abaixo do ritmo:', ...(e.abaixo.length ? e.abaixo.slice(0, 6).map(p => `- ${p.desc}: ${R$(p.vendeuCentavos)}, ${R$(-p.difCentavos)} abaixo do esperado`) : ['- nenhum']), '', `_${e.nota}_`, ''); }
   L.push('## Foco da semana', '');
   if (i.foco.length) i.foco.forEach((f, n) => { L.push(`${n + 1}. **${f.titulo}**${f.rsEmJogoCentavos != null ? ` — ${R$(f.rsEmJogoCentavos)} em jogo` : ''}`, `   - ${f.detalhe}`, ...f.evidencia.map(e => `   - ${e}`), `   - Próximo passo: ${f.acao}`); }); else L.push('Nada fugiu do ritmo da loja o bastante para virar foco.');
   L.push('');

@@ -139,3 +139,34 @@ test('PowerShell/CLI: analisa as lojas do armazém em paralelo e grava o relató
     r = spawnSync(process.execPath, [cli, '--saida', saida, '--loja', 'T2', '--semana', ini], { env, encoding: 'utf8' }); assert.equal(r.status, 4, 'a semana mais antiga não tem com o que comparar: código 4');
   } finally { delete process.env.N7_ARMAZEM; fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+/* semana em andamento: 5 semanas completas + segunda, terça e quarta da seguinte, com metade da venda */
+function comAndamento() {
+  const rows = serie(), seg6 = J.mais(J.segunda('2026-10-05'), 35);
+  for (let k = 0; k < 3; k++) { const d = J.mais(seg6, k); rows.push(linha(d, '10:15', 9000 + k, '7891000000011', 'DIPIRONA 500MG C/10 CPR', 10, 5)); rows.push(linha(d, '12:20', 9100 + k, '7891000000035', 'SHAMPOO ELSEVE 400ML', 20, 4)); }
+  return rows;
+}
+
+test('semana em andamento: os dias já fechados contra os mesmos dias das semanas anteriores', () => {
+  assert.equal(INT.analisarSemana({ rows: serie() }).andamento, null, 'sem dias depois da última semana completa não há semana aberta');
+  const a = INT.analisarSemana({ rows: comAndamento() }), e = a.andamento, seg6 = J.mais(J.segunda('2026-10-05'), 35);
+  assert.equal(a.semana.inicio, J.mais(J.segunda('2026-10-05'), 28), 'a semana de referência continua sendo a última COMPLETA');
+  assert.equal(e.semana.inicio, seg6); assert.equal(e.semana.dias, 3); assert.equal(e.base.n, 4); assert.equal(e.porDia.length, 3); assert.equal(e.hoje.data, J.mais(seg6, 2));
+  assert.ok(e.total.var < -0.5, 'metade da venda: ' + e.total.var); assert.ok(e.porDia.every(d => d.var < -0.3 && d.esperadoCentavos > 0));
+  assert.ok(!e.abaixo.some(p => /FRALDA/.test(p.desc)), 'quem zerou não é "abaixo do ritmo" (igual ao "caiu" da semana)'); assert.ok(e.abaixo.every(p => p.vendeuCentavos > 0 && p.difCentavos < 0) && e.acima.every(p => p.difCentavos > 0));
+  assert.equal(INT.analisarSemana({ rows: comAndamento(), semana: J.mais(J.segunda('2026-10-05'), 21) }).andamento, null, 'analisar uma semana antiga não mostra a semana aberta');
+  assert.match(INT.markdown('Loja', a), /## Semana em andamento \(\d\d\/\d\d a \d\d\/\d\d, 3 dia\(s\) fechado\(s\)\)/);
+  assert.ok(!JSON.stringify(a).includes('00001234'));
+});
+
+test('semana em andamento: aparece na tela e vira achado do cérebro quando foge mais de 10% do ritmo', () => {
+  require('../public/assets/js/analysis.js');
+  const UI = require('../public/assets/js/inteligencia-ui.js'), B = require('../public/assets/js/brain/index.mjs').default, i = INT.analisarSemana({ rows: comAndamento() });
+  const h = UI.pagina({ name: 'Minas Farma' }, { inteligencia: i }, {}); assert.match(h, /Semana em andamento/); assert.match(h, /Acima do ritmo/); assert.match(h, /Abaixo do ritmo/); assert.match(h, /3 dia\(s\) fechado\(s\)/);
+  const run = inteligencia => B.run({ today: '2026-11-12', clients: [{ key: 'M', name: 'Minas Farma', services: ['promocoes'] }], posts: [], weeks: [], gens: [], planSource: { source: 'central' }, needsClient: () => false,
+    vendas: { M: { key: 'M', nome: 'Minas Farma', cobertura: { inicio: '2026-10-05', fim: '2026-11-11', dias: 38 }, geral: { cupons: 1000, ticketMedioCentavos: 5000 }, inteligencia } } });
+  const ach = r => [r.decision, ...r.also, ...r.radar, ...r.wins].filter(Boolean).filter(x => x.agente === 'movimento' && /mov-andamento/.test(x.chave));
+  const f = ach(run(i)); assert.equal(f.length, 1); assert.match(f[0].titulo, /semana em andamento caiu \d+%/); assert.ok(f[0].acao && f[0].evidencia.length >= 4);
+  const calmo = JSON.parse(JSON.stringify(i)); calmo.andamento.total.var = 0.04; assert.equal(ach(run(calmo)).length, 0, 'variação pequena não vira achado');
+  const um = JSON.parse(JSON.stringify(i)); um.andamento.semana.dias = 1; assert.equal(ach(run(um)).length, 0, 'um dia só é pouco para afirmar');
+});
