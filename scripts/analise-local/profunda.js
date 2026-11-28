@@ -232,4 +232,4 @@ function listaCupons(rows, ajustes = []) {
   return [...cup.values()].sort((a, b) => (a.data + a.hora + a.lanc).localeCompare(b.data + b.hora + b.lanc));
 }
 
-module.exports = { analisarProfundo, oportunidades, listaCupons, momentoCategorias, focoMarketing, NOMES };
+module.exports = { categoriaFina, analisarProfundo, oportunidades, listaCupons, momentoCategorias, focoMarketing, NOMES };

@@ -177,6 +177,7 @@
     autoridade: { title: "Autoridade", render: (v, sub) => window.N7Autoridade.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
     promocoes: { title: "Central de Promoções", render: (v, sub) => window.N7Promocoes.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
     relatorios: { title: "Relatórios", render: v => window.N7Relatorios.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS, posts }) },
+    inteligencia: { title: "Inteligência de vendas", render: (v, sub) => window.N7Inteligencia.render(v, { clients: () => CLIENTS.filter(c => has(c, "promocoes")) }, sub) },
     cerebro: { title: "Central de Inteligência", render: (v, sub) => window.N7Cerebro.render(v, sub, brainHelpers()) },
     calendario: { title: "Calendário Kanban", render: renderKanban },
     feed: { title: "Preview de Feed", render: v => window.N7Feed.render(v, { ico, banner, toast, clients: () => CLIENTS, pautas: b => posts().filter(p => p.b === b), openPauta: code => openDrawer(code), status: STATUS, today: TODAY_ISO, isClient: IS_CLIENT }) },
@@ -195,6 +196,7 @@
     cerebro: () => !IS_CLIENT && CLIENTS.length > 0,
     relatorios: () => !IS_CLIENT && CLIENTS.some(c => (c.services || []).length),
     promocoes: () => !IS_CLIENT && CLIENTS.some(c => has(c, "promocoes")),
+    inteligencia: () => !IS_CLIENT && CLIENTS.some(c => has(c, "promocoes")),
     autoridade: () => !IS_CLIENT && CLIENTS.some(c => has(c, "autoridade")),
     comercial: () => IS_ADMIN,
     calendario: () => anyPostClients(),
@@ -247,6 +249,7 @@
     comercial: () => [["carteira", "Carteira atual"], ["funil", "Funil de vendas"], ["novos", "Clientes novos"], ["mapa", "Mapa"], ["contratos", "Contratos"]],
     promocoes: () => [["", "Visão geral"], ["candidatos", "Candidatos"], ["campanha", "Montar campanha"], ["campanhas", "Campanhas"], ["resultado", "Resultado"], ["analise", "Análise completa"], ["importar", "Importar"]],
     cerebro: () => [["", "Hoje"], ["clientes", "Clientes"], ["radar", "Radar"], ["agentes", "Agentes 3D"], ["servicos", "Serviços 3D"], ["conexoes", "Conexões"], ["memoria", "Memória"], ["regras", "Como pensa"]],
+    inteligencia: () => CLIENTS.filter(c => has(c, "promocoes")).map(c => [c.id, c.name]),
     artes: () => CLIENTS.filter(c => has(c, "redes") || has(c, "criativos")).map(c => [c.id, c.name]),
     config: () => [["usuarios", "Usuários"], ["clientes", "Clientes e serviços"], ["fontes", "Fontes de dados"]]
   };
@@ -269,6 +272,7 @@
       ${ACCESS.semana() ? `<a class="nav-item" href="#semana">${ico("file")}<span>Semana</span></a>${subLinks("semana")}` : ""}
       ${ACCESS.relatorios() ? `<a class="nav-item" href="#relatorios">${ico("list")}<span>Relatórios</span></a>` : ""}
       ${ACCESS.promocoes() ? `<a class="nav-item" href="#promocoes">${ico("tag")}<span>Promoções</span></a>${subLinks("promocoes")}` : ""}
+      ${ACCESS.inteligencia() ? `<a class="nav-item" href="#inteligencia">${ico("chart")}<span>Inteligência de vendas</span></a>${subLinks("inteligencia")}` : ""}
       ${ACCESS.autoridade() ? `<a class="nav-item" href="#autoridade">${ico("eye")}<span>Autoridade</span></a>${subLinks("autoridade")}` : ""}
       ${ACCESS.comercial() ? `<a class="nav-item" href="#comercial">${ico("money")}<span>Comercial</span></a>${subLinks("comercial")}` : ""}
       ${CLIENTS.length ? `<div class="nav-group">${IS_CLIENT ? "Sua empresa" : "Clientes"}</div>

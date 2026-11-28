@@ -2,7 +2,7 @@
    momento das categorias e resumo de Promoções (estoque, giro, margem) no formato que os agentes do cérebro leem. */
 require('../../public/assets/js/services.js'); require('../../public/assets/js/promo-ingest.js'); require('../../public/assets/js/promo.js');
 const I = globalThis.N7PromoIngest, PR = globalThis.N7Promo;
-const Z = require('./armazem'), J = require('./janela'), P = require('./profunda');
+const Z = require('./armazem'), J = require('./janela'), P = require('./profunda'), INT = require('./inteligencia');
 
 function intervalos(dias) {                                                       /* dias seguidos viram um intervalo; buraco no meio vira lacuna */
   const l = [...dias].sort(), out = []; let ini = null, ant = null;
@@ -16,6 +16,7 @@ function calcularLoja(loja, nome) {
   const custos = est ? new Map(est.items.filter(i => i.custo > 0).map(i => [i.barras, i.custo])) : null;
   const janela = J.analisarJanela({ rows: w.rows, ajustes: w.ajustes, cobertura, diasCobertos: w.dias });
   const profunda = w.rows.length ? P.analisarProfundo({ rows: w.rows, ajustes: w.ajustes, custos, diasCobertos: w.dias }) : null;
+  let inteligencia = null; try { inteligencia = w.rows.length ? INT.analisarSemana({ rows: w.rows, diasCobertos: w.dias }) : null; } catch (e) { inteligencia = { ok: false, nota: 'A inteligência da semana falhou: ' + e.message }; }   /* uma falha aqui nunca derruba a análise da loja */
   let promo = null, promoAnalise = null;
   if (est) {
     const itens = new Map(est.items.map(it => [it.barras, { barras: it.barras, desc: it.desc, estoque: it.estoque, estoqueConhecido: true, preco: it.preco, custo: it.custo || null, promoSistema: it.promoSistema, aprox: it.aprox, ultEntrada: it.ultEntrada, fiscal: it.fiscal, dias: {} }]));
@@ -25,7 +26,7 @@ function calcularLoja(loja, nome) {
     promoAnalise = PR.analyze({ items: data.items, params: { coberturaInicio: cobertura.inicio, coberturaIntervalos: iv } });
     promo = PR.brainSummary(loja, nome || loja, data, promoAnalise);
   }
-  return { loja, nome: nome || loja, geradoEm: new Date().toISOString(), cobertura: Object.assign({ dias: dias.length, lacunas: intervalos(w.dias).length - 1 }, cobertura), estoqueEm: est ? est.em : null, arquivosDeVendas: new Set(Object.values(w.manifesto.dias).map(x => x.arquivo)).size, janela, profunda, promoBrain: promo, promoResumo: promoAnalise && promoAnalise.resumo };
+  return { loja, nome: nome || loja, geradoEm: new Date().toISOString(), inteligencia, cobertura: Object.assign({ dias: dias.length, lacunas: intervalos(w.dias).length - 1 }, cobertura), estoqueEm: est ? est.em : null, arquivosDeVendas: new Set(Object.values(w.manifesto.dias).map(x => x.arquivo)).size, janela, profunda, promoBrain: promo, promoResumo: promoAnalise && promoAnalise.resumo };
 }
 
 /* o que é publicado no site (sem linhas de venda e sem identificadores de clientes): é o contrato que os agentes de Mercado leem (ctx.vendas[loja]) */
@@ -39,7 +40,7 @@ function compactar(r) {
     produtos: { distintos: p.produtos.distintos, vendidosUmaVez: p.produtos.vendidosUmaVez, topValor: p.produtos.topValor.slice(0, 20), topQtd: p.produtos.topQtd.slice(0, 20), variacaoPreco: p.produtos.variacaoPreco.slice(0, 10), porHora: p.produtos.porHora },
     pares: p.pares.maiorLift.slice(0, 15), paresFrequentes: p.pares.maisFrequentes.slice(0, 15), puxadoresDeTicket: p.puxadoresDeTicket, margem: p.margem && { cobertura: p.margem.cobertura, margem: p.margem.margem, lucroEstimadoCentavos: p.margem.lucroEstimadoCentavos, nAbaixoDoCusto: p.margem.nAbaixoDoCusto, vendidosAbaixoDoCusto: p.margem.vendidosAbaixoDoCusto, maioresLucros: p.margem.maioresLucros, margemPorCategoria: p.margem.margemPorCategoria, porHora: p.margem.porHora, aviso: p.margem.aviso },
     oportunidades: p.oportunidades, semanasDetalhe: (p.semanasDetalhe || []).slice(-30), semanas: r.janela ? r.janela.semanas.slice(-30).map(w => ({ inicio: w.inicio, fim: w.fim, completa: w.completa, vendasCentavos: w.vendasCentavos, cupons: w.cupons, ticketCentavos: w.ticketCentavos, c100n: w.c100n })) : [], meses: r.janela ? r.janela.meses : [],
-    promoResumo: r.promoResumo || null, promoBrain: r.promoBrain || null };
+    promoResumo: r.promoResumo || null, promoBrain: r.promoBrain || null, inteligencia: r.inteligencia || null };
 }
 
 module.exports = { calcularLoja, compactar, intervalos };

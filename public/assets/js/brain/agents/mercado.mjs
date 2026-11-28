@@ -64,3 +64,24 @@ export function foco(ctx) {
       evidencia: [...linhas, fo.nota, ...aviso(s, ctx)].filter(Boolean), acao: "Montar o plano da semana nessa ordem: conteúdo e verba onde há tração, campanha de defesa onde a participação cai e promoção de vale no horário fraco.", link: link(c) })];
   });
 }
+
+/* Movimento da semana: a fotografia da última semana completa, por PRODUTO e categoria, contra o esperado pelo ritmo da loja (ctx.vendas[loja].inteligencia).
+   Só produto e categoria: nada de cliente. "R$ em jogo" é diferença medida contra o esperado, nunca previsão. */
+const dm = iso => iso.slice(8, 10) + "/" + iso.slice(5, 7);
+export function movimento(ctx) {
+  return lojas(ctx).flatMap(({ c, s }) => {
+    const i = s.inteligencia; if (!i || !i.ok) return [];
+    const k = ({ alta: 1, "média": .85, baixa: .6 })[i.confianca] * (s.cobertura && ctx.today && dias(s.cobertura.fim, ctx.today) > 21 ? .75 : 1), out = [], sem = dm(i.semana.inicio) + " a " + dm(i.semana.fim);
+    const nota = i.nota ? [i.nota] : [], medido = (i.foco || []).reduce((t, f) => t + (f.rsEmJogoCentavos || 0), 0), parte = i.total.semanaCentavos > 0 ? medido / i.total.semanaCentavos : 0;
+    if ((i.foco || []).length) out.push(F("movimento", `mov-foco-${c.key}`, { marca: c.key, nome: c.name, score: clamp((46 + Math.min(24, parte * 300) + i.foco.length * 2) * k), tags: ["movimento", "foco"], titulo: `${c.name}: foco da semana de ${sem}`,
+      detalhe: i.foco.slice(0, 2).map(f => f.titulo).join("; ") + ".", evidencia: [...i.foco.map(f => `${f.titulo}: ${f.detalhe}${f.rsEmJogoCentavos != null ? " (R$ em jogo " + money(f.rsEmJogoCentavos) + ")" : ""}`), `Semana ${money(i.total.semanaCentavos)}, ${pct(i.total.varBase)} contra a média das anteriores`, ...nota],
+      acao: i.foco[0].acao, link: link(c) }));
+    const pa = (i.movimento.pararam || []);
+    if (pa.length >= 2) out.push(F("movimento", `mov-parou-${c.key}`, { marca: c.key, nome: c.name, score: clamp((38 + Math.min(20, pa.length * 3)) * k), tags: ["movimento", "ruptura"], titulo: `${c.name}: ${pa.length} produtos que vendiam toda semana não venderam nada`,
+      detalhe: "Pode ser falta de estoque, mudança de preço ou mudança de hábito: confira antes de agir.", evidencia: [...pa.slice(0, 4).map(p => `${p.desc}: vendia ${money(p.baseMediaCentavos)} por semana`), ...nota], acao: "Conferir o estoque desses itens; se há estoque, olhar preço e posição no balcão.", link: link(c) }));
+    const su = (i.movimento.subiram || [])[0];
+    if (su && su.difCentavos >= 30000) out.push(F("movimento", `mov-sobe-${c.key}`, { marca: c.key, nome: c.name, kind: "ganho", score: clamp((40 + Math.min(20, su.difCentavos / 8000)) * k), tags: ["movimento", "produto"], titulo: `${c.name}: ${su.desc} vendeu ${money(su.difCentavos)} acima do esperado`,
+      detalhe: `Vendeu ${money(su.semanaCentavos)} na semana; média das anteriores ${money(su.baseMediaCentavos)}.`, evidencia: [`Categoria: ${su.categoria}`, ...nota], acao: "Garantir estoque e dar destaque enquanto a tração dura.", link: link(c) }));
+    return out;
+  });
+}

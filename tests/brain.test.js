@@ -77,8 +77,8 @@ const find = (r, k) => all(r).find(f => f.chave === k);
 const W = (inicio, marca, o) => Object.assign({ tipo: 'semana', inicio, marca, ads: {}, ig: {}, fb: {}, dias: [] }, o);
 const calm = { today: TODAY, clients, planSource: { source: 'central' }, needsClient: () => false };
 
-test('catálogo: 29 agentes em 9 áreas, todos com regras, e cada sinapse liga agentes que existem', () => {
-  assert.equal(B.AGENT_ORDER.length, 29); assert.equal(new Set(B.AGENT_ORDER).size, 29);
+test('catálogo: 30 agentes em 9 áreas, todos com regras, e cada sinapse liga agentes que existem', () => {
+  assert.equal(B.AGENT_ORDER.length, 30); assert.equal(new Set(B.AGENT_ORDER).size, 30);
   Object.values(B.AGENTS).forEach(a => { assert.ok(B.AREAS[a.area], a.id + ' sem área'); assert.ok(a.does && a.rules.length, a.id); });
   B.AREA_ORDER.forEach(id => assert.ok(Object.values(B.AGENTS).some(a => a.area === id), 'área vazia ' + id));
   B.SYNAPSES.forEach(s => { assert.ok(s.nome && s.texto); [...s.de, ...s.para].forEach(id => assert.ok(B.AGENTS[id] || ['memoria', 'todos'].includes(id), s.id + ' -> ' + id)); });
