@@ -291,4 +291,13 @@ async function garantirPadroes(c, { log = () => {}, max = 2 } = {}) {
   return feitos;
 }
 
-module.exports = { decidirLinha, produtosDoBanco, garantirPadroes, slug, config, rascunhoDe, gerarArtesChatGPT, mensagensDeArte, produtosParaArte, conformidade, gerarTexto, normalizar, extrairJson, promptWeb, prompt, PROIBIDO };
+/* 2026-11-28: artes de uma versão anterior (ex.: 7 slides velhos ao lado da capa nova) ficavam misturadas na pasta do Drive. Guarda em _versoes_anteriores/<data> (nunca apaga)
+   tudo o que é NN_*.png/jpg e não pertence à versão atual. Sem imagens atuais não mexe em nada. Devolve quantas guardou. */
+function guardarVersoesAnteriores(destino, imagens) {
+  const atuais = new Set(imagens || []); if (!atuais.size || !fs.existsSync(destino)) return 0;
+  const velhas = fs.readdirSync(destino).filter(x => /^\d{2}_.+\.(png|jpe?g)$/i.test(x) && !atuais.has(x)); if (!velhas.length) return 0;
+  const guarda = path.join(destino, '_versoes_anteriores', new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)); fs.mkdirSync(guarda, { recursive: true });
+  for (const x of velhas) fs.renameSync(path.join(destino, x), path.join(guarda, x)); return velhas.length;
+}
+
+module.exports = { guardarVersoesAnteriores, decidirLinha, produtosDoBanco, garantirPadroes, slug, config, rascunhoDe, gerarArtesChatGPT, mensagensDeArte, produtosParaArte, conformidade, gerarTexto, normalizar, extrairJson, promptWeb, prompt, PROIBIDO };

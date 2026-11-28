@@ -206,6 +206,8 @@ function copiarParaDriveLocal(marca, codigo, imagens, rascunho) {
   const origem = path.join(PASTA_CRIATIVOS, CRI.slug(marca), codigo), destino = path.join(base, NOMES_PASTA[marca] || CRI.slug(marca), codigo); let n = 0;
   fs.mkdirSync(destino, { recursive: true });
   if (rascunho && rascunho.legenda) fs.writeFileSync(path.join(destino, 'LEGENDA.txt'), '\uFEFF' + textoLegenda(rascunho), 'utf8');
+  /* 2026-11-28: slides de uma versão anterior não ficam misturados com os novos na pasta (vão para _versoes_anteriores) */
+  try { const g = CRI.guardarVersoesAnteriores(destino, imagens); if (g) log(`Drive: ${codigo}: ${g} arte(s) de versão anterior guardada(s) em _versoes_anteriores.`); } catch (e) { log('Drive local, versões anteriores de ' + codigo + ': ' + e.message); }
   for (const nome of imagens || []) { const f = path.join(origem, nome); if (fs.existsSync(f)) { fs.copyFileSync(f, path.join(destino, nome)); n++; } }
   /* miniaturas do preview do site: o site as lê do Drive (ARTES/<empresa>/<código>/_preview) */
   const prev = path.join(origem, '_preview'); if (fs.existsSync(prev)) { fs.mkdirSync(path.join(destino, '_preview'), { recursive: true }); for (const n2 of fs.readdirSync(prev)) fs.copyFileSync(path.join(prev, n2), path.join(destino, '_preview', n2)); }
