@@ -157,5 +157,10 @@ test('ações do agente fora da análise: cria ideias no banco de ideias sem rec
     const b = await (await post(TOKEN, [ideia])).json(); assert.deepEqual(b.criadas, []); assert.equal(b.jaExistiam, 1, 'a mesma ideia não é recriada');
     const repo = db.getRepo(), M = require('../lib/model'), i = (await M.loadState(repo)).ideas.find(x => x.id === ideia.id);
     assert.ok(i && i.stage === 'nova' && /Agente \(PowerShell\)/.test(i.src) && i.b === 'M');
+    /* ideias do plano de marketing: no máximo 3 por marca e semana, mesmo que o plano mude durante a semana */
+    const plano = (sufixo, w = '2026-W48', b = 'M') => ({ id: `auto-${b}-plano-${w}-${sufixo}`, b, format: 'Reels', title: 'Anunciar: ' + sufixo, note: 'Por quê: teste', src: 'plano de marketing da semana' });
+    const p1 = await (await post(TOKEN, [plano('um'), plano('dois'), plano('tres'), plano('quatro')])).json(); assert.equal(p1.criadas.length, 3, 'a quarta ideia do plano na mesma semana é recusada');
+    const p2 = await (await post(TOKEN, [plano('cinco')])).json(); assert.deepEqual(p2.criadas, [], 'o plano mudou durante a semana: continua o limite de 3');
+    const p3 = await (await post(TOKEN, [plano('cinco', '2026-W49'), plano('um', '2026-W48', 'F')])).json(); assert.equal(p3.criadas.length, 2, 'outra semana e outra marca têm cota própria');
   } finally { srv.close(); delete process.env.LEITURA_TOKEN; db._resetMemory(); require('../lib/fila').reset(); }
 });

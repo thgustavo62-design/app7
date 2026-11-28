@@ -40,9 +40,10 @@
       <p class="src">${esc(e.nota)}</p>`;
   };
 
-  function pagina(c, a, H_) {
+  function pagina(c, a, H_, opts) {
     const i = a && a.inteligencia;
-    const topo = `<div class="head"><div><h2>Inteligência de vendas</h2><p class="src">O que está vendendo e o que não está, por produto e categoria, na última semana completa (segunda a domingo). Nenhum dado de cliente entra aqui. Vem da análise feita no computador da agência${a && a.publicadoEm ? `, publicada em ${esc(new Date(a.publicadoEm).toLocaleString("pt-BR"))}` : ""}.</p></div></div>`;
+    const topo0 = `<div class="head"><div><h2>Inteligência de vendas</h2><p class="src">O que está vendendo e o que não está, por produto e categoria, na última semana completa (segunda a domingo). Nenhum dado de cliente entra aqui. Vem da análise feita no computador da agência${a && a.publicadoEm ? `, publicada em ${esc(new Date(a.publicadoEm).toLocaleString("pt-BR"))}` : ""}.</p></div></div>`;
+    const topo = opts && opts.semTopo ? "" : topo0;
     if (!a) return topo + `<div class="panel"><div class="panel-body"><p class="notice info">Ainda não há análise publicada de <b>${esc(c.name)}</b>. Ela é feita no computador da agência com os relatórios de vendas já conferidos. Envie os PDFs em <a href="#promocoes/importar">Promoções › Importar</a> e mantenha o agente ligado.</p></div></div>`;
     if (!i || !i.ok) return topo + `<div class="panel"><div class="panel-body"><p class="notice info">${esc((i && i.nota) || "A análise de " + c.name + " foi publicada antes da Inteligência de vendas existir. Ela aparece na próxima atualização do agente.")}</p></div></div>`;
     const t = i.total, m = i.movimento, kp = (rot, val, sub) => `<div class="kpi"><small>${esc(rot)}</small><strong>${val}</strong><em>${sub}</em></div>`;
@@ -73,21 +74,77 @@
       <p class="src">${esc(i.nota)} “Em jogo” e “acima/abaixo” são diferenças medidas contra o esperado, não previsões.</p>`;
   }
 
+  /* ---------- 2. DECIDIR: o plano de marketing da semana ---------- */
+  const NIVEL = { liberado: ["Pode anunciar", "up"], cuidado: ["Com revisão farmacêutica", "warn"], nao: ["Não anunciar", "down"], verificar: ["Verificar categoria", "warn"] };
+  const quandoTxt = it => (it.quando ? `${esc(it.formato)} · ${esc(it.quando.dia)} ${dm(it.quando.data)} às ${esc(it.quando.hora)}` : esc(it.formato || ""));
+  const cartaoPlano = it => { const [rot, tone] = NIVEL[it.elegibilidade] || NIVEL.verificar;
+    return `<article class="in-foco"><header><span class="in-tag ${tone}">${rot}</span>${it.difCentavos != null ? `<span class="in-rs" title="Diferença medida contra o esperado. Não é previsão.">${brl(Math.abs(it.difCentavos))}</span>` : ""}</header>
+      <h4>${esc(it.titulo)}</h4><p>${esc(it.porque)}</p><ul>${(it.evidencia || []).map(e => `<li>${esc(e)}</li>`).join("")}</ul>${it.regra ? `<p class="in-regra">${esc(it.regra)}</p>` : ""}
+      <p class="in-acao"><b>Sugestão:</b> ${quandoTxt(it)}${it.virarIdeia ? ` · <span class="in-ideia">vira ideia rascunho</span>` : ""}</p></article>`; };
+  const grupo = (tit, sub, itens, vazio) => `<div class="section-title"><h3>${esc(tit)}</h3><span>${esc(sub)}</span></div>${itens.length ? `<div class="in-focos">${itens.map(cartaoPlano).join("")}</div>` : `<p class="src">${esc(vazio)}</p>`}`;
+  function decidir(c, a) {
+    const pl = a && a.plano;
+    if (!a) return semAnalise(c);
+    if (!pl || !pl.ok) return `<div class="panel"><div class="panel-body"><p class="notice info">${esc((pl && pl.nota) || "O plano de marketing de " + c.name + " aparece na próxima atualização do agente.")}</p></div></div>`;
+    const q = pl.quando;
+    return `<p class="src"><b>Plano de marketing da semana</b> · ${esc(pl.resumo)}</p><p class="notice info">${esc(pl.aviso)} Dia e hora são sugestões a partir das vendas (${esc(q.motivo)})</p>
+      ${grupo("Anunciar", "produtos e categorias com tração real", pl.anunciar, "Nada com tração suficiente para anunciar esta semana.")}
+      ${grupo("Defender", "o que está vendendo menos que o esperado", pl.defender, "Nada que precise de defesa esta semana.")}
+      ${grupo("Combo e horário", "ações para vender mais por cupom e no vale do dia", [pl.combo, pl.horario].filter(Boolean), "Sem combo ou horário de vale claros.")}
+      <div class="section-title"><h3>Já vende sozinho</h3><span>prioridade baixa de anúncio</span></div>
+      ${tabela([["Produto"], ["Situação"]], (pl.naoPrecisa || []).map(p => `<tr>${prod({ desc: p.alvo, categoria: p.categoria })}<td>${esc(p.porque)}</td></tr>`), "Nenhum produto firme o bastante para dispensar anúncio.")}
+      <div class="section-title"><h3>Mudou, mas não vira anúncio</h3><span>receita, fórmula infantil ou categoria não identificada</span></div>
+      ${tabela([["Item"], ["Mudança", 1], ["Por quê"]], (pl.semAnuncio || []).map(x => `<tr><td>${esc(x.alvo)}<br><small class="src">${esc(x.categoria || "")}</small></td>${celula(brl(x.difCentavos), 1, x.difCentavos > 0 ? "up" : "down")}<td>${esc(x.motivo)}</td></tr>`), "Nada relevante fora das regras de publicidade.")}
+      <p class="src">A demanda desses itens existe, mas o canal certo é conteúdo educativo sem citar marca ou o atendimento no balcão, sempre com o farmacêutico.</p>
+      <div class="section-title"><h3>Dar saída</h3><span>estoque parado</span></div><p class="notice info">${esc(pl.promover.nota)}</p>`;
+  }
+
+  /* ---------- 3. CRIAR: as ideias rascunho que o plano gerou ---------- */
+  const ETAPA = { nova: "Nova ideia", analise: "Em análise", aprovada: "Aprovada", agendada: "Agendada", descartada: "Descartada" };
+  const doPlano = (Hh, c) => ((Hh && Hh.ideas && Hh.ideas()) || []).filter(i => i.b === c.key && /-plano-/.test(String(i.id))).sort((x, y) => String(y.at || "").localeCompare(String(x.at || "")));
+  function criar(c, a, Hh) {
+    const ideias = doPlano(Hh, c), pautas = ((Hh && Hh.custom && Hh.custom()) || []).filter(p => p.b === c.key);
+    const lista = ideias.map(i => { const p = i.promoted && pautas.find(x => x.code === i.promoted);
+      return `<article class="in-foco"><header><span class="in-tag ${i.stage === "aprovada" || i.stage === "agendada" ? "up" : i.stage === "descartada" ? "down" : ""}">${esc(ETAPA[i.stage] || i.stage)}</span><span class="in-rs">${esc(i.format)}</span></header><h4>${esc(i.title)}</h4><p>${String(i.note || "").split(" — ").map(esc).join("<br>")}</p>
+        ${p ? `<p class="in-acao"><b>Pauta no calendário:</b> ${esc(p.code)} · ${dm(p.date)}${p.time ? " às " + esc(p.time) : ""}</p>` : `<p class="in-acao">Aprove no banco de ideias e escolha o horário para virar pauta no calendário.</p>`}</article>`; }).join("");
+    return `<p class="src"><b>Rascunhos do plano</b> · o agente cria até 3 ideias por semana a partir da decisão do passo 2. Nada é publicado: você aprova ou descarta, e depois pede os ajustes pelo site.</p>
+      <div class="in-acoes"><button type="button" class="btn primary" data-go="calendario" data-ideias="1">Abrir o banco de ideias</button> <button type="button" class="btn" data-go="artes">Aprovação de artes</button></div>
+      ${lista ? `<div class="in-focos">${lista}</div>` : `<p class="notice info">Ainda não há ideias do plano para <b>${esc(c.name)}</b>. Elas aparecem aqui quando o agente analisar a loja e houver o que anunciar ou defender.</p>`}`;
+  }
+
+  /* ---------- 4. MEDIR: a peça do plano moveu a venda do que anunciou? ---------- */
+  function medir(c, a, Hh) {
+    const agendadas = doPlano(Hh, c).filter(i => i.promoted), pautas = ((Hh && Hh.custom && Hh.custom()) || []).filter(p => p.b === c.key);
+    const linhas = agendadas.map(i => { const p = pautas.find(x => x.code === i.promoted); return `<tr><td>${esc(i.title)}</td><td>${p ? esc(p.code) + " · " + dm(p.date) : "—"}</td><td>${p && p.status === "pub" ? "Publicada: o resultado sai quando houver 7 dias de vendas depois" : "Aguardando publicação"}</td></tr>`; });
+    return `<p class="src"><b>Medir</b> · compara as vendas do produto ou da categoria anunciada nos dias depois da peça com as mesmas semanas anteriores, e mostra se funcionou, ficou neutro ou não funcionou, com a confiança da conta.</p>
+      <p class="notice info">Ainda não há peça do plano publicada com 7 dias de vendas depois. A medição aparece aqui assim que existir. É correlação com controle, não prova de causa.</p>
+      ${linhas.length ? `<div class="table-wrap"><table><thead><tr><th>Peça</th><th>Pauta</th><th>Situação</th></tr></thead><tbody>${linhas.join("")}</tbody></table></div>` : `<p class="src">Nenhuma ideia do plano virou pauta ainda.</p>`}`;
+  }
+
+  const semAnalise = c => `<div class="panel"><div class="panel-body"><p class="notice info">Ainda não há análise publicada de <b>${esc(c.name)}</b>. Ela é feita no computador da agência com os relatórios de vendas já conferidos. Envie os PDFs em <a href="#promocoes/importar">Promoções › Importar</a> e mantenha o agente ligado.</p></div></div>`;
+
   async function carregar() {
     const r = await fetch("/api/leitura?acao=analise", { headers: { "x-n7": "1" }, credentials: "same-origin" });
     if (!r.ok) throw new Error("Não consegui carregar a análise (" + r.status + ").");
     return (await r.json()).lojas || {};
   }
 
+  const PASSOS = [["ver", "1", "Ver", "o que aconteceu"], ["decidir", "2", "Decidir", "o que fazer"], ["criar", "3", "Criar", "rascunhos"], ["medir", "4", "Medir", "funcionou?"]];
+  const memo = { passo: "ver" };
   function render(view, Hh, sub) {
     const clientes = Hh.clients();
     if (!clientes.length) { view.innerHTML = `<p class="notice">Nenhuma farmácia com a Central de Promoções ativa.</p>`; return; }
-    const atual = clientes.find(c => c.id === sub || c.key === sub) || clientes[0];
-    view.innerHTML = `<div class="ar-abas" role="tablist" aria-label="Farmácia">${clientes.map(c => `<a class="btn" role="tab" href="#inteligencia/${esc(c.id)}" aria-pressed="${c.id === atual.id}">${esc(c.name)}</a>`).join("")}</div><div id="in-corpo"><p class="src">Carregando…</p></div>`;
-    carregar().then(lojas => { const el = view.querySelector("#in-corpo"); if (el) el.innerHTML = pagina(atual, lojas[atual.key] || null, Hh); })
-      .catch(e => { const el = view.querySelector("#in-corpo"); if (el) el.innerHTML = `<p class="notice">${esc(e.message)}</p>`; });
+    const atual = clientes.find(c => c.id === sub || c.key === sub) || clientes[0]; let lojas = null;
+    view.innerHTML = `<div class="head"><div><h2>Inteligência de vendas</h2><p class="src">Do número ao plano de marketing, em 4 passos: ver o que vendeu, decidir o que fazer, criar os rascunhos e medir se funcionou. Só produto e categoria: nenhum dado de cliente entra aqui.</p></div></div><div class="ar-abas" role="tablist" aria-label="Farmácia">${clientes.map(c => `<a class="btn" role="tab" href="#inteligencia/${esc(c.id)}" aria-pressed="${c.id === atual.id}">${esc(c.name)}</a>`).join("")}</div>
+      <div class="in-passos" role="tablist" aria-label="Passo">${PASSOS.map(([id, n, nome, sub2]) => `<button type="button" class="btn" role="tab" data-passo="${id}" aria-pressed="${memo.passo === id}"><b>${n}</b> ${nome}<small>${sub2}</small></button>`).join("")}</div><div id="in-corpo"><p class="src">Carregando…</p></div>`;
+    const corpo = () => view.querySelector("#in-corpo");
+    const pinta = () => { const el = corpo(); if (!el || lojas == null) return; const a = lojas[atual.key] || null;
+      el.innerHTML = memo.passo === "decidir" ? decidir(atual, a) : memo.passo === "criar" ? criar(atual, a, Hh) : memo.passo === "medir" ? medir(atual, a, Hh) : pagina(atual, a, Hh, { semTopo: true }); };
+    view.querySelectorAll("[data-passo]").forEach(b => { b.onclick = () => { memo.passo = b.dataset.passo; view.querySelectorAll("[data-passo]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); pinta(); }; });
+    view.onclick = e => { const g = e.target.closest && e.target.closest("[data-go]"); if (g && Hh.go) Hh.go(g.dataset.go, g.dataset.ideias ? atual.key : undefined, !!g.dataset.ideias); };
+    carregar().then(l => { lojas = l; pinta(); }).catch(e => { const el = corpo(); if (el) el.innerHTML = `<p class="notice">${esc(e.message)}</p>`; });
   }
 
-  root.N7Inteligencia = { render, pagina };
+  root.N7Inteligencia = { render, pagina, decidir, criar, medir };
   if (typeof module !== "undefined" && module.exports) module.exports = root.N7Inteligencia;
 })(typeof window !== "undefined" ? window : globalThis);

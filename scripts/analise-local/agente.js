@@ -92,6 +92,12 @@ let ativos = 0, ultimaAtividade = 0, parar = false; const esperaCalc = new Map()
 const REL_DIR = process.env.N7_RELATORIOS || path.join(fs.existsSync(path.join(os.homedir(), 'Documents')) ? path.join(os.homedir(), 'Documents') : path.join(os.homedir(), '.nova7'), 'Nova7 Relatórios');
 const MARCA = String(cfgArq.marca || 'Nova7');
 /* recalcula a loja inteira a partir do armazém, publica no site e grava o relatório executivo em HTML (o mais novo e uma cópia com a data) */
+/* ideias rascunho do plano de marketing da semana (até 3 por marca e semana; a equipe aprova ou descarta; nada é publicado) */
+async function criarIdeiasDoPlano(loja, plano) {
+  const ideias = require('./plano-marketing').ideiasDoPlano(plano, String(loja), semana()); if (!ideias.length) return;
+  const r = await chamar('ideias', {}, { metodo: 'POST', corpo: { ideias } });
+  if (r.criadas && r.criadas.length) log(`Plano de marketing da loja ${loja}: ${r.criadas.length} ideia(s) rascunho no banco de ideias (${ideias.map(i => i.title).join(' | ').slice(0, 160)}).`);
+}
 async function calcularEPublicar(loja, motivo) {
   const t0 = Date.now(), dados = (await ler('calcular', loja, Buffer.alloc(0))).dados;
   if (!dados) { log(`Loja ${loja}: ainda sem vendas no armazém para analisar.`); return; }
@@ -101,6 +107,7 @@ async function calcularEPublicar(loja, motivo) {
     const RH = require('./relatorio-html'), dir = path.join(REL_DIR, String(loja).replace(/[^A-Za-z0-9_-]/g, '_')), html = RH.gerar(dados, { marca: MARCA }), hoje = new Date().toISOString().slice(0, 10);
     fs.mkdirSync(dir, { recursive: true }); arq = path.join(dir, `relatorio-${loja}.html`); fs.writeFileSync(arq, html); fs.writeFileSync(path.join(dir, `relatorio-${loja}-${hoje}.html`), html);
   } catch (e) { log(`Relatório HTML da loja ${loja} não gravado: ${e.message}`); }
+  try { await criarIdeiasDoPlano(loja, dados.plano); } catch (e) { log(`Plano de marketing da loja ${loja}: não consegui criar as ideias (${e.message}).`); }
   agendarCerebro();
   log(`Análise completa da loja ${loja} ${motivo || 'recalculada'} em ${((Date.now() - t0) / 1000).toFixed(1)} s e publicada no site (${dados.cobertura.dias} dias, ${dados.geral.cupons} cupons).${arq ? ' Relatório: ' + arq : ''}`);
 }

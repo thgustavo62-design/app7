@@ -177,7 +177,7 @@
     autoridade: { title: "Autoridade", render: (v, sub) => window.N7Autoridade.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
     promocoes: { title: "Central de Promoções", render: (v, sub) => window.N7Promocoes.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS }, sub) },
     relatorios: { title: "Relatórios", render: v => window.N7Relatorios.render(v, { ico, banner, kpi, delta, toast, clients: () => CLIENTS, posts }) },
-    inteligencia: { title: "Inteligência de vendas", render: (v, sub) => window.N7Inteligencia.render(v, { clients: () => CLIENTS.filter(c => has(c, "promocoes")) }, sub) },
+    inteligencia: { title: "Inteligência de vendas", render: (v, sub) => window.N7Inteligencia.render(v, { clients: () => CLIENTS.filter(c => has(c, "promocoes")), ideas: () => F.getIdeas(), custom: () => F.getCustom(), go: (route, brand, ideas) => brainHelpers().go(route, brand, ideas) }, sub) },
     cerebro: { title: "Central de Inteligência", render: (v, sub) => window.N7Cerebro.render(v, sub, brainHelpers()) },
     calendario: { title: "Calendário Kanban", render: renderKanban },
     feed: { title: "Preview de Feed", render: v => window.N7Feed.render(v, { ico, banner, toast, clients: () => CLIENTS, pautas: b => posts().filter(p => p.b === b), openPauta: code => openDrawer(code), status: STATUS, today: TODAY_ISO, isClient: IS_CLIENT }) },
