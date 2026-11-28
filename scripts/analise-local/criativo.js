@@ -134,24 +134,27 @@ const linhasDoSlide = s => {
   if (s.tipo === 'fechamento') return [`Chamada final (botão ou faixa de destaque): "${s.titulo}"`];
   return [`Título: "${s.titulo}"`, s.texto && `Texto de apoio: "${s.texto}"`].filter(Boolean);
 };
-/* pedido de conferência (e de correção) de UMA imagem: o ChatGPT é o revisor rigoroso antes de a arte ir para aprovação */
+/* pedido de conferência (e de correção) de UMA imagem: o ChatGPT confere só os ERROS GRAVES antes de a arte ir para a aprovação da equipe */
 function conferenciaDaImagem(item, r, kit, slide, i, n, linha, formato) {
   const textos = linhasDoSlide(slide).join(' | '), regras = kit.dir ? BASE.regrasAtivas(kit.dir, linha) : [];
   const logoDe = linha === 'club' ? `o logotipo do ${kit.clube}` : `o logotipo da ${kit.nome}`;
   const linhaTxt = linha === 'club' ? `só a identidade do ${kit.clube}; nenhum logotipo ou elemento da farmácia normal (promoção, oferta)` : linha === 'farmacia' ? `nenhum logotipo, coroa, emblema ou cor especial do ${kit.clube || 'clube de benefícios'}` : 'identidade da própria empresa';
-  const texto = `Confira esta arte (imagem ${i + 1} de ${n}) como um revisor rigoroso, ANTES de ela ir para aprovação. Responda SOMENTE com um JSON: {"aprovada": boolean, "problemas": string[], "textoLido": string}.
-CHECAGEM:
-1. TEXTOS: a arte deve ter EXATAMENTE estes textos (${textos}), em português correto, sem letra trocada, cortada ou faltando e sem NENHUM texto extra.
-2. LOGOTIPO: deve aparecer ${logoDe}, igual ao que foi anexado na primeira mensagem, legível e sem distorção.
-3. LINHA: ${linhaTxt}.
-4. REGRAS DA AGÊNCIA: ${regras.length ? regras.join('; ') : 'sem regras extras'}.
-5. LEGIBILIDADE: nada cortado nas bordas (margem de segurança de 6%), contraste bom, hierarquia clara, formato ${formato}.
-6. PRODUTOS: embalagem sem deformação e sem marca de terceiros legível indevida.
-7. DESIGN: hierarquia clara (um ponto focal), título dominante, alinhamento e espaçamentos consistentes, contraste forte, acabamento comparável ao das referências anexadas na primeira mensagem. Se parecer amador, genérico ou de banco de imagem, REPROVE e diga o que melhorar.
-${n > 1 ? '8. CONTINUIDADE: mesmo sistema visual das outras imagens deste carrossel e o passo certo do roteiro (imagem ' + (i + 1) + ' de ' + n + ').' : ''}
-Se qualquer item falhar: "aprovada": false e liste cada falha, curta e específica (ex.: 'a palavra "propaganda" está escrita "propagnda"'). Em "textoLido" copie os textos que você leu na arte.`;
-  const corrigir = `A imagem ${i + 1} de ${n} NÃO passou na conferência. Problemas: {{problemas}}. Gere a imagem ${i + 1} DE NOVO corrigindo exatamente esses problemas, mantendo o mesmo estilo, a mesma paleta, o mesmo logotipo e o formato ${formato}, com os textos EXATAMENTE assim: ${textos}. Não faça perguntas: gere a imagem.`;
-  return { texto, corrigir, max: 2 };
+  /* CONFERÊNCIA PROPORCIONAL (2026-11-28): o ChatGPT reprovava arte boa por detalhe (margem de 6%, marca na embalagem do produto, "pequena diferença" de proporção ou de rótulo, brilho) e gastava
+     imagens em correções que às vezes pioravam a arte. Agora só BLOQUEIA o que é erro de verdade; o resto vira observação e não reprova. Na dúvida, aprova: a equipe revisa no site e pede o ajuste. */
+  const texto = `Confira esta arte (imagem ${i + 1} de ${n}) antes de ela ir para a aprovação da equipe. Responda SOMENTE com um JSON: {"aprovada": boolean, "problemas": string[], "observacoes": string[], "textoLido": string}.
+REPROVE (aprovada=false) SOMENTE se houver um destes ERROS GRAVES:
+1. TEXTO ERRADO: falta algum destes textos, há letra trocada, palavra cortada ou escrita errada, ou há texto extra inventado (${textos}).
+2. LOGOTIPO: não aparece ${logoDe}, ou aparece de outra marca, ou está tão distorcido que não se reconhece. Pequena diferença de proporção, de posição ou de acabamento NÃO reprova.
+3. LINHA ERRADA: ${linhaTxt}.
+4. REGRA DA AGÊNCIA descumprida: ${regras.length ? regras.join('; ') : 'não há regras extras, ignore este item'}.
+5. CONTEÚDO CORTADO: texto ou produto principal cortado pela borda da imagem, ou formato diferente de ${formato}.
+6. PRODUTO: embalagem muito deformada ou ilegível, ou medicamento de tarja/receita aparecendo.
+7. ARTE QUEBRADA: falhas visíveis de geração (rosto ou mão deformados, objetos fundidos, ilegível) ou aparência claramente amadora.
+NÃO REPROVE por: margem de segurança, marca ou nome que faz parte da embalagem de um produto, pequenas diferenças de rótulo ou tipografia da embalagem, brilho ou acabamento, tamanho do logotipo dentro do razoável, gosto de composição ou cor. Se notar algo assim, escreva em "observacoes" e mantenha aprovada=true.
+NA DÚVIDA, APROVE: uma pessoa da equipe ainda revisa e pede ajuste pelo site.
+Se reprovar, liste cada erro grave, curto e específico (ex.: 'a palavra "propaganda" está escrita "propagnda"'). Em "textoLido" copie os textos que você leu na arte.`;
+  const corrigir = `A imagem ${i + 1} de ${n} teve estes erros graves: {{problemas}}. Gere a imagem ${i + 1} DE NOVO corrigindo SOMENTE esses erros, sem mudar mais nada: mesmo estilo, mesma composição, mesma paleta, mesmo logotipo e formato ${formato}, com os textos EXATAMENTE assim: ${textos}. Não faça perguntas: gere a imagem.`;
+  return { texto, corrigir, max: 1 };                                                      /* no máximo UMA correção: mais que isso gasta imagem e costuma piorar */
 }
 
 /* uma mensagem por imagem, todas na mesma conversa para manter o estilo. Só a primeira leva os anexos */
@@ -188,7 +191,7 @@ ${textos}
 PRODUTOS: ${prod}
 CENA: ${cena}
 ANEXOS NESTA MENSAGEM: ${nomesAnexos}.
-NÃO FAÇA: promessa de cura ou de resultado, medicamento de tarja, pessoa famosa, marca de terceiros legível, texto extra, aparência de colagem barata.${kit.evitar ? ' Evite também: ' + kit.evitar + '.' : ''}` };
+NÃO FAÇA: promessa de cura ou de resultado, medicamento de tarja, pessoa famosa, logotipo de terceiros que não faça parte da embalagem dos produtos, texto extra, aparência de colagem barata. A marca que já está na embalagem de um produto real é permitida.${kit.evitar ? ' Evite também: ' + kit.evitar + '.' : ''}` };
     const anterior = plano[i - 1], proximo = plano[i + 1], elo = `Esta imagem vem depois de "${anterior.titulo || ''}"${proximo ? ` e antes de "${proximo.titulo || ''}"` : ' e encerra o carrossel'}. `;
     return { imagem: true, texto: `${roteiroBloco}Agora gere a imagem ${i + 1} de ${n} do MESMO ${nome}. ${elo} Mantenha exatamente o mesmo estilo, paleta, tipografia 3D, iluminação e o mesmo logotipo da imagem anterior (continuidade visual total). Formato ${formato}, margem de segurança de 6%. Não faça perguntas: gere a imagem.
 TEXTOS (EXATAMENTE assim, sem erro de ortografia e sem nenhum outro texto):
