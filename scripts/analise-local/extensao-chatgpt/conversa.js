@@ -74,8 +74,10 @@
   /* retrato curto da página para as mensagens de erro (o que o ChatGPT estava mostrando) */
   function retratoDaPagina() {
     try {
-      const av = [...document.querySelectorAll('[role="alert"], [role="dialog"], [role="status"]')].map(x => limpo(x.innerText)).filter(Boolean).join(' / ').slice(0, 160), rs = ACHA.respostas(), ult = rs.length ? limpo(rs[rs.length - 1].innerText).slice(-140) : '';
-      return ' [página: ' + (ACHA.parar() ? 'botão Parar visível' : 'sem botão Parar') + (ACHA.escrevendo() ? ', turno em andamento' : '') + (av ? ', aviso: ' + av : '') + (ult ? ', última resposta: "' + ult + '"' : '') + ']';
+      const av = [...document.querySelectorAll('[role="alert"], [role="dialog"], [role="status"]')].map(x => limpo(x.innerText)).filter(Boolean).join(' / ').slice(0, 70), rs = ACHA.respostas(), ult = rs.length ? limpo(rs[rs.length - 1].innerText).slice(0, 50) : '';
+      const c = ACHA.compositor(), env = [...document.querySelectorAll('button[data-testid="send-button"], form button[aria-label]')].filter(visivel).map(x => (x.getAttribute('aria-label') || x.getAttribute('data-testid')) + (x.disabled ? '(desab.)' : '')).join('/').slice(0, 60), suas = document.querySelectorAll('[data-conversation-role="user"], [data-message-author-role="user"]').length;
+      /* os dados mais úteis vêm primeiro: a mensagem de erro é cortada em ~300 caracteres */
+      return ' [campo ' + (c ? textoDoCampo(c).length + ' car.' : 'não achado') + '; botões ' + (env || 'nenhum') + '; suas ' + suas + '; respostas ' + rs.length + '; anexos ' + ACHA.anexos() + (ACHA.parar() ? '; Parar' : '') + (ACHA.escrevendo() ? '; turno em andamento' : '') + (av ? '; aviso "' + av + '"' : '') + (ult ? '; resposta: "' + ult + '"' : '') + ']';
     } catch (e) { return ''; }
   }
 
